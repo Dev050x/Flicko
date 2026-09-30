@@ -8,6 +8,7 @@ use anchor_spl::{
 
 use crate::{
     error::ErrorCode,
+    events::Trade,
     math::{curve_sell, pool_sell, to_u64, SellQuote},
     Config, Meme, Phase, CONFIG_SEED, MEME_SEED, SKR_VAULT_SEED, TOKEN_VAULT_SEED,
 };
@@ -182,6 +183,21 @@ impl<'info> Sell<'info> {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn emit_trade(&self, tokens_in: u64, quote: &SellQuote) -> Result<()> {
+        emit!(Trade {
+            meme: self.meme.key(),
+            trader: self.seller.key(),
+            is_buy: false,
+            skr_amount: quote.fees.net,
+            token_amount: tokens_in,
+            creator_fee: quote.fees.creator,
+            burned: quote.fees.burn,
+            price_after: self.meme.price()?,
+            phase: self.meme.phase,
+        });
         Ok(())
     }
 }

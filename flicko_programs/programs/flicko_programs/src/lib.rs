@@ -3,6 +3,7 @@
 
 pub mod constants;
 pub mod error;
+pub mod events;
 pub mod instructions;
 pub mod math;
 pub mod state;
@@ -35,11 +36,12 @@ pub mod flicko_programs {
         ctx.accounts
             .validate(&name, &symbol, &uri, supply, start_price)?;
         ctx.accounts.burn_creation_fee()?;
-        ctx.accounts.init_metadata(name, symbol, uri)?;
+        ctx.accounts.init_metadata(&name, &symbol, &uri)?;
         ctx.accounts.mint_supply(supply)?;
         ctx.accounts.revoke_authorities()?;
         ctx.accounts
-            .init_meme(image_hash, supply, start_price, &ctx.bumps)
+            .init_meme(image_hash, supply, start_price, &ctx.bumps)?;
+        ctx.accounts.emit_created(name, symbol, uri, start_price)
     }
 
     pub fn buy(ctx: Context<Buy>, skr_in: u64, min_tokens_out: u64) -> Result<()> {
@@ -47,7 +49,8 @@ pub mod flicko_programs {
         ctx.accounts.deposit_skr(&quote)?;
         ctx.accounts.burn_fee(&quote)?;
         ctx.accounts.send_tokens(&quote)?;
-        ctx.accounts.record_trade(&quote)
+        ctx.accounts.record_trade(&quote)?;
+        ctx.accounts.emit_events(&quote)
     }
 
     pub fn sell(ctx: Context<Sell>, tokens_in: u64, min_skr_out: u64) -> Result<()> {
@@ -55,12 +58,14 @@ pub mod flicko_programs {
         ctx.accounts.receive_tokens(tokens_in)?;
         ctx.accounts.pay_skr(&quote)?;
         ctx.accounts.burn_fee(&quote)?;
-        ctx.accounts.record_trade(tokens_in, &quote)
+        ctx.accounts.record_trade(tokens_in, &quote)?;
+        ctx.accounts.emit_trade(tokens_in, &quote)
     }
 
     pub fn claim_creator_fees(ctx: Context<ClaimCreatorFees>) -> Result<()> {
         ctx.accounts.validate()?;
         ctx.accounts.pay_creator()?;
+        ctx.accounts.emit_claimed()?;
         ctx.accounts.reset_fees()
     }
 }

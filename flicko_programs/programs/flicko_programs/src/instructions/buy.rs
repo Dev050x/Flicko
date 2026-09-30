@@ -9,6 +9,7 @@ use anchor_spl::{
 
 use crate::{
     error::ErrorCode,
+    events::{Graduated, Trade},
     math::{curve_buy, pool_buy, to_u64, BuyQuote},
     Config, Meme, Phase, CONFIG_SEED, MEME_SEED, SKR_VAULT_SEED, TOKEN_VAULT_SEED,
 };
@@ -202,6 +203,30 @@ impl<'info> Buy<'info> {
             }
         }
 
+        Ok(())
+    }
+
+    pub fn emit_events(&self, quote: &BuyQuote) -> Result<()> {
+        emit!(Trade {
+            meme: self.meme.key(),
+            trader: self.buyer.key(),
+            is_buy: true,
+            skr_amount: quote.fees.gross()?,
+            token_amount: quote.tokens_out,
+            creator_fee: quote.fees.creator,
+            burned: quote.fees.burn,
+            price_after: self.meme.price()?,
+            phase: self.meme.phase,
+        });
+
+        if quote.graduates {
+            emit!(Graduated {
+                meme: self.meme.key(),
+                pool_skr: self.meme.pool_skr,
+                pool_tokens: self.meme.pool_tokens,
+                graduated_at: Clock::get()?.unix_timestamp,
+            });
+        }
         Ok(())
     }
 }

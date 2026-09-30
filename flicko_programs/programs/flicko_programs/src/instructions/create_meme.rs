@@ -14,8 +14,9 @@ use anchor_spl::{
 };
 
 use crate::{
-    error::ErrorCode, math::launch_params, Config, Meme, Phase, CONFIG_SEED, MAX_NAME_LEN,
-    MAX_SYMBOL_LEN, MAX_URI_LEN, MEME_DECIMALS, MEME_SEED, SKR_VAULT_SEED, TOKEN_VAULT_SEED,
+    error::ErrorCode, events::MemeCreated, math::launch_params, Config, Meme, Phase, CONFIG_SEED,
+    MAX_NAME_LEN, MAX_SYMBOL_LEN, MAX_URI_LEN, MEME_DECIMALS, MEME_SEED, SKR_VAULT_SEED,
+    TOKEN_VAULT_SEED,
 };
 
 #[derive(Accounts)]
@@ -141,13 +142,13 @@ impl<'info> CreateMeme<'info> {
         burn(cpi_ctx, self.config.creation_fee)
     }
 
-    pub fn init_metadata(&self, name: String, symbol: String, uri: String) -> Result<()> {
+    pub fn init_metadata(&self, name: &str, symbol: &str, uri: &str) -> Result<()> {
         let metadata = TokenMetadata {
             update_authority: Some(self.meme.key()).try_into()?,
             mint: self.mint.key(),
-            name: name.clone(),
-            symbol: symbol.clone(),
-            uri: uri.clone(),
+            name: name.to_string(),
+            symbol: symbol.to_string(),
+            uri: uri.to_string(),
             additional_metadata: vec![],
         };
         let extra_space = metadata.tlv_size_of()?;
@@ -179,7 +180,12 @@ impl<'info> CreateMeme<'info> {
             },
         );
 
-        token_metadata_initialize(cpi_ctx, name, symbol, uri)
+        token_metadata_initialize(
+            cpi_ctx,
+            name.to_string(),
+            symbol.to_string(),
+            uri.to_string(),
+        )
     }
 
     pub fn mint_supply(&self, supply: u64) -> Result<()> {
@@ -239,6 +245,28 @@ impl<'info> CreateMeme<'info> {
             bump: bumps.meme,
         });
 
+        Ok(())
+    }
+
+    pub fn emit_created(
+        &self,
+        name: String,
+        symbol: String,
+        uri: String,
+        start_price: u64,
+    ) -> Result<()> {
+        emit!(MemeCreated {
+            meme: self.meme.key(),
+            mint: self.mint.key(),
+            creator: self.creator.key(),
+            name,
+            symbol,
+            uri,
+            image_hash: self.meme.image_hash,
+            total_supply: self.meme.total_supply,
+            start_price,
+            created_at: self.meme.created_at,
+        });
         Ok(())
     }
 }

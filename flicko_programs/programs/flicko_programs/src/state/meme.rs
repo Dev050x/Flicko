@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::{error::ErrorCode, math::to_u64, PRICE_SCALE};
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace, Debug)]
 pub enum Phase {
     Launch,
@@ -27,4 +29,18 @@ pub struct Meme {
     pub creator_fees: u64,
     pub created_at: i64,
     pub bump: u8,
+}
+
+impl Meme {
+    pub fn price(&self) -> Result<u64> {
+        let (skr, tokens) = match self.phase {
+            Phase::Launch => (self.curve_skr, self.curve_tokens),
+            Phase::Graduated => (self.pool_skr as u128, self.pool_tokens as u128),
+        };
+        to_u64(
+            skr.checked_mul(PRICE_SCALE)
+                .and_then(|v| v.checked_div(tokens))
+                .ok_or(ErrorCode::MathOverflow)?,
+        )
+    }
 }

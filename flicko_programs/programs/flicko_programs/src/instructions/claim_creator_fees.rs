@@ -3,7 +3,10 @@ use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
-use crate::{error::ErrorCode, Config, Meme, CONFIG_SEED, MEME_SEED, SKR_VAULT_SEED};
+use crate::{
+    error::ErrorCode, events::CreatorFeesClaimed, Config, Meme, CONFIG_SEED, MEME_SEED,
+    SKR_VAULT_SEED,
+};
 
 #[derive(Accounts)]
 pub struct ClaimCreatorFees<'info> {
@@ -69,6 +72,15 @@ impl<'info> ClaimCreatorFees<'info> {
         );
 
         transfer_checked(cpi_ctx, self.meme.creator_fees, self.skr_mint.decimals)
+    }
+
+    pub fn emit_claimed(&self) -> Result<()> {
+        emit!(CreatorFeesClaimed {
+            meme: self.meme.key(),
+            creator: self.creator.key(),
+            amount: self.meme.creator_fees,
+        });
+        Ok(())
     }
 
     pub fn reset_fees(&mut self) -> Result<()> {
