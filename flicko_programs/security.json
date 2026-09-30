@@ -1,0 +1,11 @@
+{
+  "name": "Flicko",
+  "logo": "https://raw.githubusercontent.com/Dev050x/Flicko/main/assets/flicko-pfp-400.jpg",
+  "description": "Snap it. Caption it. Trade it. Every photo becomes a memecoin priced in SKR, launched on a bonding curve and graduating into a locked AMM pool.",
+  "project_url": "https://github.com/Dev050x/Flicko",
+  "source_code": "https://github.com/Dev050x/Flicko",
+  "contacts": ["link:https://github.com/Dev050x/Flicko/issues"],
+  "policy": "https://github.com/Dev050x/Flicko/security",
+  "preferred_languages": ["en"],
+  "version": "0.1.0"
+}
