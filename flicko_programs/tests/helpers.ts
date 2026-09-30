@@ -136,9 +136,9 @@ export const traderTokenAccount = (mint: PublicKey) =>
   );
 
 /*
- * Sends create_meme with a fresh mint keypair and returns the mint.
+ * Sends create_meme with a fresh mint keypair and returns the mint and signature.
  */
-export const createMeme = async (
+export const createMemeTx = async (
   supply: BN,
   startPrice: BN,
   name = "Gm Ser",
@@ -149,7 +149,7 @@ export const createMeme = async (
   const mint = Keypair.generate();
   const { meme, tokenVault, skrVault } = memePdas(mint.publicKey);
 
-  await program.methods
+  const signature = await program.methods
     .createMeme(name, symbol, uri, [...imageHash], supply, startPrice)
     .accountsPartial({
       creator: creator.publicKey,
@@ -167,8 +167,11 @@ export const createMeme = async (
     .signers([creator, mint])
     .rpc({ commitment: "confirmed" });
 
-  return mint.publicKey;
+  return { mint: mint.publicKey, signature };
 };
+
+export const createMeme = async (...args: Parameters<typeof createMemeTx>) =>
+  (await createMemeTx(...args)).mint;
 
 /*
  * Sends buy for the trader.
@@ -180,7 +183,7 @@ export const buy = async (
 ) => {
   const { meme, tokenVault, skrVault } = memePdas(mint);
 
-  await program.methods
+  return program.methods
     .buy(skrIn, minTokensOut)
     .accountsPartial({
       buyer: trader.publicKey,
@@ -209,7 +212,7 @@ export const sell = async (
 ) => {
   const { meme, tokenVault, skrVault } = memePdas(mint);
 
-  await program.methods
+  return program.methods
     .sell(tokensIn, minSkrOut)
     .accountsPartial({
       seller: trader.publicKey,
@@ -238,7 +241,7 @@ export const claimCreatorFees = async (
 ) => {
   const { meme, skrVault } = memePdas(mint);
 
-  await program.methods
+  return program.methods
     .claimCreatorFees()
     .accountsPartial({
       creator: signer.publicKey,
@@ -310,4 +313,19 @@ export const quoteSell = (skrReserve: BN, tokenReserve: BN, tokensIn: BN) => {
   const k = skrReserve.mul(tokenReserve);
   const skrAfter = ceilDiv(k, tokenReserve.add(tokensIn));
   return { ...splitFees(skrReserve.sub(skrAfter)), skrAfter };
+};
+
+/*
+ * Reads a confirmed transaction and decodes the program events from its logs.
+ */
+export const eventsOf = async (signature: string) => {
+  const tx = await connection.getTransaction(signature, {
+    commitment: "confirmed",
+    maxSupportedTransactionVersion: 0,
+  });
+  const parser = new anchor.EventParser(
+    program.programId,
+    new anchor.BorshCoder(program.idl)
+  );
+  return [...parser.parseLogs(tx!.meta!.logMessages!)];
 };
