@@ -57,4 +57,10 @@ pub mod flicko_programs {
         ctx.accounts.burn_fee(&quote)?;
         ctx.accounts.record_trade(tokens_in, &quote)
     }
+
+    pub fn claim_creator_fees(ctx: Context<ClaimCreatorFees>) -> Result<()> {
+        ctx.accounts.validate()?;
+        ctx.accounts.pay_creator()?;
+        ctx.accounts.reset_fees()
+    }
 }

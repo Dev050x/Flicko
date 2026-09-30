@@ -24,4 +24,6 @@ pub enum ErrorCode {
     SlippageExceeded,
     #[msg("Not enough liquidity for this trade")]
     InsufficientLiquidity,
+    #[msg("No creator fees to claim")]
+    NothingToClaim,
 }
