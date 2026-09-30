@@ -49,4 +49,12 @@ pub mod flicko_programs {
         ctx.accounts.send_tokens(&quote)?;
         ctx.accounts.record_trade(&quote)
     }
+
+    pub fn sell(ctx: Context<Sell>, tokens_in: u64, min_skr_out: u64) -> Result<()> {
+        let quote = ctx.accounts.quote(tokens_in, min_skr_out)?;
+        ctx.accounts.receive_tokens(tokens_in)?;
+        ctx.accounts.pay_skr(&quote)?;
+        ctx.accounts.burn_fee(&quote)?;
+        ctx.accounts.record_trade(tokens_in, &quote)
+    }
 }

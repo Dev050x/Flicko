@@ -67,6 +67,13 @@ pub struct BuyQuote {
     pub graduates: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SellQuote {
+    pub fees: Fees,
+    pub skr_reserve: u128,
+    pub token_reserve: u128,
+}
+
 pub fn to_u64(value: u128) -> Result<u64> {
     u64::try_from(value).map_err(|_| ErrorCode::MathOverflow.into())
 }
@@ -201,6 +208,66 @@ pub fn pool_buy(
         skr_reserve: skr_after,
         token_reserve: tokens_after,
         graduates: false,
+    })
+}
+
+pub fn curve_sell(
+    curve_skr: u128,
+    curve_tokens: u128,
+    tokens_sold: u64,
+    tokens_in: u64,
+    creator_bps: u16,
+    burn_bps: u16,
+) -> Result<SellQuote> {
+    require!(tokens_in > 0, ErrorCode::ZeroAmount);
+    require!(tokens_in <= tokens_sold, ErrorCode::InsufficientLiquidity);
+    sell_against(curve_skr, curve_tokens, tokens_in, creator_bps, burn_bps)
+}
+
+pub fn pool_sell(
+    pool_skr: u64,
+    pool_tokens: u64,
+    tokens_in: u64,
+    creator_bps: u16,
+    burn_bps: u16,
+) -> Result<SellQuote> {
+    require!(tokens_in > 0, ErrorCode::ZeroAmount);
+    sell_against(
+        pool_skr as u128,
+        pool_tokens as u128,
+        tokens_in,
+        creator_bps,
+        burn_bps,
+    )
+}
+
+fn sell_against(
+    skr_reserve: u128,
+    token_reserve: u128,
+    tokens_in: u64,
+    creator_bps: u16,
+    burn_bps: u16,
+) -> Result<SellQuote> {
+    let k = skr_reserve
+        .checked_mul(token_reserve)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let tokens_after = token_reserve
+        .checked_add(tokens_in as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let skr_after = ceil_div(k, tokens_after)?;
+    let skr_out = to_u64(
+        skr_reserve
+            .checked_sub(skr_after)
+            .ok_or(ErrorCode::MathOverflow)?,
+    )?;
+
+    let fees = split_fees(skr_out, creator_bps, burn_bps)?;
+    require!(fees.net > 0, ErrorCode::ZeroAmount);
+
+    Ok(SellQuote {
+        fees,
+        skr_reserve: skr_after,
+        token_reserve: tokens_after,
     })
 }
 
@@ -428,5 +495,177 @@ mod tests {
         let p = launch();
         assert!(curve_buy(p.virtual_skr, p.virtual_tokens, p.sale_supply, 1, 200, 50).is_err());
         assert!(pool_buy(ONE, 10, 2, 0, 0).is_err());
+    }
+
+    #[test]
+    fn curve_sell_follows_constant_product() {
+        let p = launch();
+        let bought = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            500 * ONE,
+            200,
+            50,
+        )
+        .unwrap();
+        let tokens_in = bought.tokens_out / 2;
+        let q = curve_sell(
+            bought.skr_reserve,
+            bought.token_reserve,
+            bought.tokens_out,
+            tokens_in,
+            200,
+            50,
+        )
+        .unwrap();
+        let k = bought.skr_reserve * bought.token_reserve;
+        let tokens_after = bought.token_reserve + tokens_in as u128;
+        let skr_after = ceil_div(k, tokens_after).unwrap();
+        let skr_out = (bought.skr_reserve - skr_after) as u64;
+
+        assert_eq!(q.fees, split_fees(skr_out, 200, 50).unwrap());
+        assert_eq!(q.skr_reserve, skr_after);
+        assert_eq!(q.token_reserve, tokens_after);
+        assert!(q.skr_reserve * q.token_reserve >= k);
+    }
+
+    #[test]
+    fn buy_then_sell_never_returns_more_than_paid() {
+        let p = launch();
+        for skr_in in [ONE, 7 * ONE + 3, 250 * ONE, 3_399 * ONE] {
+            let b = curve_buy(
+                p.virtual_skr,
+                p.virtual_tokens,
+                p.sale_supply,
+                skr_in,
+                200,
+                50,
+            )
+            .unwrap();
+            let s = curve_sell(
+                b.skr_reserve,
+                b.token_reserve,
+                b.tokens_out,
+                b.tokens_out,
+                200,
+                50,
+            )
+            .unwrap();
+            assert!(s.fees.net < skr_in);
+            assert!(s.skr_reserve >= p.virtual_skr);
+
+            let b = pool_buy(3_200 * ONE, 200_000 * ONE, skr_in, 200, 50).unwrap();
+            let s = pool_sell(
+                to_u64(b.skr_reserve).unwrap(),
+                to_u64(b.token_reserve).unwrap(),
+                b.tokens_out,
+                200,
+                50,
+            )
+            .unwrap();
+            assert!(s.fees.net < skr_in);
+            assert!(s.skr_reserve >= 3_200 * ONE as u128);
+        }
+    }
+
+    #[test]
+    fn curve_sell_rejects_more_than_sold() {
+        let p = launch();
+        assert!(curve_sell(p.virtual_skr, p.virtual_tokens, 0, ONE, 200, 50).is_err());
+        assert!(curve_sell(p.virtual_skr, p.virtual_tokens, ONE, 0, 200, 50).is_err());
+    }
+
+    #[test]
+    fn sell_rejects_dust() {
+        let p = launch();
+        let b = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            100 * ONE,
+            200,
+            50,
+        )
+        .unwrap();
+        assert!(curve_sell(b.skr_reserve, b.token_reserve, b.tokens_out, 1, 200, 50).is_err());
+    }
+
+    #[test]
+    fn random_trades_keep_vault_solvent() {
+        let p = launch_params(1_000 * ONE, 1_000).unwrap();
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut next = |max: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % max + 1
+        };
+
+        let (mut curve_skr, mut curve_tokens) = (p.virtual_skr, p.virtual_tokens);
+        let (mut sold, mut real_skr) = (0u64, 0u64);
+        let (mut pool_skr, mut pool_tokens) = (0u64, 0u64);
+        let (mut vault, mut creator_fees, mut held) = (0u64, 0u64, 0u64);
+        let mut graduated = false;
+
+        for _ in 0..5_000 {
+            if held == 0 || next(2) == 1 {
+                let skr_in = next(ONE);
+                let q = if graduated {
+                    pool_buy(pool_skr, pool_tokens, skr_in, 200, 50)
+                } else {
+                    curve_buy(
+                        curve_skr,
+                        curve_tokens,
+                        p.sale_supply - sold,
+                        skr_in,
+                        200,
+                        50,
+                    )
+                };
+                let Ok(q) = q else { continue };
+                vault += q.fees.net + q.fees.creator;
+                creator_fees += q.fees.creator;
+                held += q.tokens_out;
+                if graduated {
+                    pool_skr = to_u64(q.skr_reserve).unwrap();
+                    pool_tokens = to_u64(q.token_reserve).unwrap();
+                } else {
+                    curve_skr = q.skr_reserve;
+                    curve_tokens = q.token_reserve;
+                    sold += q.tokens_out;
+                    real_skr = to_u64(curve_skr - p.virtual_skr).unwrap();
+                    if q.graduates {
+                        graduated = true;
+                        pool_skr = real_skr;
+                        pool_tokens = p.pool_supply;
+                    }
+                }
+            } else {
+                let tokens_in = next(held);
+                let q = if graduated {
+                    pool_sell(pool_skr, pool_tokens, tokens_in, 200, 50)
+                } else {
+                    curve_sell(curve_skr, curve_tokens, sold, tokens_in, 200, 50)
+                };
+                let Ok(q) = q else { continue };
+                vault -= q.fees.net + q.fees.burn;
+                creator_fees += q.fees.creator;
+                held -= tokens_in;
+                if graduated {
+                    pool_skr = to_u64(q.skr_reserve).unwrap();
+                    pool_tokens = to_u64(q.token_reserve).unwrap();
+                } else {
+                    curve_skr = q.skr_reserve;
+                    curve_tokens = q.token_reserve;
+                    sold -= tokens_in;
+                    real_skr = to_u64(curve_skr - p.virtual_skr).unwrap();
+                }
+            }
+
+            let reserve = if graduated { pool_skr } else { real_skr };
+            assert!(vault >= reserve + creator_fees);
+        }
+        assert!(graduated);
     }
 }

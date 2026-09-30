@@ -22,4 +22,6 @@ pub enum ErrorCode {
     ZeroAmount,
     #[msg("Slippage limit exceeded")]
     SlippageExceeded,
+    #[msg("Not enough liquidity for this trade")]
+    InsufficientLiquidity,
 }
