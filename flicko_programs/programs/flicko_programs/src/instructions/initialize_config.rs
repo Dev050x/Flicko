@@ -14,6 +14,22 @@ pub struct ConfigArgs {
     pub max_start_price: u64,
 }
 
+impl ConfigArgs {
+    pub fn validate(&self) -> Result<()> {
+        let fee_total = (self.creator_fee_bps as u32) + (self.burn_bps as u32);
+        require!(fee_total < BPS_DENOMINATOR as u32, ErrorCode::InvalidConfig);
+        require!(
+            self.min_supply > 0 && self.min_supply <= self.max_supply,
+            ErrorCode::InvalidConfig
+        );
+        require!(
+            self.min_start_price > 0 && self.min_start_price <= self.max_start_price,
+            ErrorCode::InvalidConfig
+        );
+        Ok(())
+    }
+}
+
 #[derive(Accounts)]
 pub struct InitializeConfig<'info> {
     #[account(mut)]
@@ -45,16 +61,7 @@ pub struct InitializeConfig<'info> {
 
 impl<'info> InitializeConfig<'info> {
     pub fn init_config(&mut self, args: ConfigArgs, bumps: &InitializeConfigBumps) -> Result<()> {
-        let fee_total = (args.creator_fee_bps as u32) + (args.burn_bps as u32);
-        require!(fee_total < BPS_DENOMINATOR as u32, ErrorCode::InvalidConfig);
-        require!(
-            args.min_supply > 0 && args.min_supply <= args.max_supply,
-            ErrorCode::InvalidConfig
-        );
-        require!(
-            args.min_start_price > 0 && args.min_start_price <= args.max_start_price,
-            ErrorCode::InvalidConfig
-        );
+        args.validate()?;
 
         self.config.set_inner(Config {
             admin: self.admin.key(),

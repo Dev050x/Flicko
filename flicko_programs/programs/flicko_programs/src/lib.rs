@@ -24,6 +24,10 @@ pub mod flicko_programs {
         ctx.accounts.init_config(args, &ctx.bumps)
     }
 
+    pub fn update_config(ctx: Context<UpdateConfig>, args: ConfigArgs) -> Result<()> {
+        ctx.accounts.update_config(args)
+    }
+
     pub fn create_meme(
         ctx: Context<CreateMeme>,
         name: String,
