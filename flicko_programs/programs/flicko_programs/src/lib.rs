@@ -19,7 +19,7 @@ declare_id!("4BfMnkmQheerNffcJtEusXxVC16uhGExrRevBLUcZgBD");
 pub mod flicko_programs {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        initialize::handler(ctx)
+    pub fn initialize_config(ctx: Context<InitializeConfig>, args: ConfigArgs) -> Result<()> {
+        ctx.accounts.init_config(args, &ctx.bumps)
     }
 }
