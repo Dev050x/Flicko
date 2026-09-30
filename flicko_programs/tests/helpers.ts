@@ -200,6 +200,35 @@ export const buy = async (
 };
 
 /*
+ * Sends sell for the trader.
+ */
+export const sell = async (
+  mint: PublicKey,
+  tokensIn: BN,
+  minSkrOut = new BN(0)
+) => {
+  const { meme, tokenVault, skrVault } = memePdas(mint);
+
+  await program.methods
+    .sell(tokensIn, minSkrOut)
+    .accountsPartial({
+      seller: trader.publicKey,
+      config: configPda,
+      skrMint: env.skrMint,
+      mint,
+      meme,
+      tokenVault,
+      skrVault,
+      sellerSkrAccount: env.traderSkr,
+      sellerTokenAccount: traderTokenAccount(mint),
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      skrTokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .signers([trader])
+    .rpc({ commitment: "confirmed" });
+};
+
+/*
  * Runs an async call that must fail and returns the anchor error code.
  */
 export const expectError = async (call: () => Promise<unknown>) => {
@@ -250,4 +279,10 @@ export const quoteBuy = (skrReserve: BN, tokenReserve: BN, skrIn: BN) => {
   const k = skrReserve.mul(tokenReserve);
   const tokensAfter = ceilDiv(k, skrReserve.add(fees.net));
   return { ...fees, tokensOut: tokenReserve.sub(tokensAfter) };
+};
+
+export const quoteSell = (skrReserve: BN, tokenReserve: BN, tokensIn: BN) => {
+  const k = skrReserve.mul(tokenReserve);
+  const skrAfter = ceilDiv(k, tokenReserve.add(tokensIn));
+  return { ...splitFees(skrReserve.sub(skrAfter)), skrAfter };
 };
