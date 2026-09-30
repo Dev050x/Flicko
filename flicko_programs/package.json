@@ -4,9 +4,6 @@
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
   },
-  "dependencies": {
-    "@coral-xyz/anchor": "^0.31.1"
-  },
   "devDependencies": {
     "@solana/spl-token": "^0.4.15",
     "@types/bn.js": "^5.1.0",
@@ -17,5 +14,8 @@
     "prettier": "^2.6.2",
     "ts-mocha": "^10.0.0",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@anchor-lang/core": "^1.2.0"
   }
 }

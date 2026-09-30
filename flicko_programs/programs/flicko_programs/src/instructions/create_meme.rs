@@ -130,7 +130,7 @@ impl<'info> CreateMeme<'info> {
         }
 
         let cpi_ctx = CpiContext::new(
-            self.skr_token_program.to_account_info(),
+            self.skr_token_program.key(),
             Burn {
                 mint: self.skr_mint.to_account_info(),
                 from: self.creator_skr_account.to_account_info(),
@@ -158,7 +158,7 @@ impl<'info> CreateMeme<'info> {
         if top_up > 0 {
             transfer(
                 CpiContext::new(
-                    self.system_program.to_account_info(),
+                    self.system_program.key(),
                     Transfer {
                         from: self.creator.to_account_info(),
                         to: mint_info.clone(),
@@ -169,7 +169,7 @@ impl<'info> CreateMeme<'info> {
         }
 
         let cpi_ctx = CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             TokenMetadataInitialize {
                 program_id: self.token_program.to_account_info(),
                 metadata: mint_info.clone(),
@@ -184,7 +184,7 @@ impl<'info> CreateMeme<'info> {
 
     pub fn mint_supply(&self, supply: u64) -> Result<()> {
         let cpi_ctx = CpiContext::new(
-            self.token_program.to_account_info(),
+            self.token_program.key(),
             MintTo {
                 mint: self.mint.to_account_info(),
                 to: self.token_vault.to_account_info(),
@@ -198,7 +198,7 @@ impl<'info> CreateMeme<'info> {
     pub fn revoke_authorities(&self) -> Result<()> {
         for authority_type in [AuthorityType::MintTokens, AuthorityType::MetadataPointer] {
             let cpi_ctx = CpiContext::new(
-                self.token_program.to_account_info(),
+                self.token_program.key(),
                 SetAuthority {
                     current_authority: self.creator.to_account_info(),
                     account_or_mint: self.mint.to_account_info(),
