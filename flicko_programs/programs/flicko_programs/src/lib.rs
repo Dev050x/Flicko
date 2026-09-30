@@ -9,12 +9,24 @@ pub mod math;
 pub mod state;
 
 use anchor_lang::prelude::*;
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
 
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
 declare_id!("4BfMnkmQheerNffcJtEusXxVC16uhGExrRevBLUcZgBD");
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "Flicko",
+    project_url: "https://github.com/Dev050x/Flicko",
+    contacts: "link:https://github.com/Dev050x/Flicko/issues",
+    policy: "https://github.com/Dev050x/Flicko/security",
+    preferred_languages: "en",
+    source_code: "https://github.com/Dev050x/Flicko"
+}
 
 #[program]
 pub mod flicko_programs {
