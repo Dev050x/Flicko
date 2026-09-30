@@ -9,6 +9,9 @@ skip-lint = false
 [programs.localnet]
 flicko_programs = "4BfMnkmQheerNffcJtEusXxVC16uhGExrRevBLUcZgBD"
 
+[programs.devnet]
+flicko_programs = "4BfMnkmQheerNffcJtEusXxVC16uhGExrRevBLUcZgBD"
+
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
