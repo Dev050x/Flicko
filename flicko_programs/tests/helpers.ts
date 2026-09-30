@@ -229,6 +229,31 @@ export const sell = async (
 };
 
 /*
+ * Sends claim_creator_fees, signed by the creator unless another wallet is given.
+ */
+export const claimCreatorFees = async (
+  mint: PublicKey,
+  signer: Keypair = creator,
+  skrAccount: PublicKey = env.creatorSkr
+) => {
+  const { meme, skrVault } = memePdas(mint);
+
+  await program.methods
+    .claimCreatorFees()
+    .accountsPartial({
+      creator: signer.publicKey,
+      config: configPda,
+      skrMint: env.skrMint,
+      meme,
+      skrVault,
+      creatorSkrAccount: skrAccount,
+      skrTokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .signers([signer])
+    .rpc({ commitment: "confirmed" });
+};
+
+/*
  * Runs an async call that must fail and returns the anchor error code.
  */
 export const expectError = async (call: () => Promise<unknown>) => {

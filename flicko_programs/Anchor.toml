@@ -14,7 +14,7 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/config.ts tests/create_meme.ts tests/buy.ts tests/sell.ts"
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/config.ts tests/create_meme.ts tests/buy.ts tests/sell.ts tests/claim_creator_fees.ts"
 
 [test]
 upgradeable = true
