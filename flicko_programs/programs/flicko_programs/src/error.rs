@@ -18,4 +18,8 @@ pub enum ErrorCode {
     Unauthorized,
     #[msg("Invalid mint")]
     InvalidMint,
+    #[msg("Amount is zero or too small to cover fees")]
+    ZeroAmount,
+    #[msg("Slippage limit exceeded")]
+    SlippageExceeded,
 }

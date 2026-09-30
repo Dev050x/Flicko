@@ -41,4 +41,12 @@ pub mod flicko_programs {
         ctx.accounts
             .init_meme(image_hash, supply, start_price, &ctx.bumps)
     }
+
+    pub fn buy(ctx: Context<Buy>, skr_in: u64, min_tokens_out: u64) -> Result<()> {
+        let quote = ctx.accounts.quote(skr_in, min_tokens_out)?;
+        ctx.accounts.deposit_skr(&quote)?;
+        ctx.accounts.burn_fee(&quote)?;
+        ctx.accounts.send_tokens(&quote)?;
+        ctx.accounts.record_trade(&quote)
+    }
 }

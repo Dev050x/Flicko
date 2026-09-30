@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::{error::ErrorCode, PRICE_SCALE};
+use crate::{error::ErrorCode, BPS_DENOMINATOR, PRICE_SCALE};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LaunchParams {
@@ -23,6 +23,10 @@ pub fn launch_params(supply: u64, start_price: u64) -> Result<LaunchParams> {
         .and_then(|v| v.checked_div(PRICE_SCALE))
         .ok_or(ErrorCode::MathOverflow)?;
     require!(virtual_skr > 0, ErrorCode::PriceOutOfRange);
+    virtual_skr
+        .checked_mul(virtual_tokens)
+        .ok_or(ErrorCode::MathOverflow)?;
+    to_u64(virtual_skr.checked_mul(4).ok_or(ErrorCode::MathOverflow)?)?;
 
     let sale_supply = s
         .checked_mul(4)
@@ -35,6 +39,168 @@ pub fn launch_params(supply: u64, start_price: u64) -> Result<LaunchParams> {
         virtual_skr,
         sale_supply: u64::try_from(sale_supply).map_err(|_| ErrorCode::MathOverflow)?,
         pool_supply: u64::try_from(pool_supply).map_err(|_| ErrorCode::MathOverflow)?,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fees {
+    pub creator: u64,
+    pub burn: u64,
+    pub net: u64,
+}
+
+impl Fees {
+    pub fn gross(&self) -> Result<u64> {
+        self.creator
+            .checked_add(self.burn)
+            .and_then(|v| v.checked_add(self.net))
+            .ok_or(ErrorCode::MathOverflow.into())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuyQuote {
+    pub fees: Fees,
+    pub tokens_out: u64,
+    pub skr_reserve: u128,
+    pub token_reserve: u128,
+    pub graduates: bool,
+}
+
+pub fn to_u64(value: u128) -> Result<u64> {
+    u64::try_from(value).map_err(|_| ErrorCode::MathOverflow.into())
+}
+
+pub fn ceil_div(numerator: u128, denominator: u128) -> Result<u128> {
+    require!(denominator > 0, ErrorCode::MathOverflow);
+    let quotient = numerator / denominator;
+    Ok(if numerator % denominator == 0 {
+        quotient
+    } else {
+        quotient + 1
+    })
+}
+
+pub fn fee(amount: u64, bps: u16) -> Result<u64> {
+    let scaled = (amount as u128)
+        .checked_mul(bps as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    to_u64(ceil_div(scaled, BPS_DENOMINATOR as u128)?)
+}
+
+pub fn split_fees(gross: u64, creator_bps: u16, burn_bps: u16) -> Result<Fees> {
+    let creator = fee(gross, creator_bps)?;
+    let burn = fee(gross, burn_bps)?;
+    let net = gross
+        .checked_sub(creator)
+        .and_then(|v| v.checked_sub(burn))
+        .ok_or(ErrorCode::ZeroAmount)?;
+    Ok(Fees { creator, burn, net })
+}
+
+pub fn fees_for_net(net: u64, creator_bps: u16, burn_bps: u16) -> Result<Fees> {
+    let keep = BPS_DENOMINATOR
+        .checked_sub(creator_bps)
+        .and_then(|v| v.checked_sub(burn_bps))
+        .filter(|v| *v > 0)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let mut gross = to_u64((net as u128) * (BPS_DENOMINATOR as u128) / (keep as u128))?;
+
+    loop {
+        let creator = fee(gross, creator_bps)?;
+        let burn = fee(gross, burn_bps)?;
+        let left = gross.saturating_sub(creator).saturating_sub(burn);
+        if left >= net {
+            return Ok(Fees {
+                creator,
+                burn,
+                net: left,
+            });
+        }
+        gross = gross.checked_add(1).ok_or(ErrorCode::MathOverflow)?;
+    }
+}
+
+pub fn curve_buy(
+    curve_skr: u128,
+    curve_tokens: u128,
+    tokens_left: u64,
+    skr_in: u64,
+    creator_bps: u16,
+    burn_bps: u16,
+) -> Result<BuyQuote> {
+    let fees = split_fees(skr_in, creator_bps, burn_bps)?;
+    require!(fees.net > 0, ErrorCode::ZeroAmount);
+
+    let k = curve_skr
+        .checked_mul(curve_tokens)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let skr_after = curve_skr
+        .checked_add(fees.net as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let tokens_after = ceil_div(k, skr_after)?;
+    let tokens_out = curve_tokens
+        .checked_sub(tokens_after)
+        .ok_or(ErrorCode::MathOverflow)?;
+
+    if tokens_out < tokens_left as u128 {
+        require!(tokens_out > 0, ErrorCode::ZeroAmount);
+        return Ok(BuyQuote {
+            fees,
+            tokens_out: to_u64(tokens_out)?,
+            skr_reserve: skr_after,
+            token_reserve: tokens_after,
+            graduates: false,
+        });
+    }
+
+    let token_reserve = curve_tokens
+        .checked_sub(tokens_left as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let skr_reserve = ceil_div(k, token_reserve)?;
+    let net = to_u64(
+        skr_reserve
+            .checked_sub(curve_skr)
+            .ok_or(ErrorCode::MathOverflow)?,
+    )?;
+
+    Ok(BuyQuote {
+        fees: fees_for_net(net, creator_bps, burn_bps)?,
+        tokens_out: tokens_left,
+        skr_reserve,
+        token_reserve,
+        graduates: true,
+    })
+}
+
+pub fn pool_buy(
+    pool_skr: u64,
+    pool_tokens: u64,
+    skr_in: u64,
+    creator_bps: u16,
+    burn_bps: u16,
+) -> Result<BuyQuote> {
+    let fees = split_fees(skr_in, creator_bps, burn_bps)?;
+    require!(fees.net > 0, ErrorCode::ZeroAmount);
+
+    let k = (pool_skr as u128)
+        .checked_mul(pool_tokens as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let skr_after = (pool_skr as u128)
+        .checked_add(fees.net as u128)
+        .ok_or(ErrorCode::MathOverflow)?;
+    let tokens_after = ceil_div(k, skr_after)?;
+    let tokens_out = (pool_tokens as u128)
+        .checked_sub(tokens_after)
+        .ok_or(ErrorCode::MathOverflow)?;
+    require!(tokens_out > 0, ErrorCode::ZeroAmount);
+
+    Ok(BuyQuote {
+        fees,
+        tokens_out: to_u64(tokens_out)?,
+        skr_reserve: skr_after,
+        token_reserve: tokens_after,
+        graduates: false,
     })
 }
 
@@ -84,12 +250,183 @@ mod tests {
     #[test]
     fn handles_u64_max_supply() {
         let supply = u64::MAX - (u64::MAX % 5);
-        assert!(launch_params(supply, 1_000_000_000).is_ok());
+        assert!(launch_params(supply, 1_000).is_ok());
     }
 
     #[test]
     fn rejects_overflowing_reserves() {
         let supply = u64::MAX - (u64::MAX % 5);
         assert!(launch_params(supply, u64::MAX).is_err());
+    }
+
+    fn launch() -> LaunchParams {
+        launch_params(1_000_000 * ONE, 1_000).unwrap()
+    }
+
+    #[test]
+    fn fee_rounds_up() {
+        assert_eq!(fee(0, 200).unwrap(), 0);
+        assert_eq!(fee(1, 200).unwrap(), 1);
+        assert_eq!(fee(10_000, 200).unwrap(), 200);
+        assert_eq!(fee(10_001, 200).unwrap(), 201);
+    }
+
+    #[test]
+    fn split_fees_adds_up_to_gross() {
+        for gross in [100u64, 12_345, 99 * ONE, 1_000_003] {
+            let fees = split_fees(gross, 200, 50).unwrap();
+            assert_eq!(fees.gross().unwrap(), gross);
+            assert_eq!(fees.creator, fee(gross, 200).unwrap());
+            assert_eq!(fees.burn, fee(gross, 50).unwrap());
+        }
+    }
+
+    #[test]
+    fn split_fees_rejects_dust() {
+        assert!(split_fees(1, 200, 50).is_err());
+    }
+
+    #[test]
+    fn fees_for_net_finds_smallest_gross() {
+        for net in 1u64..5_000 {
+            let fees = fees_for_net(net, 200, 50).unwrap();
+            let gross = fees.gross().unwrap();
+            assert_eq!(fees.net, net);
+            assert_eq!(split_fees(gross, 200, 50).unwrap(), fees);
+            if let Ok(smaller) = split_fees(gross - 1, 200, 50) {
+                assert!(smaller.net < net);
+            }
+        }
+    }
+
+    #[test]
+    fn curve_buy_follows_constant_product() {
+        let p = launch();
+        let skr_in = 100 * ONE;
+        let q = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            skr_in,
+            200,
+            50,
+        )
+        .unwrap();
+        let fees = split_fees(skr_in, 200, 50).unwrap();
+        let k = p.virtual_skr * p.virtual_tokens;
+        let skr_after = p.virtual_skr + fees.net as u128;
+        let tokens_after = ceil_div(k, skr_after).unwrap();
+
+        assert_eq!(q.fees, fees);
+        assert!(!q.graduates);
+        assert_eq!(q.tokens_out as u128, p.virtual_tokens - tokens_after);
+        assert_eq!(q.skr_reserve, skr_after);
+        assert_eq!(q.token_reserve, tokens_after);
+        assert!(q.skr_reserve * q.token_reserve >= k);
+    }
+
+    #[test]
+    fn curve_buy_rounds_in_pool_favour() {
+        let p = launch();
+        let mut skr = p.virtual_skr;
+        let mut tokens = p.virtual_tokens;
+        let mut sold = 0u64;
+        let k = skr * tokens;
+        for i in 1..200u64 {
+            let q = curve_buy(skr, tokens, p.sale_supply - sold, i * 7_919, 200, 50).unwrap();
+            skr = q.skr_reserve;
+            tokens = q.token_reserve;
+            sold += q.tokens_out;
+            assert!(skr * tokens >= k);
+            assert_eq!(tokens + sold as u128, p.virtual_tokens);
+        }
+    }
+
+    #[test]
+    fn sell_out_buy_fills_to_sale_supply_and_refunds() {
+        let p = launch();
+        let skr_in = 10_000 * ONE;
+        let q = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            skr_in,
+            200,
+            50,
+        )
+        .unwrap();
+        let real_skr = q.skr_reserve - p.virtual_skr;
+
+        assert!(q.graduates);
+        assert_eq!(q.tokens_out, p.sale_supply);
+        assert_eq!(q.token_reserve, p.virtual_tokens - p.sale_supply as u128);
+        assert_eq!(q.fees.net as u128, real_skr);
+        assert!(q.fees.gross().unwrap() < skr_in);
+        assert!(real_skr >= 3 * p.virtual_skr && real_skr <= 3 * p.virtual_skr + 1);
+    }
+
+    #[test]
+    fn exact_sell_out_amount_graduates() {
+        let p = launch();
+        let first = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            10_000 * ONE,
+            200,
+            50,
+        )
+        .unwrap();
+        let gross = first.fees.gross().unwrap();
+        let q = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            gross,
+            200,
+            50,
+        )
+        .unwrap();
+        assert!(q.graduates);
+        assert_eq!(q, first);
+    }
+
+    #[test]
+    fn pool_opens_at_sell_out_price() {
+        let p = launch();
+        let q = curve_buy(
+            p.virtual_skr,
+            p.virtual_tokens,
+            p.sale_supply,
+            10_000 * ONE,
+            200,
+            50,
+        )
+        .unwrap();
+        let real_skr = q.skr_reserve - p.virtual_skr;
+        let curve_price = q.skr_reserve * PRICE_SCALE / q.token_reserve;
+        let pool_price = real_skr * PRICE_SCALE / p.pool_supply as u128;
+        assert!(curve_price.abs_diff(pool_price) <= 1);
+        assert!(pool_price.abs_diff(16_000) <= 1);
+    }
+
+    #[test]
+    fn pool_buy_follows_constant_product() {
+        let skr_in = 50 * ONE;
+        let q = pool_buy(3_200 * ONE, 200_000 * ONE, skr_in, 200, 50).unwrap();
+        let fees = split_fees(skr_in, 200, 50).unwrap();
+        let k = (3_200 * ONE) as u128 * (200_000 * ONE) as u128;
+        let tokens_after = ceil_div(k, (3_200 * ONE + fees.net) as u128).unwrap();
+
+        assert_eq!(q.fees, fees);
+        assert_eq!(q.tokens_out as u128, (200_000 * ONE) as u128 - tokens_after);
+        assert!(q.skr_reserve * q.token_reserve >= k);
+    }
+
+    #[test]
+    fn buy_rejects_amount_too_small_for_tokens() {
+        let p = launch();
+        assert!(curve_buy(p.virtual_skr, p.virtual_tokens, p.sale_supply, 1, 200, 50).is_err());
+        assert!(pool_buy(ONE, 10, 2, 0, 0).is_err());
     }
 }
