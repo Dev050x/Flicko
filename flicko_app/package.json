@@ -8,9 +8,18 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
-    "sync-idl": "bun scripts/sync-idl.ts"
+    "sync-idl": "bun scripts/sync-idl.ts",
+    "devnet:skr": "bun scripts/create-test-skr.ts",
+    "devnet:init-config": "bun scripts/init-config.ts",
+    "devnet:setup": "bun scripts/create-test-skr.ts && bun scripts/init-config.ts"
   },
   "devDependencies": {
+    "@flicko/sdk": "workspace:*",
+    "@repo/typescript-config": "*",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "@types/bun": "latest",
+    "@types/node": "^26.4.1",
     "prettier": "3.9.6",
     "turbo": "^2.11.6",
     "typescript": "7.0.2"

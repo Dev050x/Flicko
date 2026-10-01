@@ -13,7 +13,7 @@ import {
 
 /*
  * Golden vectors produced by the program's own math.rs:
- *   cargo run -q --example math_vectors > src/fixtures/math-vectors.json   (see the "vectors" script)
+ *   cargo run -q --example math_vectors > src/math/fixtures/math-vectors.json   (see the "vectors" script)
  * Every entry is replayed here and must match exactly, including which error is raised.
  */
 
