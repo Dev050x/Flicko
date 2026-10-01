@@ -13,7 +13,9 @@ const files = [
 for (const [from, to] of files) {
   const source = join(programTarget, from);
   if (!existsSync(source)) {
-    console.error(`missing ${source}, run anchor build in flicko_programs first`);
+    console.error(
+      `missing ${source}, run anchor build in flicko_programs first`,
+    );
     process.exit(1);
   }
   copyFileSync(source, join(idlDir, to));
