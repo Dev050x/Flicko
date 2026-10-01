@@ -1,5 +1,5 @@
-import { BPS_DENOMINATOR, PRICE_SCALE } from "./constants";
-import type { FlickoProgramsErrorName } from "./idl/flicko_programs_errors";
+import { BPS_DENOMINATOR, PRICE_SCALE } from "../core/constants";
+import type { FlickoProgramsErrorName } from "../idl/flicko_programs_errors";
 
 export const U64_MAX = (1n << 64n) - 1n;
 export const U128_MAX = (1n << 128n) - 1n;

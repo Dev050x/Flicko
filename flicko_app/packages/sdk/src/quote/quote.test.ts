@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { BN } from "@anchor-lang/core";
 import { Keypair } from "@solana/web3.js";
-import { curveBuy, curveSell, launchParams, poolBuy, poolSell } from "./math";
+import {
+  curveBuy,
+  curveSell,
+  launchParams,
+  poolBuy,
+  poolSell,
+} from "../math/math";
 import {
   launchProgressBps,
   memePrice,

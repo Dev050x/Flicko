@@ -12,7 +12,7 @@ import {
   SystemProgram,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import idlJson from "./idl/flicko_programs.json";
+import idlJson from "../idl/flicko_programs.json";
 import {
   buyInstruction,
   claimCreatorFeesInstruction,
@@ -22,9 +22,9 @@ import {
   sellInstruction,
   updateConfigInstruction,
 } from "./builders";
-import { PROGRAM_ID } from "./constants";
-import { configPda, memeAccounts } from "./pda";
-import { getReadonlyProgram } from "./program";
+import { PROGRAM_ID } from "../core/constants";
+import { configPda, memeAccounts } from "../pda/pda";
+import { getReadonlyProgram } from "../core/program";
 
 /*
  * Builders never touch the network; the connection points nowhere on purpose.

@@ -5,7 +5,7 @@ import {
   PROGRAM_ID,
   SKR_VAULT_SEED,
   TOKEN_VAULT_SEED,
-} from "./constants";
+} from "../core/constants";
 
 const seed = (value: string) => Buffer.from(value);
 

@@ -3,10 +3,10 @@ export {
   FlickoProgramsErrorCode,
   type FlickoProgramsErrorName,
 } from "./idl/flicko_programs_errors";
-export { IDL } from "./idl";
-export * from "./constants";
-export * from "./pda";
-export * from "./program";
-export * from "./math";
-export * from "./quote";
-export * from "./builders";
+export { IDL } from "./core/idl";
+export * from "./core/constants";
+export * from "./pda/pda";
+export * from "./core/program";
+export * from "./math/math";
+export * from "./quote/quote";
+export * from "./builders/builders";

@@ -1,3 +1,3 @@
 packages/sdk/src/idl
-packages/sdk/src/fixtures
+packages/sdk/src/math/fixtures
 bun.lock

@@ -1,6 +1,6 @@
 import type { IdlAccounts } from "@anchor-lang/core";
-import { BPS_DENOMINATOR } from "./constants";
-import type { FlickoPrograms } from "./idl/flicko_programs";
+import { BPS_DENOMINATOR } from "../core/constants";
+import type { FlickoPrograms } from "../idl/flicko_programs";
 import {
   curveBuy,
   curveSell,
@@ -9,7 +9,7 @@ import {
   spotPrice,
   type BuyQuote,
   type SellQuote,
-} from "./math";
+} from "../math/math";
 
 export type MemeAccount = IdlAccounts<FlickoPrograms>["meme"];
 export type ConfigAccount = IdlAccounts<FlickoPrograms>["config"];

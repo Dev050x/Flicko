@@ -5,8 +5,8 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { configPda, memeAccounts } from "./pda";
-import type { FlickoProgram } from "./program";
+import { configPda, memeAccounts } from "../pda/pda";
+import type { FlickoProgram } from "../core/program";
 
 export const BPF_LOADER_UPGRADEABLE = new PublicKey(
   "BPFLoaderUpgradeab1e11111111111111111111111",

@@ -9,7 +9,7 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "test": "bun test",
-    "vectors": "cargo run -q --manifest-path ../../../flicko_programs/Cargo.toml -p flicko_programs --example math_vectors > src/fixtures/math-vectors.json"
+    "vectors": "cargo run -q --manifest-path ../../../flicko_programs/Cargo.toml -p flicko_programs --example math_vectors > src/math/fixtures/math-vectors.json"
   },
   "dependencies": {
     "@anchor-lang/core": "^1.2.0",
