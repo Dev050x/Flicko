@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Keypair, PublicKey } from "@solana/web3.js";
-import idlJson from "../idl/flicko_programs.json";
+import idlJson from "../src/idl/flicko_programs.json";
 import {
   CONFIG_SEED,
   MEME_DECIMALS,
@@ -8,8 +8,8 @@ import {
   PROGRAM_ID,
   SKR_VAULT_SEED,
   TOKEN_VAULT_SEED,
-} from "../core/constants";
-import { configPda, memeAccounts, memePda } from "./pda";
+} from "../src/core/constants";
+import { configPda, memeAccounts, memePda } from "../src/pda/pda";
 
 /*
  * The IDL stores byte-string constants as "[b1, b2, ...]" and numbers as strings.

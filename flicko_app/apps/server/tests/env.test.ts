@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseEnv } from "./env";
+import { parseEnv } from "../src/env";
 
 const base = {
   DATABASE_URL:

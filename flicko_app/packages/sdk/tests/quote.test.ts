@@ -7,7 +7,7 @@ import {
   launchParams,
   poolBuy,
   poolSell,
-} from "../math/math";
+} from "../src/math/math";
 import {
   launchProgressBps,
   memePrice,
@@ -19,7 +19,7 @@ import {
   type ConfigAccount,
   type MemeAccount,
   type MemeState,
-} from "./quote";
+} from "../src/quote/quote";
 
 const ONE = 1_000_000n;
 const fees = { creatorFeeBps: 200, burnBps: 50 };

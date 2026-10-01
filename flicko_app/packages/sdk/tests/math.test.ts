@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PRICE_SCALE } from "../core/constants";
+import { PRICE_SCALE } from "../src/core/constants";
 import {
   ceilDiv,
   curveBuy,
@@ -14,8 +14,8 @@ import {
   splitFees,
   toU64,
   U64_MAX,
-} from "./math";
-import type { FlickoProgramsErrorName } from "../idl/flicko_programs_errors";
+} from "../src/math/math";
+import type { FlickoProgramsErrorName } from "../src/idl/flicko_programs_errors";
 
 /*
  * Port of the #[cfg(test)] module in flicko_programs/.../src/math.rs.

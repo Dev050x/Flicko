@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import type { Server } from "node:http";
-import { createApp } from "../app";
+import { createApp } from "../src/app";
 
 /*
  * Starts the app on a random port with an injected database ping, so no Postgres is needed.
