@@ -9,6 +9,8 @@ import {
 import { createHash } from "crypto";
 import { expect } from "chai";
 import {
+  configArgs,
+  configPda,
   connection,
   createMeme,
   CREATION_FEE,
@@ -21,6 +23,8 @@ import {
   ONE,
   program,
   setup,
+  skrBalance,
+  skrSupply,
 } from "./helpers";
 
 describe("create_meme", () => {
@@ -141,6 +145,42 @@ describe("create_meme", () => {
       createMeme(new BN(1_000_000).mul(ONE).addn(1), new BN(1_000))
     );
     expect(code).to.equal("InvalidSupply");
+  });
+
+  it("charges only SOL when the creation fee is zero", async () => {
+    const setCreationFee = (creationFee: BN) =>
+      program.methods
+        .updateConfig({ ...configArgs, creationFee })
+        .accountsPartial({ config: configPda })
+        .rpc({ commitment: "confirmed" });
+
+    await setCreationFee(new BN(0));
+    const skrBefore = await skrBalance(env.creatorSkr);
+    const supplyBefore = await skrSupply();
+    const solBefore = await connection.getBalance(
+      creator.publicKey,
+      "confirmed"
+    );
+
+    const mint = await createMeme(new BN(1_000_000).mul(ONE), new BN(1_000));
+
+    /*
+     * No SKR is taken or burned; the creator only pays SOL for rent and fees.
+     */
+    expect((await skrBalance(env.creatorSkr)).toString()).to.equal(
+      skrBefore.toString()
+    );
+    expect((await skrSupply()).toString()).to.equal(supplyBefore.toString());
+    const solAfter = await connection.getBalance(
+      creator.publicKey,
+      "confirmed"
+    );
+    expect(solAfter).to.be.lessThan(solBefore);
+
+    const state = await program.account.meme.fetch(memePdas(mint).meme);
+    expect(state.phase).to.deep.equal({ launch: {} });
+
+    await setCreationFee(configArgs.creationFee);
   });
 
   it("rejects a symbol that is too long", async () => {
