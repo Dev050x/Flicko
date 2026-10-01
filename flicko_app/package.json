@@ -12,7 +12,8 @@
     "devnet:skr": "bun scripts/create-test-skr.ts",
     "devnet:init-config": "bun scripts/init-config.ts",
     "devnet:setup": "bun scripts/create-test-skr.ts && bun scripts/init-config.ts",
-    "devnet:faucet": "bun scripts/skr-faucet.ts"
+    "devnet:faucet": "bun scripts/skr-faucet.ts",
+    "devnet:smoke": "bun scripts/smoke-test.ts"
   },
   "devDependencies": {
     "@flicko/sdk": "workspace:*",
