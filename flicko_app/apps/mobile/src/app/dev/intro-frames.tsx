@@ -12,13 +12,23 @@ import { IntroScene, TIMELINE } from "@/components/intro/intro";
 
 /*
  * Dev preview of the intro: the keyframes frozen like the design board, plus a replay of
- * focus + snap at a chosen speed. Open from the home screen in development builds.
+ * the whole intro at a chosen speed. Open from the home screen in development builds.
  */
 const FRAMES = [
   { label: "1 · Focus", at: TIMELINE.pull },
   { label: "2 · Snap", at: TIMELINE.flashPeak },
-  { label: "3 · Trade", at: TIMELINE.reveal },
+  { label: "3 · Trade", at: TIMELINE.assembled },
   { label: "4 · Reveal", at: TIMELINE.end },
+];
+
+/*
+ * The trade step assembling, then the reveal halfway through the lift.
+ */
+const ASSEMBLY = [
+  { label: "Tile springs in", at: TIMELINE.stem },
+  { label: "Stem draws up", at: TIMELINE.crossbar },
+  { label: "Crossbar", at: TIMELINE.head },
+  { label: "Lifting", at: TIMELINE.reveal + 300 },
 ];
 
 const SPEEDS = [1, 0.5, 0.25];
@@ -38,12 +48,17 @@ export default function IntroFrames() {
           <Frame key={frame.label} {...frame} width={card} />
         ))}
       </View>
+      <View className="flex-row flex-wrap gap-4">
+        {ASSEMBLY.map((frame) => (
+          <Frame key={frame.label} {...frame} width={card} />
+        ))}
+      </View>
     </ScrollView>
   );
 }
 
 /*
- * Plays the focus and snap steps (splash out until the flash has faded) on a loop of taps.
+ * Replays the intro from the start on every tap.
  */
 function Replay({ width }: { width: number }) {
   const clock = useSharedValue<number>(TIMELINE.pull);
@@ -51,8 +66,8 @@ function Replay({ width }: { width: number }) {
 
   const play = () => {
     clock.value = 0;
-    clock.value = withTiming(TIMELINE.trade, {
-      duration: TIMELINE.trade / speed,
+    clock.value = withTiming(TIMELINE.end, {
+      duration: TIMELINE.end / speed,
       easing: Easing.linear,
     });
   };
@@ -62,13 +77,13 @@ function Replay({ width }: { width: number }) {
       <Pressable onPress={play}>
         <View
           className="overflow-hidden rounded-3xl bg-ink"
-          style={{ width, height: width * 1.1 }}
+          style={{ width, height: width * 1.6 }}
         >
           <IntroScene clock={clock} width={width} />
         </View>
       </Pressable>
       <View className="flex-row items-center gap-2">
-        <Text className="font-bold text-ink">Focus + Snap · tap to play</Text>
+        <Text className="font-bold text-ink">Intro · tap to play</Text>
         <View className="flex-1" />
         {SPEEDS.map((value) => (
           <Pressable

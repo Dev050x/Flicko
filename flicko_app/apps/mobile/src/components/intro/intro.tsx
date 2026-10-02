@@ -45,9 +45,13 @@ import { SplashFrame } from "./splash-frame";
 const shutter = require("../../../assets/sounds/shutter.wav");
 
 /*
- * Timeline (ms). The design's keyframes (focus, snap, trade, reveal) at a slower pace:
- * the splash fades out, the corners appear wide and hold, pull in with an ease-out and
- * lock on SNAP, where the flash bursts and fades.
+ * Timeline (ms). The design's keyframes at a slower pace:
+ * - focus: the splash fades out, the corners appear wide, hold, then ease into the icon;
+ * - snap: the corners lock and turn white while the flash bursts and fades;
+ * - trade: the logo assembles piece by piece: the tile springs in behind the corners,
+ *   the "f" stem draws upward, the crossbar draws across, the arrow head finishes it;
+ * - reveal: after a short hold the finished logo glides up and shrinks while the
+ *   wordmark and tagline fade up beneath it.
  */
 export const TIMELINE = {
   splashOut: 150,
@@ -56,21 +60,30 @@ export const TIMELINE = {
   snap: 750,
   flashPeak: 820,
   trade: 1150,
-  reveal: 1700,
-  end: 2250,
+  stem: 1450,
+  crossbar: 1720,
+  head: 1880,
+  assembled: 2080,
+  reveal: 2300,
+  wordmark: 2700,
+  tagline: 2800,
+  end: 3250,
 } as const;
 const {
   splashOut: SPLASH_OUT,
   appear: APPEAR,
   pull: PULL,
   snap: SNAP,
-} = TIMELINE;
-const {
   flashPeak: FLASH_PEAK,
-  trade: TRADE,
-  reveal: REVEAL,
-  end: END,
 } = TIMELINE;
+const { trade: TRADE, stem: STEM, crossbar: CROSSBAR } = TIMELINE;
+const { head: HEAD, assembled: ASSEMBLED, reveal: REVEAL } = TIMELINE;
+const { wordmark: WORDMARK, tagline: TAGLINE, end: END } = TIMELINE;
+
+/*
+ * The reveal motion runs from REVEAL to LIFTED; the text keeps fading in until END.
+ */
+const LIFTED = REVEAL + 600;
 const HOLD = 300;
 const FADE_OUT = 280;
 const REDUCED_FADE = 200;
@@ -89,7 +102,13 @@ const CANVAS = { min: -30, size: 160 };
 
 const easeOut = Easing.out(Easing.cubic);
 const easeInOut = Easing.inOut(Easing.cubic);
-const springy = Easing.out(Easing.back(1.7));
+/*
+ * Damped spring as a function of progress (0..1), settling at 1 with one soft overshoot.
+ */
+const spring = (t: number) => {
+  "worklet";
+  return 1 - Math.exp(-6 * t) * Math.cos(9 * t);
+};
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
@@ -262,7 +281,7 @@ function TradeGlow({
   const style = useAnimatedStyle(() => ({
     opacity: interpolate(
       clock.value,
-      [TRADE, TRADE + 200, REVEAL, REVEAL + 200],
+      [TRADE, TRADE + 250, REVEAL, LIFTED],
       [0, 1, 1, 0],
       "clamp",
     ),
@@ -292,17 +311,17 @@ function Icon({
   const canvas = tile * (CANVAS.size / 100);
 
   const lift = useAnimatedStyle(() => {
-    const t = easeInOut(progress(clock.value, REVEAL, END));
+    const t = easeInOut(progress(clock.value, REVEAL, LIFTED));
     return {
       transform: [{ translateY: -54 * u * t }, { scale: 1 - (20 / 96) * t }],
     };
   });
 
   const fill = useAnimatedStyle(() => {
-    const t = progress(clock.value, TRADE, REVEAL);
+    const t = progress(clock.value, TRADE, STEM + 150);
     return {
-      opacity: progress(clock.value, TRADE, TRADE + 100),
-      transform: [{ scale: 0.82 + 0.18 * springy(t) }],
+      opacity: progress(clock.value, TRADE, TRADE + 120),
+      transform: [{ scale: 0.55 + 0.45 * spring(t) }],
     };
   });
 
@@ -316,13 +335,11 @@ function Icon({
     const t = easeOut(progress(clock.value, from, to));
     return { strokeDashoffset: length * (1 - t), opacity: t > 0 ? 1 : 0 };
   };
-  const stem = useAnimatedProps(() =>
-    draw(TRADE + 50, TRADE + 380, STEM_LENGTH),
-  );
+  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR + 60, STEM_LENGTH));
   const crossbar = useAnimatedProps(() =>
-    draw(TRADE + 130, TRADE + 350, CROSSBAR_LENGTH),
+    draw(CROSSBAR, HEAD + 40, CROSSBAR_LENGTH),
   );
-  const head = useAnimatedProps(() => draw(TRADE + 360, REVEAL, HEAD_LENGTH));
+  const head = useAnimatedProps(() => draw(HEAD, ASSEMBLED, HEAD_LENGTH));
 
   return (
     <View style={styles.layer} pointerEvents="none">
@@ -424,11 +441,11 @@ function FocusCorner({
 function Reveal({ clock, u }: { clock: SharedValue<number>; u: number }) {
   const rise = (from: number) => {
     "worklet";
-    const t = easeOut(progress(clock.value, from, END));
+    const t = easeOut(progress(clock.value, from, from + 450));
     return { opacity: t, transform: [{ translateY: 12 * u * (1 - t) }] };
   };
-  const wordmark = useAnimatedStyle(() => rise(REVEAL + 150));
-  const tagline = useAnimatedStyle(() => rise(REVEAL + 250));
+  const wordmark = useAnimatedStyle(() => rise(WORDMARK));
+  const tagline = useAnimatedStyle(() => rise(TAGLINE));
 
   return (
     <>
