@@ -1,6 +1,13 @@
 import { launchParams, spotPrice } from "@flicko/sdk";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { candles, memes, positions, trades, uploads } from "../db/schema";
+import {
+  candles,
+  creatorClaims,
+  memes,
+  positions,
+  trades,
+  uploads,
+} from "../db/schema";
 import type { Db } from "../db/types";
 import type { FlickoEvent, Phase } from "./events";
 
@@ -225,8 +232,23 @@ const applyEvent = async (
         .where(eq(memes.memePda, event.meme));
       return event.meme;
     }
-    case "creatorFeesClaimed":
+    case "creatorFeesClaimed": {
+      const mint = await mintOf(tx, event.meme);
+      if (!mint) return null;
+      await tx
+        .insert(creatorClaims)
+        .values({
+          signature: source.signature,
+          eventIndex: index,
+          mint,
+          creator: event.creator,
+          amount: event.amount,
+          slot: source.slot,
+          blockTime: time,
+        })
+        .onConflictDoNothing();
       return null;
+    }
   }
 };
 

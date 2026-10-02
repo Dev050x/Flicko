@@ -15,6 +15,13 @@
       "when": 1790947678078,
       "tag": "0001_upload_details",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790959039705,
+      "tag": "0002_creator_claims",
+      "breakpoints": true
     }
   ]
 }

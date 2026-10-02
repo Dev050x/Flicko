@@ -121,6 +121,25 @@ export const positions = pgTable(
   ],
 );
 
+export const creatorClaims = pgTable(
+  "creator_claims",
+  {
+    signature: text("signature").notNull(),
+    eventIndex: integer("event_index").notNull(),
+    mint: text("mint")
+      .notNull()
+      .references(() => memes.mint),
+    creator: text("creator").notNull(),
+    amount: amount("amount").notNull(),
+    slot: bigint("slot", { mode: "number" }).notNull(),
+    blockTime: timestamp("block_time", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.signature, t.eventIndex] }),
+    index("creator_claims_mint_idx").on(t.mint),
+  ],
+);
+
 export const candles = pgTable(
   "candles",
   {

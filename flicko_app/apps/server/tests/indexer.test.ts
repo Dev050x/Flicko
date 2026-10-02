@@ -9,6 +9,7 @@ import { Connection } from "@solana/web3.js";
 import { eq } from "drizzle-orm";
 import {
   candles,
+  creatorClaims,
   indexerState,
   memes,
   positions,
@@ -150,6 +151,21 @@ describe("applying transactions", () => {
       [true, "5000000", "4852821094", "1009"],
       [false, "2381979", "2426410547", "1004"],
     ]);
+  });
+
+  test("records the creator fee claim once, matching the fees earned", async () => {
+    await applyAll();
+    await applyAll();
+    const claims = await db.select().from(creatorClaims);
+    const fees = await db.select({ fee: trades.creatorFee }).from(trades);
+    /*
+     * The smoke test claimed everything it earned, so one claim equals the sum of both trade fees.
+     */
+    expect(claims).toHaveLength(1);
+    expect(claims[0]).toMatchObject({ mint: MINT, creator: TRADER });
+    expect(claims[0]!.amount).toBe(
+      fees.reduce((sum, row) => sum + BigInt(row.fee), 0n).toString(),
+    );
   });
 
   test("tracks the position with average cost and realized pnl", async () => {
