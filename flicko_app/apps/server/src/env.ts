@@ -21,6 +21,8 @@ const schema = z.object({
   PROGRAM_ID: optional,
   SKR_MINT: optional,
   JWT_SECRET: optional,
+  SIWS_DOMAIN: z.string().default("flicko.app"),
+  SIWS_URI: z.url().default("https://flicko.app"),
   UPSTASH_REDIS_REST_URL: optional,
   UPSTASH_REDIS_REST_TOKEN: optional,
   AWS_REGION: optional,
