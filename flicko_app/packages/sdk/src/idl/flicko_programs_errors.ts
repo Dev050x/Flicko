@@ -11,7 +11,10 @@ export const FlickoProgramsErrorCode = {
   ZeroAmount: 6008,
   SlippageExceeded: 6009,
   InsufficientLiquidity: 6010,
-  NothingToClaim: 6011
+  NothingToClaim: 6011,
+  MissingAttestation: 6012,
+  InvalidAttestation: 6013,
+  AttestationExpired: 6014
 };
 
 export type FlickoProgramsErrorName = keyof typeof FlickoProgramsErrorCode;

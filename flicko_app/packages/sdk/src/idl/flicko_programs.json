@@ -358,6 +358,30 @@
           }
         },
         {
+          "name": "attestor",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
           "name": "skr_mint",
           "writable": true,
           "relations": [
@@ -489,6 +513,10 @@
         {
           "name": "start_price",
           "type": "u64"
+        },
+        {
+          "name": "expires_at",
+          "type": "i64"
         }
       ]
     },
@@ -706,6 +734,78 @@
       ]
     },
     {
+      "name": "set_attestor",
+      "discriminator": [
+        95,
+        11,
+        236,
+        157,
+        234,
+        146,
+        163,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestor",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "update_config",
       "discriminator": [
         29,
@@ -758,6 +858,19 @@
     }
   ],
   "accounts": [
+    {
+      "name": "Attestor",
+      "discriminator": [
+        253,
+        240,
+        76,
+        196,
+        16,
+        53,
+        239,
+        173
+      ]
+    },
     {
       "name": "Config",
       "discriminator": [
@@ -899,9 +1012,40 @@
       "code": 6011,
       "name": "NothingToClaim",
       "msg": "No creator fees to claim"
+    },
+    {
+      "code": 6012,
+      "name": "MissingAttestation",
+      "msg": "Missing the attestor signature instruction"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidAttestation",
+      "msg": "Attestor signature does not match this meme"
+    },
+    {
+      "code": 6014,
+      "name": "AttestationExpired",
+      "msg": "Attestation has expired"
     }
   ],
   "types": [
+    {
+      "name": "Attestor",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "Config",
       "type": {
@@ -1238,6 +1382,16 @@
     }
   ],
   "constants": [
+    {
+      "name": "ATTESTATION_PREFIX",
+      "type": "bytes",
+      "value": "[102, 108, 105, 99, 107, 111, 58, 99, 114, 101, 97, 116, 101, 58, 118, 49]"
+    },
+    {
+      "name": "ATTESTOR_SEED",
+      "type": "bytes",
+      "value": "[97, 116, 116, 101, 115, 116, 111, 114]"
+    },
     {
       "name": "CONFIG_SEED",
       "type": "bytes",

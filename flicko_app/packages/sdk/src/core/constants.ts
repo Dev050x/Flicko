@@ -7,6 +7,8 @@ export const CONFIG_SEED = "config";
 export const MEME_SEED = "meme";
 export const SKR_VAULT_SEED = "skr_vault";
 export const TOKEN_VAULT_SEED = "token_vault";
+export const ATTESTOR_SEED = "attestor";
+export const ATTESTATION_PREFIX = "flicko:create:v1";
 
 export const MEME_DECIMALS = 6;
 export const PRICE_SCALE = 1_000_000n;

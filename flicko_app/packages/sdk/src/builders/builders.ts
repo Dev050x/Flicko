@@ -4,8 +4,16 @@ import {
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { configPda, memeAccounts } from "../pda/pda";
+import {
+  PublicKey,
+  SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+} from "@solana/web3.js";
+import {
+  attestationInstruction,
+  type Attestation,
+} from "../attestation/attestation";
+import { attestorPda, configPda, memeAccounts } from "../pda/pda";
 import type { FlickoProgram } from "../core/program";
 
 export const BPF_LOADER_UPGRADEABLE = new PublicKey(
@@ -87,8 +95,23 @@ export interface CreateMemeParams {
   imageHash: Uint8Array | number[];
   supply: bigint;
   startPrice: bigint;
+  expiresAt: bigint | number;
   skrTokenProgram?: PublicKey;
 }
+
+export const setAttestorInstruction = (
+  program: FlickoProgram,
+  params: { admin: PublicKey; authority: PublicKey },
+) =>
+  program.methods
+    .setAttestor(params.authority)
+    .accountsPartial({
+      admin: params.admin,
+      config: configPda(program.programId),
+      attestor: attestorPda(program.programId),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
 
 export const createMemeInstruction = (
   program: FlickoProgram,
@@ -108,10 +131,13 @@ export const createMemeInstruction = (
       Array.from(params.imageHash),
       bn(params.supply),
       bn(params.startPrice),
+      bn(BigInt(params.expiresAt)),
     )
     .accountsPartial({
       creator: params.creator,
       config: configPda(program.programId),
+      attestor: attestorPda(program.programId),
+      instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
       skrMint: params.skrMint,
       creatorSkrAccount: skrTokenAccount(
         params.creator,
@@ -127,6 +153,20 @@ export const createMemeInstruction = (
       systemProgram: SystemProgram.programId,
     })
     .instruction();
+};
+
+export const createMemeInstructions = async (
+  program: FlickoProgram,
+  params: Omit<CreateMemeParams, "expiresAt"> & {
+    attestation: Pick<Attestation, "authority" | "signature" | "expiresAt">;
+  },
+) => {
+  const { attestation, ...rest } = params;
+  const full = { ...rest, expiresAt: attestation.expiresAt };
+  return [
+    attestationInstruction(full, attestation),
+    await createMemeInstruction(program, full),
+  ];
 };
 
 export interface TradeParams {

@@ -364,6 +364,30 @@ export type FlickoPrograms = {
           }
         },
         {
+          "name": "attestor",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "instructions",
+          "address": "Sysvar1nstructions1111111111111111111111111"
+        },
+        {
           "name": "skrMint",
           "writable": true,
           "relations": [
@@ -495,6 +519,10 @@ export type FlickoPrograms = {
         {
           "name": "startPrice",
           "type": "u64"
+        },
+        {
+          "name": "expiresAt",
+          "type": "i64"
         }
       ]
     },
@@ -712,6 +740,78 @@ export type FlickoPrograms = {
       ]
     },
     {
+      "name": "setAttestor",
+      "discriminator": [
+        95,
+        11,
+        236,
+        157,
+        234,
+        146,
+        163,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "attestor",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  111,
+                  114
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "updateConfig",
       "discriminator": [
         29,
@@ -764,6 +864,19 @@ export type FlickoPrograms = {
     }
   ],
   "accounts": [
+    {
+      "name": "attestor",
+      "discriminator": [
+        253,
+        240,
+        76,
+        196,
+        16,
+        53,
+        239,
+        173
+      ]
+    },
     {
       "name": "config",
       "discriminator": [
@@ -905,9 +1018,40 @@ export type FlickoPrograms = {
       "code": 6011,
       "name": "nothingToClaim",
       "msg": "No creator fees to claim"
+    },
+    {
+      "code": 6012,
+      "name": "missingAttestation",
+      "msg": "Missing the attestor signature instruction"
+    },
+    {
+      "code": 6013,
+      "name": "invalidAttestation",
+      "msg": "Attestor signature does not match this meme"
+    },
+    {
+      "code": 6014,
+      "name": "attestationExpired",
+      "msg": "Attestation has expired"
     }
   ],
   "types": [
+    {
+      "name": "attestor",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
     {
       "name": "config",
       "type": {
@@ -1244,6 +1388,16 @@ export type FlickoPrograms = {
     }
   ],
   "constants": [
+    {
+      "name": "attestationPrefix",
+      "type": "bytes",
+      "value": "[102, 108, 105, 99, 107, 111, 58, 99, 114, 101, 97, 116, 101, 58, 118, 49]"
+    },
+    {
+      "name": "attestorSeed",
+      "type": "bytes",
+      "value": "[97, 116, 116, 101, 115, 116, 111, 114]"
+    },
     {
       "name": "configSeed",
       "type": "bytes",

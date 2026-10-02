@@ -1,5 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import {
+  ATTESTOR_SEED,
   CONFIG_SEED,
   MEME_SEED,
   PROGRAM_ID,
@@ -11,6 +12,9 @@ const seed = (value: string) => Buffer.from(value);
 
 export const configPda = (programId: PublicKey = PROGRAM_ID) =>
   PublicKey.findProgramAddressSync([seed(CONFIG_SEED)], programId)[0];
+
+export const attestorPda = (programId: PublicKey = PROGRAM_ID) =>
+  PublicKey.findProgramAddressSync([seed(ATTESTOR_SEED)], programId)[0];
 
 export const memePda = (mint: PublicKey, programId: PublicKey = PROGRAM_ID) =>
   PublicKey.findProgramAddressSync(
