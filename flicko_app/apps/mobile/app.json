@@ -30,13 +30,18 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 168
         }
-      ],
-      "expo-audio"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "backgroundColor": "#0E0B14"
+    "backgroundColor": "#0E0B14",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "105750e2-e91c-4d97-8c34-ccf9c444a617"
+      }
+    }
   }
 }
