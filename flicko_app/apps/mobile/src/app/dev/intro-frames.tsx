@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -58,23 +58,29 @@ export default function IntroFrames() {
 }
 
 /*
- * Replays the intro from the start on every tap.
+ * Plays the intro when the screen opens; Play, a speed or a tap on the preview replays it.
  */
 function Replay({ width }: { width: number }) {
-  const clock = useSharedValue<number>(TIMELINE.pull);
-  const [speed, setSpeed] = useState(0.5);
+  const clock = useSharedValue<number>(0);
+  const [speed, setSpeed] = useState(1);
 
-  const play = () => {
+  const play = (rate = speed) => {
     clock.value = 0;
     clock.value = withTiming(TIMELINE.end, {
-      duration: TIMELINE.end / speed,
+      duration: TIMELINE.end / rate,
       easing: Easing.linear,
     });
   };
 
+  useEffect(() => {
+    play();
+    // Plays once when the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <View className="gap-3">
-      <Pressable onPress={play}>
+      <Pressable onPress={() => play()}>
         <View
           className="overflow-hidden rounded-3xl bg-ink"
           style={{ width, height: width * 1.6 }}
@@ -83,12 +89,20 @@ function Replay({ width }: { width: number }) {
         </View>
       </Pressable>
       <View className="flex-row items-center gap-2">
-        <Text className="font-bold text-ink">Intro · tap to play</Text>
+        <Pressable
+          onPress={() => play()}
+          className="rounded-full bg-pink px-5 py-2"
+        >
+          <Text className="font-bold text-white">Play</Text>
+        </Pressable>
         <View className="flex-1" />
         {SPEEDS.map((value) => (
           <Pressable
             key={value}
-            onPress={() => setSpeed(value)}
+            onPress={() => {
+              setSpeed(value);
+              play(value);
+            }}
             className={`rounded-full px-3 py-1 ${speed === value ? "bg-ink" : "bg-white"}`}
           >
             <Text

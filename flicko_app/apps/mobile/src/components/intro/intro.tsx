@@ -1,6 +1,5 @@
-import { useAudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet,
@@ -12,6 +11,7 @@ import Animated, {
   Easing,
   interpolate,
   useAnimatedProps,
+  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -38,8 +38,6 @@ import { Glow } from "@/components/brand/glow";
 import { TileFill } from "@/components/brand/logo-tile";
 import { Wordmark } from "@/components/brand/wordmark";
 import { SplashFrame } from "./splash-frame";
-
-const shutter = require("../../../assets/sounds/shutter.wav");
 
 /*
  * Timeline (ms). The design's keyframes at a slower pace:
@@ -132,7 +130,6 @@ export function Intro({
 }) {
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
-  const player = useAudioPlayer(shutter);
   const clock = useSharedValue(0);
   const fade = useSharedValue(reduceMotion ? 0 : 1);
   const exit = useSharedValue(1);
@@ -172,8 +169,6 @@ export function Intro({
 
     const snap = setTimeout(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-      player.volume = 0.6;
-      player.play();
     }, SNAP);
     return () => clearTimeout(snap);
     // Plays once on mount.
@@ -283,7 +278,10 @@ function Icon({
   const lift = useAnimatedStyle(() => {
     const t = easeInOut(progress(clock.value, REVEAL, LIFTED));
     return {
-      transform: [{ translateY: -54 * u * t }, { scale: 1 - (20 / 96) * t }],
+      transform: [
+        { translateY: -LOCKUP.lift * u * t },
+        { scale: 1 - ((96 - LOCKUP.tile) / 96) * t },
+      ],
     };
   });
 
@@ -299,21 +297,6 @@ function Icon({
     ...corners(clock.value, -1),
     opacity: progress(clock.value, SNAP, SNAP + 50),
   }));
-
-  /*
-   * Each stroke grows from its start; hidden until it begins so the round cap
-   * does not show as a dot.
-   */
-  const draw = (from: number, to: number, path: (f: number) => string) => {
-    "worklet";
-    const t = easeOut(progress(clock.value, from, to));
-    return { d: path(t), opacity: t > 0 ? 1 : 0 };
-  };
-  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR, partialStem));
-  const crossbar = useAnimatedProps(() =>
-    draw(CROSSBAR, HEAD, partialCrossbar),
-  );
-  const head = useAnimatedProps(() => draw(HEAD, ASSEMBLED, partialHead));
 
   return (
     <View style={styles.layer} pointerEvents="none">
@@ -342,13 +325,8 @@ function Icon({
                 />
               ))}
               <AnimatedPath stroke="#fff" animatedProps={lockedCorners} />
-              {[stem, crossbar, head].map((props, i) => (
-                <AnimatedPath
-                  key={i}
-                  stroke="#fff"
-                  strokeWidth={GLYPH_STROKE}
-                  animatedProps={props}
-                />
+              {GLYPH_STROKES.map((stroke, part) => (
+                <GlyphStroke key={part} clock={clock} part={part} />
               ))}
             </G>
           </Svg>
@@ -379,6 +357,58 @@ const corners = (clock: number, corner: number) => {
 };
 
 /*
+ * The "f" strokes in drawing order (stem, crossbar, arrow head) with when each one draws.
+ */
+const GLYPH_STROKES = [
+  { from: STEM, to: CROSSBAR },
+  { from: CROSSBAR, to: HEAD },
+  { from: HEAD, to: ASSEMBLED },
+];
+
+/*
+ * Stroke `part` of the "f" drawn up to fraction `f`.
+ */
+const glyphPath = (part: number, f: number) => {
+  "worklet";
+  if (part === 0) return partialStem(f);
+  if (part === 1) return partialCrossbar(f);
+  return partialHead(f);
+};
+
+/*
+ * Frame 3: one stroke of the "f" growing from its start. The UI thread reports progress
+ * and the stroke renders as a plain Path, which Android draws reliably. Hidden until it
+ * begins so the round cap does not show as a dot.
+ */
+function GlyphStroke({
+  clock,
+  part,
+}: {
+  clock: SharedValue<number>;
+  part: number;
+}) {
+  const { from, to } = GLYPH_STROKES[part]!;
+  const [t, setT] = useState(0);
+  useAnimatedReaction(
+    () => Math.round(easeOut(progress(clock.value, from, to)) * 100) / 100,
+    (next, previous) => {
+      if (next !== previous) scheduleOnRN(setT, next);
+    },
+  );
+  if (t <= 0) return null;
+  return (
+    <Path
+      d={glyphPath(part, t)}
+      stroke="#fff"
+      strokeWidth={GLYPH_STROKE}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+    />
+  );
+}
+
+/*
  * Frame 1: one solid-coloured corner. It fades in wide after the splash and hands over
  * to the white corners on SNAP.
  */
@@ -402,31 +432,73 @@ function FocusCorner({
 
 /*
  * Frame 4: wordmark (34px, top at +4px from centre) and tagline (13px, +58px) fade up.
+ * These positions are shared with the home screen so the hand-off is seamless.
  */
-function Reveal({ clock, u }: { clock: SharedValue<number>; u: number }) {
-  const rise = (from: number) => {
-    "worklet";
-    const t = easeOut(progress(clock.value, from, from + 450));
-    return { opacity: t, transform: [{ translateY: 12 * u * (1 - t) }] };
-  };
-  const wordmark = useAnimatedStyle(() => rise(WORDMARK));
-  const tagline = useAnimatedStyle(() => rise(TAGLINE));
+export const LOCKUP = {
+  lift: 54,
+  tile: 76,
+  wordmarkTop: 4,
+  wordmarkSize: 34,
+  wordmarkSpacing: -1.2,
+  taglineTop: 58,
+  taglineSize: 13,
+} as const;
 
+function Reveal({ clock, u }: { clock: SharedValue<number>; u: number }) {
   return (
     <>
-      <View style={[styles.below, { marginTop: 4 * u }]} pointerEvents="none">
-        <Animated.View style={wordmark}>
-          <Wordmark size={34 * u} letterSpacing={-1.2 * u} />
-        </Animated.View>
-      </View>
-      <View style={[styles.below, { marginTop: 58 * u }]} pointerEvents="none">
-        <Animated.View style={tagline}>
-          <Text className="font-sans text-haze" style={{ fontSize: 13 * u }}>
-            Snap it. Caption it. Trade it.
-          </Text>
-        </Animated.View>
-      </View>
+      <RevealLine
+        clock={clock}
+        from={WORDMARK}
+        top={LOCKUP.wordmarkTop * u}
+        u={u}
+      >
+        <Wordmark
+          size={LOCKUP.wordmarkSize * u}
+          letterSpacing={LOCKUP.wordmarkSpacing * u}
+        />
+      </RevealLine>
+      <RevealLine
+        clock={clock}
+        from={TAGLINE}
+        top={LOCKUP.taglineTop * u}
+        u={u}
+      >
+        <Text
+          className="font-sans text-haze"
+          style={{ fontSize: LOCKUP.taglineSize * u }}
+        >
+          Snap it. Caption it. Trade it.
+        </Text>
+      </RevealLine>
     </>
+  );
+}
+
+/*
+ * One line of the reveal: fades in and rises 12px over 450ms starting at `from`.
+ */
+function RevealLine({
+  clock,
+  from,
+  top,
+  u,
+  children,
+}: {
+  clock: SharedValue<number>;
+  from: number;
+  top: number;
+  u: number;
+  children: React.ReactNode;
+}) {
+  const style = useAnimatedStyle(() => {
+    const t = easeOut(progress(clock.value, from, from + 450));
+    return { opacity: t, transform: [{ translateY: 12 * u * (1 - t) }] };
+  });
+  return (
+    <View style={[styles.below, { marginTop: top }]} pointerEvents="none">
+      <Animated.View style={style}>{children}</Animated.View>
+    </View>
   );
 }
 
