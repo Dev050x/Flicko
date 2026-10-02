@@ -8,8 +8,10 @@ import {
 import {
   Connection,
   Keypair,
+  Ed25519Program,
   PublicKey,
   SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import idlJson from "../src/idl/flicko_programs.json";
@@ -17,13 +19,16 @@ import {
   buyInstruction,
   claimCreatorFeesInstruction,
   createMemeInstruction,
+  createMemeInstructions,
   initializeConfigInstruction,
+  setAttestorInstruction,
   programDataAddress,
   sellInstruction,
   updateConfigInstruction,
 } from "../src/builders/builders";
 import { PROGRAM_ID } from "../src/core/constants";
-import { configPda, memeAccounts } from "../src/pda/pda";
+import { attestationMessage } from "../src/attestation/attestation";
+import { attestorPda, configPda, memeAccounts } from "../src/pda/pda";
 import { getReadonlyProgram } from "../src/core/program";
 
 /*
@@ -121,10 +126,13 @@ describe("instruction builders", () => {
       imageHash: new Uint8Array(32).fill(7),
       supply: 1_000_000_000_000n,
       startPrice: 1_000n,
+      expiresAt: 1_800_000_000n,
     });
     expectInstruction(ix, "create_meme", {
       creator: user,
       config: configPda(),
+      attestor: attestorPda(),
+      instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
       skr_mint: skrMint,
       creator_skr_account: userSkr,
       mint,
@@ -134,6 +142,55 @@ describe("instruction builders", () => {
       token_program: TOKEN_2022_PROGRAM_ID,
       skr_token_program: TOKEN_PROGRAM_ID,
     });
+  });
+
+  test("set_attestor writes the attestor PDA", async () => {
+    const ix = await setAttestorInstruction(program, {
+      admin: user,
+      authority: skrMint,
+    });
+    expectInstruction(ix, "set_attestor", {
+      admin: user,
+      config: configPda(),
+      attestor: attestorPda(),
+      system_program: SystemProgram.programId,
+    });
+  });
+
+  test("create_meme instructions put the attestor signature first", async () => {
+    const signer = Keypair.generate();
+    const fields = {
+      creator: user,
+      imageHash: new Uint8Array(32).fill(7),
+      expiresAt: 1_800_000_000,
+      name: "Gm Ser",
+      symbol: "GMSER",
+      uri: "https://example.com/gm.json",
+    };
+    const signed = Ed25519Program.createInstructionWithPrivateKey({
+      privateKey: signer.secretKey,
+      message: attestationMessage(fields),
+    });
+    const signature = Buffer.from(signed.data.subarray(48, 112)).toString(
+      "base64",
+    );
+    const [verify, create] = await createMemeInstructions(program, {
+      ...fields,
+      mint,
+      skrMint,
+      supply: 1_000_000_000_000n,
+      startPrice: 1_000n,
+      attestation: {
+        authority: signer.publicKey.toBase58(),
+        signature,
+        expiresAt: fields.expiresAt,
+      },
+    });
+    expect(verify!.programId.equals(Ed25519Program.programId)).toBe(true);
+    expect(Buffer.from(verify!.data).equals(Buffer.from(signed.data))).toBe(
+      true,
+    );
+    expect(create!.programId.equals(PROGRAM_ID)).toBe(true);
   });
 
   test("buy uses the trader's associated token accounts", async () => {
