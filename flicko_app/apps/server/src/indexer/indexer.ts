@@ -13,6 +13,10 @@ export interface IndexerDeps {
   catchUpMs?: number;
   retryMs?: number;
   log?: (message: string) => void;
+  onApplied?: (
+    fresh: FlickoEvent[],
+    blockTime: number | null,
+  ) => Promise<unknown>;
 }
 
 export const createIndexer = (deps: IndexerDeps) => {
@@ -70,6 +74,11 @@ export const createIndexer = (deps: IndexerDeps) => {
     );
     await saveProgress(signature, tx.slot);
     done.add(signature);
+    if (deps.onApplied && result.fresh.length) {
+      deps.onApplied(result.fresh, tx.blockTime).catch((err) => {
+        log(`notify failed for ${signature}: ${(err as Error).message}`);
+      });
+    }
     if (result.events) log(`indexed ${signature} (${result.events} events)`);
   };
 

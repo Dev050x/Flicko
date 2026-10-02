@@ -111,6 +111,7 @@ export const positions = pgTable(
     balance: amount("balance").notNull().default("0"),
     costBasisSkr: amount("cost_basis_skr").notNull().default("0"),
     realizedPnlSkr: signedAmount("realized_pnl_skr").notNull().default("0"),
+    notifiedGainBps: integer("notified_gain_bps").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

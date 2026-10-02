@@ -22,6 +22,13 @@
       "when": 1790959039705,
       "tag": "0002_creator_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790960941109,
+      "tag": "0003_position_gain_alerts",
+      "breakpoints": true
     }
   ]
 }

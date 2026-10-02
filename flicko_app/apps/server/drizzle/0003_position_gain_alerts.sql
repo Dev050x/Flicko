@@ -1,0 +1,1 @@
+ALTER TABLE "positions" ADD COLUMN "notified_gain_bps" integer DEFAULT 0 NOT NULL;

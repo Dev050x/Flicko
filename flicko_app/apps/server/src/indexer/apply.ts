@@ -1,5 +1,5 @@
 import { launchParams, spotPrice } from "@flicko/sdk";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   candles,
   creatorClaims,
@@ -107,6 +107,7 @@ const updatePosition = async (tx: Tx, mint: string, event: TradeEvent) => {
     costBasisSkr: cost.toString(),
     realizedPnlSkr: realized.toString(),
     updatedAt: new Date(),
+    ...(balance === 0n ? { notifiedGainBps: 0 } : {}),
   };
   await tx
     .insert(positions)
@@ -156,6 +157,7 @@ const applyEvent = async (
   index: number,
   source: ChainTransaction,
   time: Date,
+  fresh: FlickoEvent[],
 ) => {
   switch (event.kind) {
     case "memeCreated": {
@@ -206,6 +208,7 @@ const applyEvent = async (
         .onConflictDoNothing()
         .returning({ signature: trades.signature });
       if (!inserted.length) return null;
+      fresh.push(event);
 
       await tx
         .update(memes)
@@ -221,7 +224,7 @@ const applyEvent = async (
       return event.meme;
     }
     case "graduated": {
-      await tx
+      const updated = await tx
         .update(memes)
         .set({
           phase: "graduated",
@@ -229,7 +232,9 @@ const applyEvent = async (
           poolTokens: event.poolTokens,
           graduatedAt: new Date(event.graduatedAt * 1000),
         })
-        .where(eq(memes.memePda, event.meme));
+        .where(and(eq(memes.memePda, event.meme), isNull(memes.graduatedAt)))
+        .returning({ mint: memes.mint });
+      if (updated.length) fresh.push(event);
       return event.meme;
     }
     case "creatorFeesClaimed": {
@@ -256,15 +261,18 @@ export const applyTransaction = async (
   deps: ApplyDeps,
   source: ChainTransaction,
 ) => {
-  if (source.err) return { events: 0, touched: [] as string[] };
+  if (source.err) {
+    return { events: 0, touched: [] as string[], fresh: [] as FlickoEvent[] };
+  }
 
   const events = deps.decode(source.logs);
   const time = new Date((source.blockTime ?? Date.now() / 1000) * 1000);
   const touched = new Set<string>();
+  const fresh: FlickoEvent[] = [];
 
   await deps.db.transaction(async (tx) => {
     for (const [index, event] of events.entries()) {
-      const meme = await applyEvent(tx, event, index, source, time);
+      const meme = await applyEvent(tx, event, index, source, time, fresh);
       if (meme) touched.add(meme);
     }
   });
@@ -276,5 +284,5 @@ export const applyTransaction = async (
     }
   }
 
-  return { events: events.length, touched: [...touched] };
+  return { events: events.length, touched: [...touched], fresh };
 };
