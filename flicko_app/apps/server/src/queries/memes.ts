@@ -1,0 +1,269 @@
+import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { candles, memes, positions, trades, users } from "../db/schema";
+import type { Db } from "../db/types";
+
+export type FeedTab = "new" | "trending" | "gainers";
+export type CandleInterval = (typeof candles.interval.enumValues)[number];
+
+export interface MemeCard {
+  mint: string;
+  name: string;
+  symbol: string;
+  uri: string;
+  imageUrl: string | null;
+  creator: string;
+  creatorUsername: string | null;
+  phase: "launch" | "graduated";
+  price: string;
+  priceChange24hBps: number;
+  volume24h: string;
+  tradeCount: number;
+  launchProgressBps: number;
+  createdAt: string;
+}
+
+export interface MemeDetail extends MemeCard {
+  memePda: string;
+  imageHash: string;
+  captionTop: string | null;
+  captionBottom: string | null;
+  totalSupply: string;
+  startPrice: string;
+  tokensSold: string;
+  saleSupply: string;
+  realSkr: string;
+  poolSkr: string;
+  poolTokens: string;
+  holders: number;
+  marketCap: string;
+  hidden: boolean;
+  graduatedAt: string | null;
+  lastTradeAt: string | null;
+}
+
+export interface Candle {
+  time: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+  trades: number;
+}
+
+export interface TradeRow {
+  signature: string;
+  trader: string;
+  isBuy: boolean;
+  skrAmount: string;
+  tokenAmount: string;
+  priceAfter: string;
+  phase: "launch" | "graduated";
+  blockTime: string;
+}
+
+const TOKEN_UNIT = 1_000_000n;
+
+const saleSupplyOf = (totalSupply: string) => (BigInt(totalSupply) * 4n) / 5n;
+
+const progressBps = (
+  phase: string,
+  tokensSold: string,
+  totalSupply: string,
+) => {
+  if (phase === "graduated") return 10_000;
+  const sale = saleSupplyOf(totalSupply);
+  if (sale === 0n) return 0;
+  const bps = (BigInt(tokensSold) * 10_000n) / sale;
+  return Number(bps < 0n ? 0n : bps > 10_000n ? 10_000n : bps);
+};
+
+const volumeSub = (db: Db) =>
+  db
+    .select({
+      mint: trades.mint,
+      volume24h: sql<string>`sum(${trades.skrAmount})`.as("volume24h"),
+    })
+    .from(trades)
+    .where(gt(trades.blockTime, sql`now() - interval '24 hours'`))
+    .groupBy(trades.mint)
+    .as("v");
+
+const referencePrice = sql`coalesce((select ${trades.priceAfter} from ${trades}
+  where ${trades.mint} = ${memes.mint} and ${trades.blockTime} <= now() - interval '24 hours'
+  order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${memes.startPrice})`;
+
+const changeBps = sql`(case when ${referencePrice} = 0 then 0
+  else trunc((${memes.price} - ${referencePrice}) * 10000 / ${referencePrice}) end)`;
+
+const cardQuery = (db: Db) => {
+  const volume = volumeSub(db);
+  const volume24h = sql`coalesce(${volume.volume24h}, 0)`;
+  const query = db
+    .select({
+      mint: memes.mint,
+      memePda: memes.memePda,
+      creator: memes.creator,
+      creatorUsername: users.username,
+      name: memes.name,
+      symbol: memes.symbol,
+      uri: memes.uri,
+      imageUrl: memes.imageUrl,
+      imageHash: memes.imageHash,
+      captionTop: memes.captionTop,
+      captionBottom: memes.captionBottom,
+      totalSupply: memes.totalSupply,
+      startPrice: memes.startPrice,
+      phase: memes.phase,
+      price: memes.price,
+      tokensSold: memes.tokensSold,
+      realSkr: memes.realSkr,
+      poolSkr: memes.poolSkr,
+      poolTokens: memes.poolTokens,
+      tradeCount: memes.tradeCount,
+      hidden: memes.hidden,
+      createdAt: memes.createdAt,
+      graduatedAt: memes.graduatedAt,
+      lastTradeAt: memes.lastTradeAt,
+      volume24h: sql<string>`${volume24h}::text`,
+      priceChange24hBps: sql<string>`${changeBps}::text`,
+    })
+    .from(memes)
+    .leftJoin(users, eq(users.wallet, memes.creator))
+    .leftJoin(volume, eq(volume.mint, memes.mint));
+  return { query, volume24h };
+};
+
+type CardRow = Awaited<ReturnType<typeof cardQuery>["query"]>[number];
+
+const toCard = (row: CardRow): MemeCard => ({
+  mint: row.mint,
+  name: row.name,
+  symbol: row.symbol,
+  uri: row.uri,
+  imageUrl: row.imageUrl,
+  creator: row.creator,
+  creatorUsername: row.creatorUsername,
+  phase: row.phase,
+  price: row.price,
+  priceChange24hBps: Number(row.priceChange24hBps),
+  volume24h: row.volume24h,
+  tradeCount: row.tradeCount,
+  launchProgressBps: progressBps(row.phase, row.tokensSold, row.totalSupply),
+  createdAt: row.createdAt.toISOString(),
+});
+
+export const listFeed = async (
+  db: Db,
+  tab: FeedTab,
+  limit: number,
+  offset: number,
+): Promise<MemeCard[]> => {
+  const { query, volume24h } = cardQuery(db);
+  const order = {
+    new: [desc(memes.createdAt), asc(memes.mint)],
+    trending: [
+      desc(volume24h),
+      desc(memes.tradeCount),
+      desc(memes.createdAt),
+      asc(memes.mint),
+    ],
+    gainers: [desc(changeBps), desc(volume24h), asc(memes.mint)],
+  }[tab];
+  const rows = await query
+    .where(eq(memes.hidden, false))
+    .orderBy(...order)
+    .limit(limit)
+    .offset(offset);
+  return rows.map(toCard);
+};
+
+export const memeExists = async (db: Db, mint: string) => {
+  const [row] = await db
+    .select({ mint: memes.mint })
+    .from(memes)
+    .where(eq(memes.mint, mint));
+  return row !== undefined;
+};
+
+export const getMeme = async (
+  db: Db,
+  mint: string,
+): Promise<MemeDetail | null> => {
+  const [row] = await cardQuery(db).query.where(eq(memes.mint, mint));
+  if (!row) return null;
+  const [holders] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(positions)
+    .where(and(eq(positions.mint, mint), gt(positions.balance, "0")));
+  return {
+    ...toCard(row),
+    memePda: row.memePda,
+    imageHash: row.imageHash,
+    captionTop: row.captionTop,
+    captionBottom: row.captionBottom,
+    totalSupply: row.totalSupply,
+    startPrice: row.startPrice,
+    tokensSold: row.tokensSold,
+    saleSupply: saleSupplyOf(row.totalSupply).toString(),
+    realSkr: row.realSkr,
+    poolSkr: row.poolSkr,
+    poolTokens: row.poolTokens,
+    holders: holders?.n ?? 0,
+    marketCap: (
+      (BigInt(row.price) * BigInt(row.totalSupply)) /
+      TOKEN_UNIT
+    ).toString(),
+    hidden: row.hidden,
+    graduatedAt: row.graduatedAt?.toISOString() ?? null,
+    lastTradeAt: row.lastTradeAt?.toISOString() ?? null,
+  };
+};
+
+export const listCandles = async (
+  db: Db,
+  mint: string,
+  interval: CandleInterval,
+  limit: number,
+): Promise<Candle[]> => {
+  const rows = await db
+    .select()
+    .from(candles)
+    .where(and(eq(candles.mint, mint), eq(candles.interval, interval)))
+    .orderBy(desc(candles.bucketStart))
+    .limit(limit);
+  return rows.reverse().map((row) => ({
+    time: row.bucketStart.toISOString(),
+    open: row.open,
+    high: row.high,
+    low: row.low,
+    close: row.close,
+    volume: row.volumeSkr,
+    trades: row.trades,
+  }));
+};
+
+export const listTrades = async (
+  db: Db,
+  mint: string,
+  limit: number,
+  offset: number,
+): Promise<TradeRow[]> => {
+  const rows = await db
+    .select()
+    .from(trades)
+    .where(eq(trades.mint, mint))
+    .orderBy(desc(trades.slot), desc(trades.eventIndex))
+    .limit(limit)
+    .offset(offset);
+  return rows.map((row) => ({
+    signature: row.signature,
+    trader: row.trader,
+    isBuy: row.isBuy,
+    skrAmount: row.skrAmount,
+    tokenAmount: row.tokenAmount,
+    priceAfter: row.priceAfter,
+    phase: row.phase,
+    blockTime: row.blockTime.toISOString(),
+  }));
+};
