@@ -6,9 +6,12 @@ import {
   getTokenMetadata,
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
+import { ComputeBudgetProgram, Keypair } from "@solana/web3.js";
 import { createHash } from "crypto";
 import { expect } from "chai";
 import {
+  attestationIx,
+  attestationMessage,
   configArgs,
   configPda,
   connection,
@@ -22,6 +25,7 @@ import {
   MIN_SUPPLY,
   ONE,
   program,
+  type AttestationOptions,
   setup,
   skrBalance,
   skrSupply,
@@ -193,5 +197,90 @@ describe("create_meme", () => {
       )
     );
     expect(code).to.equal("InvalidMetadata");
+  });
+});
+
+describe("create_meme attestation", () => {
+  before(setup);
+
+  const SUPPLY = new BN(1_000_000).mul(ONE);
+  const PRICE = new BN(1_000);
+  const create = (options: AttestationOptions) =>
+    createMeme(
+      SUPPLY,
+      PRICE,
+      "Gm Ser",
+      "GMSER",
+      "https://r2.flicko.app/memes/gm-ser.json",
+      createHash("sha256").update("gm-ser.jpg").digest(),
+      options
+    );
+
+  it("rejects create_meme without the attestor signature", async () => {
+    const code = await expectError(() => create({ preInstructions: () => [] }));
+    expect(code).to.equal("MissingAttestation");
+  });
+
+  it("rejects a signature from any key other than the attestor", async () => {
+    const code = await expectError(() =>
+      create({
+        preInstructions: (message) => [
+          attestationIx(message, Keypair.generate()),
+        ],
+      })
+    );
+    expect(code).to.equal("InvalidAttestation");
+  });
+
+  it("rejects an attestation for different metadata", async () => {
+    const code = await expectError(() =>
+      create({
+        preInstructions: () => [
+          attestationIx(
+            attestationMessage(
+              creator.publicKey,
+              createHash("sha256").update("gm-ser.jpg").digest(),
+              new BN(Math.floor(Date.now() / 1000) + 600),
+              "Gm Ser",
+              "GMSER",
+              "https://evil.example/other.json"
+            )
+          ),
+        ],
+      })
+    );
+    expect(code).to.equal("InvalidAttestation");
+  });
+
+  it("rejects an attestation made for another creator", async () => {
+    const code = await expectError(() =>
+      create({
+        preInstructions: (message) => {
+          const forged = Buffer.from(message);
+          Keypair.generate().publicKey.toBuffer().copy(forged, 16);
+          return [attestationIx(forged)];
+        },
+      })
+    );
+    expect(code).to.equal("InvalidAttestation");
+  });
+
+  it("rejects an expired attestation", async () => {
+    const code = await expectError(() =>
+      create({ expiresAt: new BN(Math.floor(Date.now() / 1000) - 60) })
+    );
+    expect(code).to.equal("AttestationExpired");
+  });
+
+  it("requires the signature instruction right before create_meme", async () => {
+    const code = await expectError(() =>
+      create({
+        preInstructions: (message) => [
+          attestationIx(message),
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+        ],
+      })
+    );
+    expect(code).to.equal("MissingAttestation");
   });
 });

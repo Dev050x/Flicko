@@ -2,6 +2,8 @@ import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
 import {
   admin,
+  attestor,
+  attestorPda,
   configArgs,
   configPda,
   connection,
@@ -140,5 +142,34 @@ describe("update_config", () => {
       })
     );
     expect(code).to.equal("InvalidConfig");
+  });
+});
+
+describe("set_attestor", () => {
+  before(setup);
+
+  const setAttestor = (authority: Keypair["publicKey"], signer = admin) =>
+    program.methods
+      .setAttestor(authority)
+      .accountsPartial({
+        admin: signer.publicKey,
+        config: configPda,
+        attestor: attestorPda,
+      })
+      .signers(signer === admin ? [] : [signer])
+      .rpc({ commitment: "confirmed" });
+
+  it("rejects set_attestor from someone other than the admin", async () => {
+    const code = await expectError(() => setAttestor(trader.publicKey, trader));
+    expect(code).to.equal("Unauthorized");
+  });
+
+  it("lets the admin set and rotate the attestor", async () => {
+    await setAttestor(Keypair.generate().publicKey);
+    await setAttestor(attestor.publicKey);
+    const account = await program.account.attestor.fetch(attestorPda);
+    expect(account.authority.toBase58()).to.equal(
+      attestor.publicKey.toBase58()
+    );
   });
 });

@@ -11,10 +11,13 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
+  Ed25519Program,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  TransactionInstruction,
 } from "@solana/web3.js";
 import { createHash } from "crypto";
 import { expect } from "chai";
@@ -58,6 +61,12 @@ export const [programData] = PublicKey.findProgramAddressSync(
 
 export const creator = Keypair.generate();
 export const trader = Keypair.generate();
+export const attestor = Keypair.generate();
+
+export const [attestorPda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("attestor")],
+  program.programId
+);
 
 /*
  * Accounts created once by setup() and shared by every test file.
@@ -136,7 +145,44 @@ export const traderTokenAccount = (mint: PublicKey) =>
   );
 
 /*
+ * Mirrors the program's attestation message:
+ * prefix | creator | image hash | expires_at (i64 LE) | len-prefixed name, symbol, uri.
+ */
+export const attestationMessage = (
+  creatorKey: PublicKey,
+  imageHash: Buffer,
+  expiresAt: BN,
+  name: string,
+  symbol: string,
+  uri: string
+) =>
+  Buffer.concat([
+    Buffer.from("flicko:create:v1"),
+    creatorKey.toBuffer(),
+    imageHash,
+    expiresAt.toTwos(64).toArrayLike(Buffer, "le", 8),
+    ...[name, symbol, uri].map((field) => {
+      const bytes = Buffer.from(field);
+      return Buffer.concat([Buffer.from([bytes.length]), bytes]);
+    }),
+  ]);
+
+export const attestationIx = (message: Buffer, signer: Keypair = attestor) =>
+  Ed25519Program.createInstructionWithPrivateKey({
+    privateKey: signer.secretKey,
+    message,
+  });
+
+export const inTenMinutes = () => new BN(Math.floor(Date.now() / 1000) + 600);
+
+export interface AttestationOptions {
+  expiresAt?: BN;
+  preInstructions?: (message: Buffer) => TransactionInstruction[];
+}
+
+/*
  * Sends create_meme with a fresh mint keypair and returns the mint and signature.
+ * By default the attestor signs the exact meme right before create_meme.
  */
 export const createMemeTx = async (
   supply: BN,
@@ -144,16 +190,38 @@ export const createMemeTx = async (
   name = "Gm Ser",
   symbol = "GMSER",
   uri = "https://r2.flicko.app/memes/gm-ser.json",
-  imageHash = createHash("sha256").update("gm-ser.jpg").digest()
+  imageHash = createHash("sha256").update("gm-ser.jpg").digest(),
+  options: AttestationOptions = {}
 ) => {
   const mint = Keypair.generate();
   const { meme, tokenVault, skrVault } = memePdas(mint.publicKey);
+  const expiresAt = options.expiresAt ?? inTenMinutes();
+  const message = attestationMessage(
+    creator.publicKey,
+    imageHash,
+    expiresAt,
+    name,
+    symbol,
+    uri
+  );
+  const pre = options.preInstructions?.(message) ?? [attestationIx(message)];
 
   const signature = await program.methods
-    .createMeme(name, symbol, uri, [...imageHash], supply, startPrice)
+    .createMeme(
+      name,
+      symbol,
+      uri,
+      [...imageHash],
+      supply,
+      startPrice,
+      expiresAt
+    )
+    .preInstructions(pre)
     .accountsPartial({
       creator: creator.publicKey,
       config: configPda,
+      attestor: attestorPda,
+      instructions: SYSVAR_INSTRUCTIONS_PUBKEY,
       skrMint: env.skrMint,
       creatorSkrAccount: env.creatorSkr,
       mint: mint.publicKey,
