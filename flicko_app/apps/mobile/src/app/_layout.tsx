@@ -16,7 +16,6 @@ import { View } from "react-native";
 
 import { colors } from "@/brand/logo";
 import { Intro } from "@/components/intro/intro";
-import { markIntroSeen, useFirstLaunch } from "@/lib/first-launch";
 
 SplashScreen.preventAutoHideAsync();
 /*
@@ -33,18 +32,17 @@ export default function RootLayout() {
     DMSans_500Medium,
     DMSans_700Bold,
   });
-  const firstLaunch = useFirstLaunch();
   const [introDone, setIntroDone] = useState(false);
   const devScreen = usePathname().startsWith("/dev");
-  const ready = (fontsLoaded || fontError !== null) && firstLaunch !== null;
+  const ready = fontsLoaded || fontError !== null;
 
   useEffect(() => {
     if (ready && devScreen) SplashScreen.hide();
   }, [ready, devScreen]);
 
   /*
-   * The native splash stays up until fonts and the first-launch flag are loaded; the intro
-   * then takes over from the same frame while the app renders underneath it.
+   * The native splash stays up until the fonts load; the intro then plays over the app,
+   * which renders underneath it.
    */
   return (
     <View className="flex-1 bg-ink">
@@ -60,12 +58,8 @@ export default function RootLayout() {
       )}
       {ready && !introDone && !devScreen && (
         <Intro
-          full={firstLaunch}
           onStart={() => SplashScreen.hide()}
-          onDone={() => {
-            if (firstLaunch) markIntroSeen();
-            setIntroDone(true);
-          }}
+          onDone={() => setIntroDone(true)}
         />
       )}
     </View>

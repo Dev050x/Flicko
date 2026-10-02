@@ -37,11 +37,11 @@ import { BrandDefs } from "@/components/brand/brand-defs";
 import { Glow } from "@/components/brand/glow";
 import { TileFill } from "@/components/brand/logo-tile";
 import { Wordmark } from "@/components/brand/wordmark";
-import { SplashFrame } from "./splash-frame";
 
 /*
  * Timeline (ms). The design's keyframes at a slower pace:
- * - focus: the splash fades out, the corners appear wide, hold, then ease into the icon;
+ * - focus: after a beat of plain background (the native splash fading out), the corners
+ *   appear wide, hold, then ease into the icon;
  * - snap: the corners lock and turn white while the flash bursts and fades;
  * - trade: the logo assembles one piece at a time, each finishing before the next: the
  *   tile springs in behind the corners, the "f" stem draws upward, the crossbar draws
@@ -61,9 +61,9 @@ export const TIMELINE = {
   head: 2200,
   assembled: 2450,
   reveal: 2750,
-  wordmark: 3150,
-  tagline: 3250,
-  end: 3700,
+  wordmark: 3400,
+  tagline: 3550,
+  end: 4050,
 } as const;
 const {
   splashOut: SPLASH_OUT,
@@ -77,7 +77,7 @@ const { head: HEAD, assembled: ASSEMBLED, reveal: REVEAL } = TIMELINE;
 const { wordmark: WORDMARK, tagline: TAGLINE, end: END } = TIMELINE;
 
 /*
- * The reveal motion runs from REVEAL to LIFTED; the text keeps fading in until END.
+ * The logo glides up from REVEAL to LIFTED; only then do the wordmark and tagline fade in.
  */
 const LIFTED = REVEAL + 600;
 const HOLD = 300;
@@ -114,17 +114,15 @@ const progress = (clock: number, from: number, to: number) => {
 };
 
 /*
- * The intro from the design: the viewfinder focuses, the shutter flashes, the "f"
- * draws up into the trading arrow, then the wordmark is revealed. Returning users only
- * see frames 1-3, Reduce Motion gets a 200ms fade of frame 4, and a tap skips ahead.
- * The app renders underneath, so the intro never blocks it.
+ * The intro from the design, played in full on every launch from a plain background:
+ * the viewfinder focuses, the shutter flashes, the logo assembles, then lifts for the
+ * wordmark. Reduce Motion gets a 200ms fade of frame 4 and a tap skips ahead. The app
+ * renders underneath, so the intro never blocks it.
  */
 export function Intro({
-  full,
   onStart,
   onDone,
 }: {
-  full: boolean;
   onStart: () => void;
   onDone: () => void;
 }) {
@@ -134,11 +132,6 @@ export function Intro({
   const fade = useSharedValue(reduceMotion ? 0 : 1);
   const exit = useSharedValue(1);
   const finished = useRef(false);
-
-  /*
-   * Design units: the intro artboard is 240px wide, the icon tile 96px.
-   */
-  const stop = full ? END : REVEAL;
 
   const finish = () => {
     if (finished.current) return;
@@ -164,8 +157,8 @@ export function Intro({
       return;
     }
 
-    clock.value = withTiming(stop, { duration: stop, easing: Easing.linear });
-    leave(stop + (full ? HOLD : 0));
+    clock.value = withTiming(END, { duration: END, easing: Easing.linear });
+    leave(END + HOLD);
 
     const snap = setTimeout(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -177,22 +170,16 @@ export function Intro({
 
   const skip = () => {
     if (finished.current) return;
-    clock.value = withTiming(stop, { duration: 150 });
+    clock.value = withTiming(END, { duration: 150 });
     leave(150);
   };
 
   const root = useAnimatedStyle(() => ({ opacity: exit.value }));
   const content = useAnimatedStyle(() => ({ opacity: fade.value }));
-  const splash = useAnimatedStyle(() => ({
-    opacity: interpolate(clock.value, [0, SPLASH_OUT], [1, 0], "clamp"),
-  }));
 
   return (
     <Animated.View style={[styles.root, root]}>
       <Pressable style={StyleSheet.absoluteFill} onPress={skip}>
-        <Animated.View style={[StyleSheet.absoluteFill, splash]}>
-          <SplashFrame />
-        </Animated.View>
         <Animated.View style={[StyleSheet.absoluteFill, content]}>
           <IntroScene clock={clock} width={width} />
         </Animated.View>
@@ -216,8 +203,8 @@ export function IntroScene({
   return (
     <>
       <Flash clock={clock} size={260 * u} />
-      <Icon clock={clock} tile={96 * u} u={u} />
-      <Reveal clock={clock} u={u} />
+      <Icon clock={clock} tile={96 * u} k={lockupScale(width)} />
+      <Reveal clock={clock} u={u} k={lockupScale(width)} />
     </>
   );
 }
@@ -261,17 +248,17 @@ function Flash({ clock, size }: { clock: SharedValue<number>; size: number }) {
 }
 
 /*
- * Corners, tile and "f" arrow. During the reveal the whole icon lifts and shrinks to 76px,
- * centred 54px above the middle of the 536px artboard.
+ * Corners, tile and "f" arrow. During the reveal the finished logo glides up and shrinks
+ * into its LOCKUP place.
  */
 function Icon({
   clock,
   tile,
-  u,
+  k,
 }: {
   clock: SharedValue<number>;
   tile: number;
-  u: number;
+  k: number;
 }) {
   const canvas = tile * (CANVAS.size / 100);
 
@@ -279,8 +266,8 @@ function Icon({
     const t = easeInOut(progress(clock.value, REVEAL, LIFTED));
     return {
       transform: [
-        { translateY: -LOCKUP.lift * u * t },
-        { scale: 1 - ((96 - LOCKUP.tile) / 96) * t },
+        { translateY: LOCKUP.tileCentre * k * t },
+        { scale: 1 + ((LOCKUP.tile * k) / tile - 1) * t },
       ],
     };
   });
@@ -409,7 +396,7 @@ function GlyphStroke({
 }
 
 /*
- * Frame 1: one solid-coloured corner. It fades in wide after the splash and hands over
+ * Frame 1: one solid-coloured corner. It fades in wide after a beat and hands over
  * to the white corners on SNAP.
  */
 function FocusCorner({
@@ -431,42 +418,54 @@ function FocusCorner({
 }
 
 /*
- * Frame 4: wordmark (34px, top at +4px from centre) and tagline (13px, +58px) fade up.
- * These positions are shared with the home screen so the hand-off is seamless.
+ * Frame 4 layout in dp, sized from the 412px splash design (not the 240px board): an
+ * 88dp logo, the 40dp wordmark and 15dp tagline, centred as one block. `scale` shrinks
+ * it on screens narrower than 412dp. Shared with the home screen so the hand-off is
+ * seamless.
  */
 export const LOCKUP = {
-  lift: 54,
-  tile: 76,
-  wordmarkTop: 4,
-  wordmarkSize: 34,
-  wordmarkSpacing: -1.2,
-  taglineTop: 58,
-  taglineSize: 13,
+  tileCentre: -59,
+  tile: 88,
+  wordmarkTop: 5,
+  wordmarkSize: 40,
+  wordmarkSpacing: -1.4,
+  taglineTop: 63,
+  taglineSize: 15,
 } as const;
 
-function Reveal({ clock, u }: { clock: SharedValue<number>; u: number }) {
+export const lockupScale = (width: number) => Math.min(width, 412) / 412;
+
+function Reveal({
+  clock,
+  u,
+  k,
+}: {
+  clock: SharedValue<number>;
+  u: number;
+  k: number;
+}) {
   return (
     <>
       <RevealLine
         clock={clock}
         from={WORDMARK}
-        top={LOCKUP.wordmarkTop * u}
+        top={LOCKUP.wordmarkTop * k}
         u={u}
       >
         <Wordmark
-          size={LOCKUP.wordmarkSize * u}
-          letterSpacing={LOCKUP.wordmarkSpacing * u}
+          size={LOCKUP.wordmarkSize * k}
+          letterSpacing={LOCKUP.wordmarkSpacing * k}
         />
       </RevealLine>
       <RevealLine
         clock={clock}
         from={TAGLINE}
-        top={LOCKUP.taglineTop * u}
+        top={LOCKUP.taglineTop * k}
         u={u}
       >
         <Text
           className="font-sans text-haze"
-          style={{ fontSize: LOCKUP.taglineSize * u }}
+          style={{ fontSize: LOCKUP.taglineSize * k }}
         >
           Snap it. Caption it. Trade it.
         </Text>
