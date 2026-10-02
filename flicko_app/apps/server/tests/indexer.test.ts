@@ -153,6 +153,41 @@ describe("applying transactions", () => {
     ]);
   });
 
+  test("reports events as fresh only the first time they are applied", async () => {
+    const deps = { db, decode, loadMemeState: async () => chainState() };
+    const first = [];
+    for (const tx of transactions) {
+      first.push(...(await applyTransaction(deps, tx)).fresh);
+    }
+    expect(first.map((e) => e.kind)).toEqual(["trade", "trade"]);
+    for (const tx of transactions) {
+      expect((await applyTransaction(deps, tx)).fresh).toEqual([]);
+    }
+  });
+
+  test("a graduation is fresh once and stamps graduated_at", async () => {
+    await applyAll();
+    const [meme] = await db.select().from(memes).where(eq(memes.mint, MINT));
+    const graduated = {
+      kind: "graduated" as const,
+      meme: meme!.memePda,
+      poolSkr: "3200",
+      poolTokens: "200",
+      graduatedAt: 1_800_000_000,
+    };
+    const deps = {
+      db,
+      decode: () => [graduated],
+      loadMemeState: async () => null,
+    };
+    const tx = { ...transactions[0]!, signature: "graduate" };
+    expect((await applyTransaction(deps, tx)).fresh).toEqual([graduated]);
+    expect((await applyTransaction(deps, tx)).fresh).toEqual([]);
+    const [after] = await db.select().from(memes).where(eq(memes.mint, MINT));
+    expect(after).toMatchObject({ phase: "graduated", poolSkr: "3200" });
+    expect(after!.graduatedAt!.getTime()).toBe(1_800_000_000_000);
+  });
+
   test("records the creator fee claim once, matching the fees earned", async () => {
     await applyAll();
     await applyAll();
