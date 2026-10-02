@@ -6,6 +6,9 @@ import {
   expect,
   test,
 } from "bun:test";
+import { attestationMessage } from "@flicko/sdk";
+import { ed25519 } from "@noble/curves/ed25519.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import {
@@ -14,6 +17,10 @@ import {
   type CaptionResult,
 } from "../src/ai/captions";
 import { createApp } from "../src/app";
+import {
+  ATTESTATION_TTL_SECONDS,
+  createAttestor,
+} from "../src/attest/attestor";
 import { createSessions } from "../src/auth/jwt";
 import { uploads } from "../src/db/schema";
 import { sha256Hex } from "../src/media/imaging";
@@ -44,6 +51,35 @@ const ai: CaptionAi = {
   },
   moderateText: async () => flagged,
 };
+
+const attestorKey = Keypair.generate();
+let clock = Date.now();
+const attestor = createAttestor(attestorKey.secretKey, () => clock);
+
+/* Checks a returned attestation against the exact message the program rebuilds. */
+const verifies = (
+  attestation: { authority: string; signature: string; expiresAt: number },
+  fields: {
+    creator: string;
+    imageHash: string;
+    name: string;
+    symbol: string;
+    uri: string;
+  },
+) =>
+  attestation.authority === attestorKey.publicKey.toBase58() &&
+  ed25519.verify(
+    Buffer.from(attestation.signature, "base64"),
+    attestationMessage({
+      creator: new PublicKey(fields.creator),
+      imageHash: Buffer.from(fields.imageHash, "hex"),
+      expiresAt: attestation.expiresAt,
+      name: fields.name,
+      symbol: fields.symbol,
+      uri: fields.uri,
+    }),
+    attestorKey.publicKey.toBytes(),
+  );
 
 const sessions = createSessions("test-secret");
 const blobs = memoryBlobStore();
@@ -116,7 +152,7 @@ beforeAll(async () => {
         programId: "prog",
         skrMint: "skr",
       },
-      uploads: { db, sessions, blobs, ai },
+      uploads: { db, sessions, blobs, ai, attestor },
     }),
   ));
 });
@@ -254,6 +290,42 @@ describe("POST /uploads/:id/analyse", () => {
 });
 
 describe("POST /uploads/:id/finalize", () => {
+  test("signs an attestation the program will accept", async () => {
+    const id = await analysed();
+    const { body } = await finalize(id, { top: "GM SER", bottom: "WEN MOON" });
+    const fields = { creator: alice, ...body };
+    expect(body.attestation.expiresAt).toBe(
+      Math.floor(clock / 1000) + ATTESTATION_TTL_SECONDS,
+    );
+    expect(verifies(body.attestation, fields)).toBe(true);
+    expect(verifies(body.attestation, { ...fields, creator: bob })).toBe(false);
+    expect(
+      verifies(body.attestation, { ...fields, uri: "https://evil.example" }),
+    ).toBe(false);
+  });
+
+  test("re-signs a finalized upload with a fresh expiry", async () => {
+    const id = await analysed();
+    const { body: done } = await finalize(id, { top: "GM SER", bottom: "" });
+    clock += 3_600_000;
+    const { status, body } = await call(`/uploads/${id}/attest`);
+    expect(status).toBe(200);
+    expect(body.attestation.expiresAt).toBe(
+      Math.floor(clock / 1000) + ATTESTATION_TTL_SECONDS,
+    );
+    expect(verifies(body.attestation, { creator: alice, ...done })).toBe(true);
+  });
+
+  test("refuses to attest before finalize or for another wallet", async () => {
+    const id = await analysed();
+    expect(await call(`/uploads/${id}/attest`)).toMatchObject({
+      status: 409,
+      body: { error: "upload is not finalized" },
+    });
+    await finalize(id, { top: "GM SER", bottom: "" });
+    expect((await call(`/uploads/${id}/attest`, {}, bob)).status).toBe(404);
+  });
+
   test("409 before analyse", async () => {
     const { body: up } = await createUpload();
     expect(
