@@ -1,6 +1,5 @@
 import { Text, useWindowDimensions, View } from "react-native";
 
-import { Glow } from "@/components/brand/glow";
 import { LogoTile } from "@/components/brand/logo-tile";
 import { Wordmark } from "@/components/brand/wordmark";
 
@@ -15,10 +14,7 @@ export function SplashFrame() {
 
   return (
     <View className="flex-1 items-center justify-center bg-ink">
-      <View className="absolute">
-        <Glow size={300 * v} id="splash-glow" />
-      </View>
-      <LogoTile size={136 * v} shadow />
+      <LogoTile size={136 * v} />
       <View
         className="absolute left-0 right-0 items-center"
         style={{ bottom: 56 * v, gap: 6 * v }}

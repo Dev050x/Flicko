@@ -11,27 +11,15 @@ import {
 import { BrandDefs } from "./brand-defs";
 
 /*
- * Pink drop shadow under the tile, as in the splash and lockup designs.
- */
-export const TILE_SHADOW = "0px 18px 50px rgba(255, 45, 149, 0.30)";
-
-/*
  * The app icon: gradient tile, highlight, viewfinder corners and the "f" arrow.
  */
-export function LogoTile({
-  size,
-  shadow = false,
-}: {
-  size: number;
-  shadow?: boolean;
-}) {
+export function LogoTile({ size }: { size: number }) {
   return (
     <View
       style={{
         width: size,
         height: size,
         borderRadius: size * (TILE_RADIUS / 100),
-        boxShadow: shadow ? TILE_SHADOW : undefined,
       }}
     >
       <Svg width={size} height={size} viewBox="0 0 100 100">

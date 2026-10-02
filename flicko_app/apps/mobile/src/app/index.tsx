@@ -1,7 +1,6 @@
 import { Link } from "expo-router";
 import { Text, View } from "react-native";
 
-import { Glow } from "@/components/brand/glow";
 import { LogoTile } from "@/components/brand/logo-tile";
 import { Wordmark } from "@/components/brand/wordmark";
 
@@ -12,10 +11,7 @@ export default function Home() {
   return (
     <View className="flex-1 items-center justify-center bg-ink px-6">
       <View className="items-center justify-center">
-        <View className="absolute">
-          <Glow size={300} id="home-glow" />
-        </View>
-        <LogoTile size={136} shadow />
+        <LogoTile size={136} />
       </View>
       <View className="mt-8 items-center gap-3">
         <Wordmark size={44} letterSpacing={-1.7} />

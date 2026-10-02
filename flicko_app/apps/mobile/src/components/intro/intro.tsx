@@ -27,14 +27,11 @@ import {
   bracketsPath,
   colors,
   CORNER_STROKE,
-  CROSSBAR_LENGTH,
-  crossbarPath,
   focusColors,
   GLYPH_STROKE,
-  HEAD_LENGTH,
-  headPath,
-  STEM_LENGTH,
-  stemPath,
+  partialCrossbar,
+  partialHead,
+  partialStem,
 } from "@/brand/logo";
 import { BrandDefs } from "@/components/brand/brand-defs";
 import { Glow } from "@/components/brand/glow";
@@ -224,7 +221,6 @@ export function IntroScene({
   return (
     <>
       <Flash clock={clock} size={260 * u} />
-      <TradeGlow clock={clock} size={180 * u} />
       <Icon clock={clock} tile={96 * u} u={u} />
       <Reveal clock={clock} u={u} />
     </>
@@ -270,33 +266,6 @@ function Flash({ clock, size }: { clock: SharedValue<number>; size: number }) {
 }
 
 /*
- * Frame 3: violet glow that comes in with the tile and fades during the reveal.
- */
-function TradeGlow({
-  clock,
-  size,
-}: {
-  clock: SharedValue<number>;
-  size: number;
-}) {
-  const style = useAnimatedStyle(() => ({
-    opacity: interpolate(
-      clock.value,
-      [TRADE, TRADE + 250, REVEAL, LIFTED],
-      [0, 1, 1, 0],
-      "clamp",
-    ),
-  }));
-  return (
-    <View style={styles.layer} pointerEvents="none">
-      <Animated.View style={style}>
-        <Glow size={size} id="trade-glow" />
-      </Animated.View>
-    </View>
-  );
-}
-
-/*
  * Corners, tile and "f" arrow. During the reveal the whole icon lifts and shrinks to 76px,
  * centred 54px above the middle of the 536px artboard.
  */
@@ -331,16 +300,20 @@ function Icon({
     opacity: progress(clock.value, SNAP, SNAP + 50),
   }));
 
-  const draw = (from: number, to: number, length: number) => {
+  /*
+   * Each stroke grows from its start; hidden until it begins so the round cap
+   * does not show as a dot.
+   */
+  const draw = (from: number, to: number, path: (f: number) => string) => {
     "worklet";
     const t = easeOut(progress(clock.value, from, to));
-    return { strokeDashoffset: length * (1 - t), opacity: t > 0 ? 1 : 0 };
+    return { d: path(t), opacity: t > 0 ? 1 : 0 };
   };
-  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR, STEM_LENGTH));
+  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR, partialStem));
   const crossbar = useAnimatedProps(() =>
-    draw(CROSSBAR, HEAD, CROSSBAR_LENGTH),
+    draw(CROSSBAR, HEAD, partialCrossbar),
   );
-  const head = useAnimatedProps(() => draw(HEAD, ASSEMBLED, HEAD_LENGTH));
+  const head = useAnimatedProps(() => draw(HEAD, ASSEMBLED, partialHead));
 
   return (
     <View style={styles.layer} pointerEvents="none">
@@ -369,23 +342,14 @@ function Icon({
                 />
               ))}
               <AnimatedPath stroke="#fff" animatedProps={lockedCorners} />
-              <G stroke="#fff" strokeWidth={GLYPH_STROKE}>
+              {[stem, crossbar, head].map((props, i) => (
                 <AnimatedPath
-                  d={stemPath}
-                  strokeDasharray={[STEM_LENGTH, STEM_LENGTH]}
-                  animatedProps={stem}
+                  key={i}
+                  stroke="#fff"
+                  strokeWidth={GLYPH_STROKE}
+                  animatedProps={props}
                 />
-                <AnimatedPath
-                  d={crossbarPath}
-                  strokeDasharray={[CROSSBAR_LENGTH, CROSSBAR_LENGTH]}
-                  animatedProps={crossbar}
-                />
-                <AnimatedPath
-                  d={headPath}
-                  strokeDasharray={[HEAD_LENGTH, HEAD_LENGTH]}
-                  animatedProps={head}
-                />
-              </G>
+              ))}
             </G>
           </Svg>
         </View>

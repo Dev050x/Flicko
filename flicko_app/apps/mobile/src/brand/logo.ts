@@ -51,11 +51,55 @@ export const headPath = "M55 26.2 L64 27 L61.7 35.7";
 export const glyphPath = `${stemPath} ${crossbarPath} ${headPath}`;
 
 /*
- * Stroke lengths, rounded up, for the stroke-dash draw.
+ * The "f" drawn up to fraction `f` (0..1) of its length, so the intro can grow each stroke
+ * by animating `d` (stroke-dash animation does not render on Android).
  */
-export const STEM_LENGTH = 56;
-export const CROSSBAR_LENGTH = 20;
-export const HEAD_LENGTH = 19;
+const lerp = (a: number, b: number, t: number) => {
+  "worklet";
+  return a + (b - a) * t;
+};
+
+/*
+ * Stem: 22 units straight up from (44,72), then the curve (44,50) (44,38) (54,34) (64,27),
+ * about 32 units long, cut at curve parameter `s` with de Casteljau.
+ */
+const STEM_LINE = 22;
+const STEM_TOTAL = 54;
+export const partialStem = (f: number) => {
+  "worklet";
+  const length = f * STEM_TOTAL;
+  if (length <= STEM_LINE) return `M44 72 V${72 - length}`;
+  const s = Math.min(1, (length - STEM_LINE) / (STEM_TOTAL - STEM_LINE));
+  const ax = 44;
+  const ay = lerp(50, 38, s);
+  const bx = lerp(44, 54, s);
+  const by = lerp(38, 34, s);
+  const cx = lerp(54, 64, s);
+  const cy = lerp(34, 27, s);
+  const dx = lerp(ax, bx, s);
+  const dy = lerp(ay, by, s);
+  const ex = lerp(bx, cx, s);
+  const ey = lerp(by, cy, s);
+  return `M44 72 V50 C${ax} ${ay} ${dx} ${dy} ${lerp(dx, ex, s)} ${lerp(dy, ey, s)}`;
+};
+
+export const partialCrossbar = (f: number) => {
+  "worklet";
+  return `M35 51 H${35 + 20 * f}`;
+};
+
+/*
+ * Arrow head: (55,26.2) to the tip (64,27), then down to (61.7,35.7); two ~9 unit strokes.
+ */
+export const partialHead = (f: number) => {
+  "worklet";
+  if (f <= 0.5) {
+    const t = f * 2;
+    return `M55 26.2 L${lerp(55, 64, t)} ${lerp(26.2, 27, t)}`;
+  }
+  const t = (f - 0.5) * 2;
+  return `M55 26.2 L64 27 L${lerp(64, 61.7, t)} ${lerp(27, 35.7, t)}`;
+};
 
 /*
  * One viewfinder corner bracket (0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right).
