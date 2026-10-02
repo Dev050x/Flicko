@@ -33,7 +33,9 @@ const schema = z.object({
   AWS_ACCESS_KEY_ID: optional,
   AWS_SECRET_ACCESS_KEY: optional,
   S3_BUCKET: optional,
+  S3_PUBLIC_BASE_URL: optional,
   OPENAI_API_KEY: optional,
+  OPENAI_MODEL: z.string().default("gpt-5-mini"),
 });
 
 export type Env = z.infer<typeof schema> & {
