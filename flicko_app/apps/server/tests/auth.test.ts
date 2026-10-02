@@ -113,6 +113,25 @@ describe("auth flow", () => {
     );
   });
 
+  test("a nonce without an address lets the wallet fill it in (one MWA approval)", async () => {
+    const wallet = testWallet();
+    const { input } = (await (await post("/auth/nonce", {})).json()) as {
+      input: SignInInput;
+    };
+    expect(input.address).toBeUndefined();
+
+    const message = new TextEncoder().encode(
+      formatMessage({ ...input, address: wallet.address }),
+    );
+    const body = {
+      address: wallet.address,
+      message: b64(message),
+      signature: b64(wallet.sign(message)),
+    };
+    expect((await post("/auth/siws", body)).status).toBe(200);
+    expect((await post("/auth/siws", body)).status).toBe(401);
+  });
+
   test("signing in twice keeps one user", async () => {
     const wallet = testWallet();
     const first = (await (await signIn(wallet)).res.json()) as {
@@ -171,8 +190,49 @@ describe("/me", () => {
 
   test("rejects invalid usernames", async () => {
     const { token } = await session();
-    for (const username of ["ab", "has space", "x".repeat(21), "emoji😀"]) {
+    for (const username of [
+      "ab",
+      "has space",
+      "x".repeat(21),
+      "emoji😀",
+      ".bobo",
+      "bobo.",
+      "bo..bo",
+    ]) {
       expect((await post("/me", { username }, token)).status).toBe(400);
     }
+  });
+
+  test("accepts .skr style names", async () => {
+    const { token } = await session();
+    const res = await post("/me", { username: "Bobo.skr" }, token);
+    expect(res.status).toBe(200);
+    expect(
+      ((await res.json()) as { user: { username: string } }).user.username,
+    ).toBe("bobo.skr");
+  });
+
+  test("reports whether a username is available", async () => {
+    const owner = await session();
+    await post("/me", { username: "taken_name" }, owner.token);
+    const check = async (name: string, token?: string) =>
+      (await (
+        await fetch(`${url}/usernames/${encodeURIComponent(name)}`, {
+          headers: token ? { authorization: `Bearer ${token}` } : {},
+        })
+      ).json()) as { available: boolean; reason?: string };
+
+    expect(await check("free_name")).toMatchObject({ available: true });
+    expect(await check("TAKEN_NAME")).toMatchObject({
+      available: false,
+      reason: "taken",
+    });
+    expect(await check("taken_name", owner.token)).toMatchObject({
+      available: true,
+    });
+    expect(await check("no")).toMatchObject({
+      available: false,
+      reason: "invalid",
+    });
   });
 });

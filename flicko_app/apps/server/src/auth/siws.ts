@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 
 export interface SignInInput {
   domain: string;
-  address: string;
+  address?: string;
   statement: string;
   uri: string;
   version: string;
@@ -28,13 +28,19 @@ const randomNonce = () => {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 };
 
+/*
+ * Without an address the wallet fills it in, so connect and sign-in happen in one MWA
+ * approval; the nonce then accepts whichever wallet signs it.
+ */
+export const ANY_WALLET = "*";
+
 export const createSignInInput = (
   policy: SiwsPolicy,
-  address: string,
+  address?: string,
   now = new Date(),
 ): SignInInput => ({
   domain: policy.domain,
-  address,
+  ...(address ? { address } : {}),
   statement: policy.statement,
   uri: policy.uri,
   version: "1",
@@ -49,7 +55,7 @@ export const createSignInInput = (
 export const formatMessage = (input: SignInInput) =>
   [
     `${input.domain} wants you to sign in with your Solana account:`,
-    input.address,
+    input.address ?? "",
     "",
     input.statement,
     "",
@@ -142,7 +148,8 @@ export const verifySignIn = async ({
     throw new SiwsError("issued in the future");
   }
 
-  if ((await takeNonce(fields.nonce)) !== address) {
+  const owner = await takeNonce(fields.nonce);
+  if (owner !== address && owner !== ANY_WALLET) {
     throw new SiwsError("unknown or used nonce");
   }
   return address;

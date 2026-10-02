@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Sessions } from "../auth/jwt";
 import type { NonceStore } from "../auth/nonces";
 import {
+  ANY_WALLET,
   createSignInInput,
   SiwsError,
   verifySignIn,
@@ -25,7 +26,7 @@ const base64 = z
   .min(1)
   .transform((value) => Uint8Array.from(Buffer.from(value, "base64")));
 
-const nonceBody = z.object({ address: solanaAddress });
+const nonceBody = z.object({ address: solanaAddress.optional() });
 const signInBody = z.object({
   address: solanaAddress,
   message: base64,
@@ -35,9 +36,13 @@ const signInBody = z.object({
 export const authRouter = (deps: AuthDeps) =>
   Router()
     .post("/auth/nonce", async (req, res) => {
-      const { address } = parseOr400(nonceBody, req.body);
+      const { address } = parseOr400(nonceBody, req.body ?? {});
       const input = createSignInInput(deps.policy, address);
-      await deps.nonces.put(input.nonce, address, deps.policy.ttlSeconds);
+      await deps.nonces.put(
+        input.nonce,
+        address ?? ANY_WALLET,
+        deps.policy.ttlSeconds,
+      );
       res.json({ input });
     })
     .post("/auth/siws", async (req, res) => {

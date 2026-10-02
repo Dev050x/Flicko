@@ -4,7 +4,12 @@ import { z } from "zod";
 import type { Sessions } from "../auth/jwt";
 import { users } from "../db/schema";
 import type { Db } from "../db/types";
-import { requireAuth, walletOf } from "../middleware/auth";
+import {
+  optionalAuth,
+  requireAuth,
+  viewerOf,
+  walletOf,
+} from "../middleware/auth";
 import { EXPO_TOKEN } from "../notify/expo";
 import { parseOr400 } from "../http/validate";
 import { HttpError } from "../middleware/errors";
@@ -13,16 +18,46 @@ const pushTokenBody = z.object({
   token: z.string().trim().regex(EXPO_TOKEN, "not an expo push token"),
 });
 
-const usernameBody = z.object({
-  username: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .regex(/^[a-z0-9_]{3,20}$/, "3-20 characters: a-z, 0-9 or _"),
-});
+/*
+ * 3-20 characters of a-z, 0-9, _ and dots (so .skr names like bobo.skr fit); dots never
+ * lead, trail or repeat.
+ */
+const username = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^(?!.*\.\.)[a-z0-9_][a-z0-9_.]{1,18}[a-z0-9_]$/,
+    "3-20 characters: a-z, 0-9, _ or .",
+  );
+const usernameBody = z.object({ username });
 
 export const meRouter = (deps: { db: Db; sessions: Sessions }) =>
   Router()
+    /*
+     * Live check for the profile screen: free, or already yours, counts as available.
+     */
+    .get("/usernames/:name", optionalAuth(deps.sessions), async (req, res) => {
+      const result = username.safeParse(req.params.name);
+      if (!result.success) {
+        res.json({
+          username: req.params.name,
+          available: false,
+          reason: "invalid",
+        });
+        return;
+      }
+      const [owner] = await deps.db
+        .select({ wallet: users.wallet })
+        .from(users)
+        .where(eq(users.username, result.data));
+      const available = !owner || owner.wallet === viewerOf(res);
+      res.json({
+        username: result.data,
+        available,
+        ...(available ? {} : { reason: "taken" }),
+      });
+    })
     .use("/me", requireAuth(deps.sessions))
     .get("/me", async (_req, res) => {
       const [user] = await deps.db
