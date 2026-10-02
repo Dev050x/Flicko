@@ -1,3 +1,4 @@
+import "../net";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { join } from "node:path";
 import { parseEnv } from "../env";

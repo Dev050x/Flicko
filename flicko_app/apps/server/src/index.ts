@@ -1,8 +1,13 @@
+import "./net";
 import { createApp } from "./app";
 import { createSessions } from "./auth/jwt";
 import { upstashNonceStore } from "./auth/nonces";
 import { createDb } from "./db/client";
 import { parseEnv } from "./env";
+import { connectionSource } from "./indexer/chain";
+import { createEventDecoder } from "./indexer/events";
+import { createIndexer } from "./indexer/indexer";
+import { PublicKey } from "@solana/web3.js";
 
 const env = parseEnv(process.env);
 const database = createDb(env.DATABASE_URL);
@@ -41,9 +46,24 @@ const server = app.listen(env.PORT, () => {
   console.log(`flicko server on :${env.PORT} (${env.CLUSTER})`);
 });
 
-const shutdown = () => {
+const programId = new PublicKey(env.programId);
+const indexer = env.INDEXER_ENABLED
+  ? createIndexer({
+      db: database.db,
+      chain: connectionSource(env.RPC_URL, env.WS_URL, programId),
+      decode: createEventDecoder(programId),
+      log: (message) => console.log(`[indexer] ${message}`),
+    })
+  : null;
+
+indexer?.start().catch((err) => {
+  console.error("[indexer] failed to start", err);
+});
+
+const shutdown = async () => {
   server.close();
-  void database.close();
+  await indexer?.stop();
+  await database.close();
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

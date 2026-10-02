@@ -18,6 +18,10 @@ const schema = z.object({
   CLUSTER: z.string().default("devnet"),
   RPC_URL: z.url().default("https://api.devnet.solana.com"),
   WS_URL: optional,
+  INDEXER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   PROGRAM_ID: optional,
   SKR_MINT: optional,
   JWT_SECRET: optional,
