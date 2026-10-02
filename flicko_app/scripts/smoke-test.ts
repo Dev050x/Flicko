@@ -1,8 +1,9 @@
 import {
+  attestationMessage,
   buyInstruction,
   claimCreatorFeesInstruction,
   configPda,
-  createMemeInstruction,
+  createMemeInstructions,
   memePda,
   memePrice,
   memeTokenAccount,
@@ -15,10 +16,12 @@ import {
   withSlippage,
 } from "@flicko/sdk";
 import { getAccount, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { Keypair, type PublicKey } from "@solana/web3.js";
 import { createHash, randomBytes } from "node:crypto";
 import {
   connection,
+  loadAttestor,
   payer,
   program,
   programId,
@@ -60,21 +63,33 @@ const fees = toFeeConfig(
   await program.account.config.fetch(configPda(programId)),
 );
 
+const attestor = loadAttestor();
 const mint = Keypair.generate();
+const meme = {
+  creator: user,
+  name: "Smoke Test",
+  symbol: "SMOKE",
+  uri: "https://example.com/smoke.json",
+  imageHash: createHash("sha256").update(randomBytes(32)).digest(),
+  expiresAt: Math.floor(Date.now() / 1000) + 600,
+};
+const signature = ed25519.sign(
+  attestationMessage(meme),
+  attestor.secretKey.slice(0, 32),
+);
 const created = await send(
-  [
-    await createMemeInstruction(program, {
-      creator: user,
-      mint: mint.publicKey,
-      skrMint,
-      name: "Smoke Test",
-      symbol: "SMOKE",
-      uri: "https://example.com/smoke.json",
-      imageHash: createHash("sha256").update(randomBytes(32)).digest(),
-      supply: 1_000_000n * ONE,
-      startPrice: 1_000n,
-    }),
-  ],
+  await createMemeInstructions(program, {
+    ...meme,
+    mint: mint.publicKey,
+    skrMint,
+    supply: 1_000_000n * ONE,
+    startPrice: 1_000n,
+    attestation: {
+      authority: attestor.publicKey.toBase58(),
+      signature: Buffer.from(signature).toString("base64"),
+      expiresAt: meme.expiresAt,
+    },
+  }),
   [mint],
 );
 console.log(`created meme ${mint.publicKey.toBase58()}`);

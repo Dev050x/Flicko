@@ -13,10 +13,12 @@
     "devnet:init-config": "bun scripts/init-config.ts",
     "devnet:setup": "bun scripts/create-test-skr.ts && bun scripts/init-config.ts",
     "devnet:faucet": "bun scripts/skr-faucet.ts",
+    "devnet:attestor": "bun scripts/set-attestor.ts",
     "devnet:smoke": "bun scripts/smoke-test.ts"
   },
   "devDependencies": {
     "@flicko/sdk": "workspace:*",
+    "@noble/curves": "^2.4.0",
     "@repo/typescript-config": "*",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.98.4",

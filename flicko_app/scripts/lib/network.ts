@@ -8,7 +8,13 @@ import {
   type Signer,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -17,6 +23,7 @@ export interface NetworkConfig {
   programId: string;
   skrMint?: string;
   skrDecimals?: number;
+  attestor?: string;
 }
 
 export const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";
@@ -29,7 +36,35 @@ const configPath = resolve(
     join(import.meta.dir, `../../config/${CLUSTER}.json`),
 );
 
+export const attestorKeypairPath =
+  process.env.ATTESTOR_KEYPAIR ??
+  join(homedir(), ".config/solana/flicko-attestor.json");
+
 export const connection = new Connection(RPC_URL, "confirmed");
+
+export const loadAttestor = ({ create = false } = {}) => {
+  if (!existsSync(attestorKeypairPath)) {
+    if (!create) {
+      console.error(
+        `no attestor keypair at ${attestorKeypairPath}, run devnet:attestor first`,
+      );
+      process.exit(1);
+    }
+    mkdirSync(dirname(attestorKeypairPath), { recursive: true });
+    writeFileSync(
+      attestorKeypairPath,
+      JSON.stringify([...Keypair.generate().secretKey]),
+      { mode: 0o600 },
+    );
+    chmodSync(attestorKeypairPath, 0o600);
+    console.log(`created attestor keypair at ${attestorKeypairPath}`);
+  }
+  return Keypair.fromSecretKey(
+    Uint8Array.from(
+      JSON.parse(readFileSync(attestorKeypairPath, "utf8")) as number[],
+    ),
+  );
+};
 
 export const payer = Keypair.fromSecretKey(
   Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]),
