@@ -40,6 +40,7 @@ const app = createApp({
       ttlSeconds: 300,
     },
   },
+  read: { db: database.db },
 });
 
 const server = app.listen(env.PORT, () => {
