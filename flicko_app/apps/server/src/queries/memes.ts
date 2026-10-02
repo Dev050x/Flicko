@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { candles, memes, positions, trades, users } from "../db/schema";
 import type { Db } from "../db/types";
 
@@ -171,7 +171,7 @@ export const listFeed = async (
     gainers: [desc(changeBps), desc(volume24h), asc(memes.mint)],
   }[tab];
   const rows = await query
-    .where(eq(memes.hidden, false))
+    .where(and(eq(memes.hidden, false), isNotNull(memes.imageUrl)))
     .orderBy(...order)
     .limit(limit)
     .offset(offset);

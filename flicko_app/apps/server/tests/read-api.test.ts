@@ -8,7 +8,7 @@ import { migratedDb, serve } from "./support";
  * Seeds five memes with trades, candles and positions in one PGlite database, then reads them
  * back over HTTP. Times are relative to now so the 24h windows are deterministic:
  *   A newest, no trades; B big recent volume, +50% vs a 30h-old trade; C small volume, -20%;
- *   D hidden with huge volume; E graduated.
+ *   D hidden with huge volume; E graduated; F newest with big volume but no image (feed skips it).
  */
 const HOUR = 3600_000;
 const ago = (hours: number) => new Date(Date.now() - hours * HOUR);
@@ -19,6 +19,7 @@ const B = key();
 const C = key();
 const D = key();
 const E = key();
+const F = key();
 const creator = key();
 
 let url = "";
@@ -45,6 +46,7 @@ const meme = (
   totalSupply: "1000000000000",
   startPrice: "1000",
   price: "1000",
+  imageUrl: `https://blobs.test/memes/${mint}.jpg`,
   createdSlot: 1,
   createdAt,
   ...fields,
@@ -105,6 +107,7 @@ beforeAll(async () => {
       tokensSold: "800000000000",
       graduatedAt: ago(5),
     }),
+    meme(F, ago(0.5), { imageUrl: null, tradeCount: 1 }),
   ]);
   await db
     .insert(trades)
@@ -113,6 +116,7 @@ beforeAll(async () => {
       trade(B, 3, ago(1), "900000000", "1500"),
       trade(C, 2, ago(2), "10000000", "800"),
       trade(D, 4, ago(1), "99000000000", "5000"),
+      trade(F, 5, ago(1), "50000000000", "9000"),
     ]);
   await db
     .insert(candles)
@@ -181,6 +185,16 @@ describe("GET /feed", () => {
     const third = await get("/feed?limit=2&offset=4");
     expect(third.body.items).toEqual([]);
     expect(third.body.nextOffset).toBeNull();
+  });
+
+  test("skips memes without an image in every tab", async () => {
+    for (const tab of ["new", "trending", "gainers"]) {
+      const { body } = await get(`/feed?tab=${tab}`);
+      expect(mints(body.items)).not.toContain(F);
+    }
+    const { status, body } = await get(`/memes/${F}`);
+    expect(status).toBe(200);
+    expect(body.meme.imageUrl).toBeNull();
   });
 
   test("rejects bad queries", async () => {
