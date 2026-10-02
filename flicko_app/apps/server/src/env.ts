@@ -39,6 +39,11 @@ const schema = z.object({
   OPENAI_MODEL: z.string().default("gpt-5-mini"),
   DEEPSEEK_API_KEY: optional,
   DEEPSEEK_MODEL: z.string().default("deepseek-flash"),
+  NOTIFY_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  EXPO_ACCESS_TOKEN: optional,
 });
 
 export type Env = z.infer<typeof schema> & {

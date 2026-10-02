@@ -8,6 +8,8 @@ import { parseEnv } from "./env";
 import { connectionSource } from "./indexer/chain";
 import { createEventDecoder } from "./indexer/events";
 import { createIndexer } from "./indexer/indexer";
+import { expoPushSender } from "./notify/expo";
+import { createNotifier } from "./notify/notifier";
 import { s3BlobStore } from "./storage/blobs";
 import { PublicKey } from "@solana/web3.js";
 
@@ -75,6 +77,14 @@ const server = app.listen(env.PORT, () => {
   console.log(`flicko server on :${env.PORT} (${env.CLUSTER})`);
 });
 
+const notifier = env.NOTIFY_ENABLED
+  ? createNotifier({
+      db: database.db,
+      sender: expoPushSender({ accessToken: env.EXPO_ACCESS_TOKEN }),
+      log: (message) => console.log(`[notify] ${message}`),
+    })
+  : null;
+
 const programId = new PublicKey(env.programId);
 const indexer = env.INDEXER_ENABLED
   ? createIndexer({
@@ -82,6 +92,7 @@ const indexer = env.INDEXER_ENABLED
       chain: connectionSource(env.RPC_URL, env.WS_URL, programId),
       decode: createEventDecoder(programId),
       log: (message) => console.log(`[indexer] ${message}`),
+      onApplied: notifier?.notify,
     })
   : null;
 
