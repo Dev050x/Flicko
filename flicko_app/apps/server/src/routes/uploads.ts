@@ -58,6 +58,7 @@ const aiCall = async <T>(call: () => Promise<T>) => {
     return await call();
   } catch (err) {
     if (err instanceof CaptionAiError) {
+      console.error(`[ai] ${err.message}`);
       throw new HttpError(502, "caption service unavailable");
     }
     throw err;

@@ -34,8 +34,11 @@ const schema = z.object({
   AWS_SECRET_ACCESS_KEY: optional,
   S3_BUCKET: optional,
   S3_PUBLIC_BASE_URL: optional,
+  AI_PROVIDER: z.enum(["openai", "deepseek"]).default("openai"),
   OPENAI_API_KEY: optional,
   OPENAI_MODEL: z.string().default("gpt-5-mini"),
+  DEEPSEEK_API_KEY: optional,
+  DEEPSEEK_MODEL: z.string().default("deepseek-flash"),
 });
 
 export type Env = z.infer<typeof schema> & {

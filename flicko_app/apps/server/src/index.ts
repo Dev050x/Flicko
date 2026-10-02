@@ -2,7 +2,7 @@ import "./net";
 import { createApp } from "./app";
 import { createSessions } from "./auth/jwt";
 import { upstashNonceStore } from "./auth/nonces";
-import { openAiCaptions } from "./ai/captions";
+import { deepSeekCaptions, openAiCaptions } from "./ai/captions";
 import { createDb } from "./db/client";
 import { parseEnv } from "./env";
 import { connectionSource } from "./indexer/chain";
@@ -58,10 +58,16 @@ const app = createApp({
       ),
       publicBaseUrl: env.S3_PUBLIC_BASE_URL,
     }),
-    ai: openAiCaptions({
-      apiKey: required("OPENAI_API_KEY", env.OPENAI_API_KEY),
-      model: env.OPENAI_MODEL,
-    }),
+    ai:
+      env.AI_PROVIDER === "deepseek"
+        ? deepSeekCaptions({
+            apiKey: required("DEEPSEEK_API_KEY", env.DEEPSEEK_API_KEY),
+            model: env.DEEPSEEK_MODEL,
+          })
+        : openAiCaptions({
+            apiKey: required("OPENAI_API_KEY", env.OPENAI_API_KEY),
+            model: env.OPENAI_MODEL,
+          }),
   },
 });
 

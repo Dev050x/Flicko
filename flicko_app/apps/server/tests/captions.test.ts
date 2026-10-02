@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { CaptionAiError, cleanLine, openAiCaptions } from "../src/ai/captions";
+import {
+  CaptionAiError,
+  cleanLine,
+  deepSeekCaptions,
+  openAiCaptions,
+} from "../src/ai/captions";
 
 /*
  * A fake fetch records each request and answers with a canned OpenAI reply, so no network is used.
@@ -94,6 +99,17 @@ describe("openAiCaptions.analyse", () => {
       await expect(ai.analyse(jpeg)).rejects.toBeInstanceOf(CaptionAiError);
     }
   });
+
+  test("puts the openai error code in the message", async () => {
+    const ai = openAiCaptions({
+      apiKey: "k",
+      model: "m",
+      fetch: fakeFetch({ error: { code: "credit_balance_exhausted" } }, 429).fn,
+    });
+    await expect(ai.analyse(jpeg)).rejects.toThrow(
+      "openai returned 429 (credit_balance_exhausted)",
+    );
+  });
 });
 
 describe("openAiCaptions.moderateText", () => {
@@ -115,6 +131,71 @@ describe("openAiCaptions.moderateText", () => {
       fetch: fakeFetch({ results: [] }).fn,
     });
     await expect(ai.moderateText("x")).rejects.toBeInstanceOf(CaptionAiError);
+  });
+});
+
+describe("deepSeekCaptions", () => {
+  test("uses json_object mode with the shape in the prompt", async () => {
+    const { fn, calls } = fakeFetch(
+      chat({
+        safe: true,
+        reason: "",
+        captions: [
+          { top: "gm", bottom: "ser" },
+          { top: "wen", bottom: "moon" },
+          { top: "", bottom: "ngmi" },
+        ],
+      }),
+    );
+    const ai = deepSeekCaptions({
+      apiKey: "k",
+      model: "deepseek-flash",
+      fetch: fn,
+    });
+    expect((await ai.analyse(jpeg)).captions).toHaveLength(3);
+    const [call] = calls;
+    expect(call!.url).toBe("https://api.deepseek.com/chat/completions");
+    expect(call!.body.response_format).toEqual({ type: "json_object" });
+    expect(call!.body.reasoning_effort).toBeUndefined();
+    expect(call!.body.messages[0].content).toContain('"captions"');
+    expect(call!.body.messages[0].content).toContain("json");
+  });
+
+  test("treats a content-filter stop as unsafe", async () => {
+    const { fn } = fakeFetch({
+      choices: [{ finish_reason: "content_filter", message: { content: "" } }],
+    });
+    const ai = deepSeekCaptions({ apiKey: "k", model: "m", fetch: fn });
+    expect(await ai.analyse(jpeg)).toMatchObject({ safe: false, captions: [] });
+  });
+
+  test("moderates captions with a json chat call", async () => {
+    const { fn, calls } = fakeFetch(chat({ flagged: true }));
+    const ai = deepSeekCaptions({ apiKey: "k", model: "m", fetch: fn });
+    expect(await ai.moderateText("some text")).toBe(true);
+    expect(calls[0]!.url).toBe("https://api.deepseek.com/chat/completions");
+    expect(calls[0]!.body.messages[1]).toEqual({
+      role: "user",
+      content: "some text",
+    });
+
+    const bad = deepSeekCaptions({
+      apiKey: "k",
+      model: "m",
+      fetch: fakeFetch(chat({ verdict: "no" })).fn,
+    });
+    await expect(bad.moderateText("x")).rejects.toBeInstanceOf(CaptionAiError);
+  });
+
+  test("labels errors with the provider", async () => {
+    const ai = deepSeekCaptions({
+      apiKey: "k",
+      model: "m",
+      fetch: fakeFetch({ error: { type: "authentication_error" } }, 401).fn,
+    });
+    await expect(ai.analyse(jpeg)).rejects.toThrow(
+      "deepseek returned 401 (authentication_error)",
+    );
   });
 });
 
