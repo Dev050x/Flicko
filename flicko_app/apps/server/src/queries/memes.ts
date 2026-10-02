@@ -62,7 +62,7 @@ export interface TradeRow {
   blockTime: string;
 }
 
-const TOKEN_UNIT = 1_000_000n;
+export const TOKEN_UNIT = 1_000_000n;
 
 const saleSupplyOf = (totalSupply: string) => (BigInt(totalSupply) * 4n) / 5n;
 
@@ -93,10 +93,10 @@ const referencePrice = sql`coalesce((select ${trades.priceAfter} from ${trades}
   where ${trades.mint} = ${memes.mint} and ${trades.blockTime} <= now() - interval '24 hours'
   order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${memes.startPrice})`;
 
-const changeBps = sql`(case when ${referencePrice} = 0 then 0
+export const changeBps = sql`(case when ${referencePrice} = 0 then 0
   else trunc((${memes.price} - ${referencePrice}) * 10000 / ${referencePrice}) end)`;
 
-const cardQuery = (db: Db) => {
+export const cardQuery = (db: Db) => {
   const volume = volumeSub(db);
   const volume24h = sql`coalesce(${volume.volume24h}, 0)`;
   const query = db
@@ -136,7 +136,7 @@ const cardQuery = (db: Db) => {
 
 type CardRow = Awaited<ReturnType<typeof cardQuery>["query"]>[number];
 
-const toCard = (row: CardRow): MemeCard => ({
+export const toCard = (row: CardRow): MemeCard => ({
   mint: row.mint,
   name: row.name,
   symbol: row.symbol,
