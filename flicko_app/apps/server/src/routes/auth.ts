@@ -1,4 +1,3 @@
-import { PublicKey } from "@solana/web3.js";
 import { Router } from "express";
 import { z } from "zod";
 import type { Sessions } from "../auth/jwt";
@@ -11,6 +10,7 @@ import {
 } from "../auth/siws";
 import { users } from "../db/schema";
 import type { Db } from "../db/types";
+import { parseOr400, solanaAddress } from "../http/validate";
 import { HttpError } from "../middleware/errors";
 
 export interface AuthDeps {
@@ -20,38 +20,28 @@ export interface AuthDeps {
   policy: SiwsPolicy;
 }
 
-const address = z.string().refine((value) => {
-  try {
-    return new PublicKey(value).toBase58() === value;
-  } catch {
-    return false;
-  }
-}, "not a solana address");
-
 const base64 = z
   .string()
   .min(1)
   .transform((value) => Uint8Array.from(Buffer.from(value, "base64")));
 
-const nonceBody = z.object({ address });
-const signInBody = z.object({ address, message: base64, signature: base64 });
-
-const parse = <T>(schema: z.ZodType<T>, body: unknown) => {
-  const result = schema.safeParse(body);
-  if (!result.success) throw new HttpError(400, z.prettifyError(result.error));
-  return result.data;
-};
+const nonceBody = z.object({ address: solanaAddress });
+const signInBody = z.object({
+  address: solanaAddress,
+  message: base64,
+  signature: base64,
+});
 
 export const authRouter = (deps: AuthDeps) =>
   Router()
     .post("/auth/nonce", async (req, res) => {
-      const { address } = parse(nonceBody, req.body);
+      const { address } = parseOr400(nonceBody, req.body);
       const input = createSignInInput(deps.policy, address);
       await deps.nonces.put(input.nonce, address, deps.policy.ttlSeconds);
       res.json({ input });
     })
     .post("/auth/siws", async (req, res) => {
-      const body = parse(signInBody, req.body);
+      const body = parseOr400(signInBody, req.body);
       try {
         await verifySignIn({
           ...body,
