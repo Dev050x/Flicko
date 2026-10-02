@@ -48,8 +48,9 @@ const shutter = require("../../../assets/sounds/shutter.wav");
  * Timeline (ms). The design's keyframes at a slower pace:
  * - focus: the splash fades out, the corners appear wide, hold, then ease into the icon;
  * - snap: the corners lock and turn white while the flash bursts and fades;
- * - trade: the logo assembles piece by piece: the tile springs in behind the corners,
- *   the "f" stem draws upward, the crossbar draws across, the arrow head finishes it;
+ * - trade: the logo assembles one piece at a time, each finishing before the next: the
+ *   tile springs in behind the corners, the "f" stem draws upward, the crossbar draws
+ *   across, the arrow head completes it;
  * - reveal: after a short hold the finished logo glides up and shrinks while the
  *   wordmark and tagline fade up beneath it.
  */
@@ -60,14 +61,14 @@ export const TIMELINE = {
   snap: 750,
   flashPeak: 820,
   trade: 1150,
-  stem: 1450,
-  crossbar: 1720,
-  head: 1880,
-  assembled: 2080,
-  reveal: 2300,
-  wordmark: 2700,
-  tagline: 2800,
-  end: 3250,
+  stem: 1550,
+  crossbar: 1950,
+  head: 2200,
+  assembled: 2450,
+  reveal: 2750,
+  wordmark: 3150,
+  tagline: 3250,
+  end: 3700,
 } as const;
 const {
   splashOut: SPLASH_OUT,
@@ -318,7 +319,7 @@ function Icon({
   });
 
   const fill = useAnimatedStyle(() => {
-    const t = progress(clock.value, TRADE, STEM + 150);
+    const t = progress(clock.value, TRADE, STEM);
     return {
       opacity: progress(clock.value, TRADE, TRADE + 120),
       transform: [{ scale: 0.55 + 0.45 * spring(t) }],
@@ -335,9 +336,9 @@ function Icon({
     const t = easeOut(progress(clock.value, from, to));
     return { strokeDashoffset: length * (1 - t), opacity: t > 0 ? 1 : 0 };
   };
-  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR + 60, STEM_LENGTH));
+  const stem = useAnimatedProps(() => draw(STEM, CROSSBAR, STEM_LENGTH));
   const crossbar = useAnimatedProps(() =>
-    draw(CROSSBAR, HEAD + 40, CROSSBAR_LENGTH),
+    draw(CROSSBAR, HEAD, CROSSBAR_LENGTH),
   );
   const head = useAnimatedProps(() => draw(HEAD, ASSEMBLED, HEAD_LENGTH));
 
