@@ -44,7 +44,7 @@ const app = createApp({
       ttlSeconds: 300,
     },
   },
-  read: { db: database.db },
+  read: { db: database.db, sessions },
   uploads: {
     db: database.db,
     sessions,

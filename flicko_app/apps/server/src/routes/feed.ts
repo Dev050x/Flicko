@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+import type { Sessions } from "../auth/jwt";
 import type { Db } from "../db/types";
 import { nextOffset, pageQuery, parseOr400 } from "../http/validate";
 import { listFeed } from "../queries/memes";
 
 export interface ReadDeps {
   db: Db;
+  sessions?: Sessions;
 }
 
 const feedQuery = pageQuery(50, 20).extend({

@@ -6,6 +6,7 @@ import { authRouter, type AuthDeps } from "./routes/auth";
 import { feedRouter, type ReadDeps } from "./routes/feed";
 import { healthRouter, type HealthDeps } from "./routes/health";
 import { meRouter } from "./routes/me";
+import { marketRouter } from "./routes/market";
 import { memesRouter } from "./routes/memes";
 import { portfolioRouter } from "./routes/portfolio";
 import { uploadsRouter, type UploadDeps } from "./routes/uploads";
@@ -38,7 +39,10 @@ export const createApp = (deps: AppDeps) => {
   }
 
   if (deps.read) {
-    app.use(feedRouter(deps.read)).use(memesRouter(deps.read));
+    app
+      .use(feedRouter(deps.read))
+      .use(marketRouter(deps.read))
+      .use(memesRouter(deps.read));
   }
 
   return app.use(notFound).use(errorHandler);
