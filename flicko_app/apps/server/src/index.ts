@@ -2,6 +2,7 @@ import "./net";
 import { createApp } from "./app";
 import { createSessions } from "./auth/jwt";
 import { upstashNonceStore } from "./auth/nonces";
+import { createAttestor, parseSecretKey } from "./attest/attestor";
 import { deepSeekCaptions, openAiCaptions } from "./ai/captions";
 import { createDb } from "./db/client";
 import { parseEnv } from "./env";
@@ -60,6 +61,9 @@ const app = createApp({
       ),
       publicBaseUrl: env.S3_PUBLIC_BASE_URL,
     }),
+    attestor: createAttestor(
+      parseSecretKey(required("ATTESTOR_SECRET_KEY", env.ATTESTOR_SECRET_KEY)),
+    ),
     ai:
       env.AI_PROVIDER === "deepseek"
         ? deepSeekCaptions({

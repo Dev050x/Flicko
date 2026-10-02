@@ -2,6 +2,7 @@ import { and, count, eq, gt, sql } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
 import { CaptionAiError, type CaptionAi } from "../ai/captions";
+import type { Attestor } from "../attest/attestor";
 import type { Sessions } from "../auth/jwt";
 import { uploads } from "../db/schema";
 import type { Db } from "../db/types";
@@ -17,6 +18,7 @@ export interface UploadDeps {
   sessions: Sessions;
   blobs: BlobStore;
   ai: CaptionAi;
+  attestor: Attestor;
 }
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -224,6 +226,43 @@ export const uploadsRouter = (deps: UploadDeps) => {
           status: "finalized",
         })
         .where(eq(uploads.id, upload.id));
-      res.json({ uploadId: upload.id, imageUrl, uri, imageHash, name, symbol });
+      const attestation = deps.attestor.attest({
+        creator: upload.wallet,
+        imageHash,
+        name,
+        symbol,
+        uri,
+      });
+      res.json({
+        uploadId: upload.id,
+        imageUrl,
+        uri,
+        imageHash,
+        name,
+        symbol,
+        attestation,
+      });
+    })
+    .post("/uploads/:id/attest", async (req, res) => {
+      const upload = await ownUpload(req.params, walletOf(res));
+      if (
+        upload.status !== "finalized" ||
+        !upload.imageHash ||
+        !upload.metadataUri ||
+        !upload.name ||
+        !upload.symbol
+      ) {
+        throw new HttpError(409, "upload is not finalized");
+      }
+      res.json({
+        uploadId: upload.id,
+        attestation: deps.attestor.attest({
+          creator: upload.wallet,
+          imageHash: upload.imageHash,
+          name: upload.name,
+          symbol: upload.symbol,
+          uri: upload.metadataUri,
+        }),
+      });
     });
 };

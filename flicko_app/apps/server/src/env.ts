@@ -44,6 +44,7 @@ const schema = z.object({
     .default("true")
     .transform((value) => value === "true"),
   EXPO_ACCESS_TOKEN: optional,
+  ATTESTOR_SECRET_KEY: optional,
 });
 
 export type Env = z.infer<typeof schema> & {
