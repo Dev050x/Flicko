@@ -1,6 +1,7 @@
 #![allow(unexpected_cfgs)]
 #![allow(deprecated)]
 
+pub mod attestation;
 pub mod constants;
 pub mod error;
 pub mod events;
@@ -40,6 +41,10 @@ pub mod flicko_programs {
         ctx.accounts.update_config(args)
     }
 
+    pub fn set_attestor(ctx: Context<SetAttestor>, authority: Pubkey) -> Result<()> {
+        ctx.accounts.set_attestor(authority, &ctx.bumps)
+    }
+
     pub fn create_meme(
         ctx: Context<CreateMeme>,
         name: String,
@@ -48,9 +53,12 @@ pub mod flicko_programs {
         image_hash: [u8; 32],
         supply: u64,
         start_price: u64,
+        expires_at: i64,
     ) -> Result<()> {
         ctx.accounts
             .validate(&name, &symbol, &uri, supply, start_price)?;
+        ctx.accounts
+            .verify_attestation(&name, &symbol, &uri, &image_hash, expires_at)?;
         ctx.accounts.burn_creation_fee()?;
         ctx.accounts.init_metadata(&name, &symbol, &uri)?;
         ctx.accounts.mint_supply(supply)?;

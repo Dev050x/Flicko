@@ -26,4 +26,10 @@ pub enum ErrorCode {
     InsufficientLiquidity,
     #[msg("No creator fees to claim")]
     NothingToClaim,
+    #[msg("Missing the attestor signature instruction")]
+    MissingAttestation,
+    #[msg("Attestor signature does not match this meme")]
+    InvalidAttestation,
+    #[msg("Attestation has expired")]
+    AttestationExpired,
 }

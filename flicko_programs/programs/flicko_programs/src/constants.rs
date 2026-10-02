@@ -13,6 +13,12 @@ pub const SKR_VAULT_SEED: &[u8] = b"skr_vault";
 pub const TOKEN_VAULT_SEED: &[u8] = b"token_vault";
 
 #[constant]
+pub const ATTESTOR_SEED: &[u8] = b"attestor";
+
+#[constant]
+pub const ATTESTATION_PREFIX: &[u8] = b"flicko:create:v1";
+
+#[constant]
 pub const MEME_DECIMALS: u8 = 6;
 
 pub const PRICE_SCALE: u128 = 1_000_000;

@@ -13,10 +13,15 @@ use anchor_spl::{
     token_interface::{burn, mint_to, Burn, Mint, MintTo, TokenAccount, TokenInterface},
 };
 
+use solana_instructions_sysvar::{load_current_index_checked, load_instruction_at_checked};
+
 use crate::{
-    error::ErrorCode, events::MemeCreated, math::launch_params, Config, Meme, Phase, CONFIG_SEED,
-    MAX_NAME_LEN, MAX_SYMBOL_LEN, MAX_URI_LEN, MEME_DECIMALS, MEME_SEED, SKR_VAULT_SEED,
-    TOKEN_VAULT_SEED,
+    attestation::{attestation_message, check_ed25519_data},
+    error::ErrorCode,
+    events::MemeCreated,
+    math::launch_params,
+    Attestor, Config, Meme, Phase, ATTESTOR_SEED, CONFIG_SEED, MAX_NAME_LEN, MAX_SYMBOL_LEN,
+    MAX_URI_LEN, MEME_DECIMALS, MEME_SEED, SKR_VAULT_SEED, TOKEN_VAULT_SEED,
 };
 
 #[derive(Accounts)]
@@ -30,6 +35,13 @@ pub struct CreateMeme<'info> {
         has_one = skr_mint @ ErrorCode::InvalidMint
     )]
     pub config: Account<'info, Config>,
+
+    #[account(seeds = [ATTESTOR_SEED], bump = attestor.bump)]
+    pub attestor: Account<'info, Attestor>,
+
+    /// CHECK: the instructions sysvar, pinned by address
+    #[account(address = solana_sdk_ids::sysvar::instructions::ID)]
+    pub instructions: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -123,6 +135,40 @@ impl<'info> CreateMeme<'info> {
             ErrorCode::PriceOutOfRange
         );
         Ok(())
+    }
+
+    pub fn verify_attestation(
+        &self,
+        name: &str,
+        symbol: &str,
+        uri: &str,
+        image_hash: &[u8; 32],
+        expires_at: i64,
+    ) -> Result<()> {
+        require!(
+            Clock::get()?.unix_timestamp <= expires_at,
+            ErrorCode::AttestationExpired
+        );
+
+        let sysvar = self.instructions.to_account_info();
+        let current = load_current_index_checked(&sysvar)?;
+        require!(current > 0, ErrorCode::MissingAttestation);
+        let previous = load_instruction_at_checked(current as usize - 1, &sysvar)?;
+        require_keys_eq!(
+            previous.program_id,
+            solana_sdk_ids::ed25519_program::ID,
+            ErrorCode::MissingAttestation
+        );
+
+        let message = attestation_message(
+            &self.creator.key(),
+            image_hash,
+            expires_at,
+            name,
+            symbol,
+            uri,
+        );
+        check_ed25519_data(&previous.data, &self.attestor.authority, &message)
     }
 
     pub fn burn_creation_fee(&self) -> Result<()> {
