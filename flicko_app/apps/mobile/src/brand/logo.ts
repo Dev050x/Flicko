@@ -7,7 +7,6 @@ export const colors = {
   violet: "#5B2BFF",
   pink: "#FF2D95",
   amber: "#FFB21A",
-  lilac: "#8C6BFF",
 } as const;
 
 /*
@@ -20,14 +19,14 @@ export const gradientStops = [
 ] as const;
 
 /*
- * Solid colours of the viewfinder corners while the intro focuses, sampled from the
- * design: top-left, top-right, bottom-left, bottom-right.
+ * Solid brand colours of the viewfinder corners while the intro focuses, following the
+ * gradient direction: top-left, top-right, bottom-left, bottom-right.
  */
 export const focusColors = [
-  "#FE368C",
-  "#FE9C2D",
-  "#9D62F2",
-  "#FE368C",
+  colors.pink,
+  colors.amber,
+  colors.violet,
+  colors.pink,
 ] as const;
 
 /*
