@@ -18,6 +18,15 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(err.status).json({ error: err.message });
     return;
   }
+  if (
+    typeof err?.status === "number" &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    err.expose
+  ) {
+    res.status(err.status).json({ error: err.message });
+    return;
+  }
   console.error(err);
   res.status(500).json({ error: "internal error" });
 };

@@ -7,6 +7,9 @@ export interface BlobStore {
     contentType: string,
   ): Promise<void>;
   get(key: string): Promise<Uint8Array>;
+  size(key: string): Promise<number | null>;
+  delete(key: string): Promise<void>;
+  presignPut(key: string, contentType: string, expiresIn: number): string;
   publicUrl(key: string): string;
 }
 
@@ -33,6 +36,16 @@ export const s3BlobStore = (opts: S3Options): BlobStore => {
       await client.write(key, body, { type: contentType });
     },
     get: async (key) => new Uint8Array(await client.file(key).arrayBuffer()),
+    size: async (key) => {
+      const file = client.file(key);
+      if (!(await file.exists())) return null;
+      return (await file.stat()).size;
+    },
+    delete: async (key) => {
+      await client.file(key).delete();
+    },
+    presignPut: (key, contentType, expiresIn) =>
+      client.file(key).presign({ method: "PUT", expiresIn, type: contentType }),
     publicUrl: (key) => `${base.replace(/\/$/, "")}/${key}`,
   };
 };
@@ -54,6 +67,12 @@ export const memoryBlobStore = (publicBaseUrl = "https://blobs.test") => {
       if (!blob) throw new Error(`no blob at ${key}`);
       return blob.body;
     },
+    size: async (key) => blobs.get(key)?.body.length ?? null,
+    delete: async (key) => {
+      blobs.delete(key);
+    },
+    presignPut: (key, contentType, expiresIn) =>
+      `${publicBaseUrl}/${key}?method=PUT&type=${encodeURIComponent(contentType)}&expires=${expiresIn}`,
     publicUrl: (key) => `${publicBaseUrl}/${key}`,
     keys: () => [...blobs.keys()],
     contentType: (key) => blobs.get(key)?.contentType,

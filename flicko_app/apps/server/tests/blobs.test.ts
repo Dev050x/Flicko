@@ -1,8 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { memoryBlobStore, s3BlobStore } from "../src/storage/blobs";
 
-describe("blob stores", () => {
-  test("memory store round-trips bytes and text", async () => {
+const s3Options = {
+  bucket: "flicko-test",
+  region: "us-east-1",
+  accessKeyId: "AKIDEXAMPLE",
+  secretAccessKey: "secret",
+};
+
+describe("memory blob store", () => {
+  test("round-trips bytes and text, reports size and deletes", async () => {
     const store = memoryBlobStore();
     await store.put("raw/a.jpg", new Uint8Array([1, 2, 3]), "image/jpeg");
     await store.put("memes/a.json", '{"ok":true}', "application/json");
@@ -11,25 +18,33 @@ describe("blob stores", () => {
       '{"ok":true}',
     );
     expect(store.contentType("memes/a.json")).toBe("application/json");
-    expect(store.keys().sort()).toEqual(["memes/a.json", "raw/a.jpg"]);
-    await expect(store.get("missing")).rejects.toThrow();
+    expect(await store.size("raw/a.jpg")).toBe(3);
+    expect(await store.size("missing")).toBeNull();
+    await store.delete("raw/a.jpg");
+    expect(store.keys()).toEqual(["memes/a.json"]);
+    await expect(store.get("raw/a.jpg")).rejects.toThrow();
   });
+});
 
-  test("s3 public urls use the bucket host or a custom base", () => {
-    const opts = {
-      bucket: "flicko-test",
-      region: "ap-south-1",
-      accessKeyId: "id",
-      secretAccessKey: "secret",
-    };
-    expect(s3BlobStore(opts).publicUrl("memes/x.jpg")).toBe(
-      "https://flicko-test.s3.ap-south-1.amazonaws.com/memes/x.jpg",
+describe("s3 blob store", () => {
+  test("public urls use the bucket host or a custom base", () => {
+    expect(s3BlobStore(s3Options).publicUrl("memes/x.jpg")).toBe(
+      "https://flicko-test.s3.us-east-1.amazonaws.com/memes/x.jpg",
     );
     expect(
       s3BlobStore({
-        ...opts,
+        ...s3Options,
         publicBaseUrl: "https://cdn.flicko.app/",
       }).publicUrl("memes/x.jpg"),
     ).toBe("https://cdn.flicko.app/memes/x.jpg");
+  });
+
+  test("presigns a short-lived PUT for the exact key", () => {
+    const url = new URL(
+      s3BlobStore(s3Options).presignPut("incoming/abc", "image/jpeg", 300),
+    );
+    expect(url.pathname.endsWith("/incoming/abc")).toBe(true);
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("300");
+    expect(url.searchParams.get("X-Amz-Signature")).toMatch(/^[0-9a-f]{64}$/);
   });
 });

@@ -7,12 +7,14 @@ import { feedRouter, type ReadDeps } from "./routes/feed";
 import { healthRouter, type HealthDeps } from "./routes/health";
 import { meRouter } from "./routes/me";
 import { memesRouter } from "./routes/memes";
+import { uploadsRouter, type UploadDeps } from "./routes/uploads";
 
 export interface AppDeps {
   corsOrigin: string;
   health: HealthDeps;
   auth?: AuthDeps;
   read?: ReadDeps;
+  uploads?: UploadDeps;
 }
 
 export const createApp = (deps: AppDeps) => {
@@ -25,6 +27,10 @@ export const createApp = (deps: AppDeps) => {
 
   if (deps.auth) {
     app.use(authRouter(deps.auth)).use(meRouter(deps.auth));
+  }
+
+  if (deps.uploads) {
+    app.use(uploadsRouter(deps.uploads));
   }
 
   if (deps.read) {
