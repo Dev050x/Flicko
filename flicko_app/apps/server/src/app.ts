@@ -7,6 +7,7 @@ import { feedRouter, type ReadDeps } from "./routes/feed";
 import { healthRouter, type HealthDeps } from "./routes/health";
 import { meRouter } from "./routes/me";
 import { memesRouter } from "./routes/memes";
+import { portfolioRouter } from "./routes/portfolio";
 import { uploadsRouter, type UploadDeps } from "./routes/uploads";
 
 export interface AppDeps {
@@ -26,7 +27,10 @@ export const createApp = (deps: AppDeps) => {
     .use(healthRouter(deps.health));
 
   if (deps.auth) {
-    app.use(authRouter(deps.auth)).use(meRouter(deps.auth));
+    app
+      .use(authRouter(deps.auth))
+      .use(meRouter(deps.auth))
+      .use(portfolioRouter(deps.auth));
   }
 
   if (deps.uploads) {
