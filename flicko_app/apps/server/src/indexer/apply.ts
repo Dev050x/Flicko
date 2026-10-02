@@ -1,6 +1,6 @@
 import { launchParams, spotPrice } from "@flicko/sdk";
-import { eq, sql } from "drizzle-orm";
-import { candles, memes, positions, trades } from "../db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { candles, memes, positions, trades, uploads } from "../db/schema";
 import type { Db } from "../db/types";
 import type { FlickoEvent, Phase } from "./events";
 
@@ -46,6 +46,28 @@ const mintOf = async (tx: Tx, memePda: string) => {
     .from(memes)
     .where(eq(memes.memePda, memePda));
   return row?.mint;
+};
+
+const linkUpload = async (
+  tx: Tx,
+  mint: string,
+  creator: string,
+  imageHash: string,
+) => {
+  const [upload] = await tx
+    .select({
+      imageUrl: uploads.imageUrl,
+      captionTop: uploads.captionTop,
+      captionBottom: uploads.captionBottom,
+    })
+    .from(uploads)
+    .where(
+      and(eq(uploads.imageHash, imageHash), eq(uploads.status, "finalized")),
+    )
+    .orderBy(sql`${uploads.wallet} = ${creator} desc`, desc(uploads.createdAt))
+    .limit(1);
+  if (!upload) return;
+  await tx.update(memes).set(upload).where(eq(memes.mint, mint));
 };
 
 const updatePosition = async (tx: Tx, mint: string, event: TradeEvent) => {
@@ -151,6 +173,7 @@ const applyEvent = async (
           createdAt: new Date(event.createdAt * 1000),
         })
         .onConflictDoNothing();
+      await linkUpload(tx, event.mint, event.creator, event.imageHash);
       return null;
     }
     case "trade": {
