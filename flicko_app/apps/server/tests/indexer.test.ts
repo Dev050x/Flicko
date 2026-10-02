@@ -13,6 +13,7 @@ import {
   memes,
   positions,
   trades,
+  uploads,
 } from "../src/db/schema";
 import { applyTransaction, type MemeChainState } from "../src/indexer/apply";
 import type { ChainSource } from "../src/indexer/chain";
@@ -96,6 +97,48 @@ describe("applying transactions", () => {
     expect(meme!.lastTradeAt!.getTime()).toBe(
       transactions[2]!.blockTime! * 1000,
     );
+  });
+
+  test("links the meme to the creator's finalized upload", async () => {
+    const [created] = decode(transactions[0]!.logs);
+    const imageHash = (created as { imageHash: string }).imageHash;
+    const upload = (
+      wallet: string,
+      status: "pending" | "finalized",
+      n: number,
+    ) => ({
+      wallet,
+      rawKey: `raw/${n}.jpg`,
+      imageHash,
+      status,
+      imageUrl: `https://blobs.test/memes/${n}.jpg`,
+      captionTop: `TOP ${n}`,
+      captionBottom: `BOTTOM ${n}`,
+    });
+    await db
+      .insert(uploads)
+      .values([
+        upload("someone-else", "finalized", 1),
+        upload(TRADER, "finalized", 2),
+        upload(TRADER, "pending", 3),
+      ]);
+    await applyAll();
+    const [meme] = await db.select().from(memes).where(eq(memes.mint, MINT));
+    expect(meme).toMatchObject({
+      imageUrl: "https://blobs.test/memes/2.jpg",
+      captionTop: "TOP 2",
+      captionBottom: "BOTTOM 2",
+    });
+  });
+
+  test("leaves image fields empty when no upload matches", async () => {
+    await applyAll();
+    const [meme] = await db.select().from(memes).where(eq(memes.mint, MINT));
+    expect(meme).toMatchObject({
+      imageUrl: null,
+      captionTop: null,
+      captionBottom: null,
+    });
   });
 
   test("stores both trades with their event data", async () => {
