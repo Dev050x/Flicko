@@ -22,6 +22,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@repo/typescript-config": "*",
     "@types/bun": "latest",
     "@types/cors": "^2.8.19",
