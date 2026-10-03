@@ -35,6 +35,7 @@ import { Glass } from "@/components/ui/glass";
 import { LockIcon } from "@/components/ui/icons";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { WalletSheet } from "@/components/wallet/wallet-sheet";
+import { useLastShot } from "@/features/camera/last-shot";
 import { useCameraSettings } from "@/features/camera/settings";
 import {
   FILTERS,
@@ -225,6 +226,7 @@ export default function CameraScreen() {
       }
 
       const shot = await camera.current.capture(front ? "off" : flash);
+      useLastShot.getState().set(shot.uri);
       if (player) {
         player.seekTo(0);
         player.play();

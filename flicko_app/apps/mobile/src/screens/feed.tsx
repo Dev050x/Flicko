@@ -52,6 +52,9 @@ export default function Feed() {
             <Link href="/dev/intro-frames" style={styles.devLink}>
               Intro frames
             </Link>
+            <Link href="/dev/face" style={styles.devLink}>
+              Face detection test
+            </Link>
             {!short && (
               <Text onPress={signOut} style={styles.devLink}>
                 Back to welcome
