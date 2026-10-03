@@ -1,96 +1,154 @@
-import { Link } from "expo-router";
-import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FlatList,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+  type ViewToken,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Button, TextButton } from "@/components/ui/button";
-import { DevnetPill } from "@/components/ui/devnet-pill";
-import { WalletIcon } from "@/components/ui/icons";
-import { Wordmark } from "@/components/ui/wordmark";
-import { ConnectFlow } from "@/components/wallet/connect-flow";
-import { useSession } from "@/store/session";
-import { colors, ref, type } from "@/theme";
+import { FeedPage, type FeedPageActions } from "@/components/feed/feed-page";
+import { FeedTopBar } from "@/components/feed/top-bar";
+import { config } from "@/config";
+import { useFeedStore } from "@/features/feed/store";
+import type { Meme } from "@/features/feed/types";
+import { feed, geist } from "@/theme";
 
 /*
- * Placeholder feed until the real one is built. Guests see "Connect wallet", which opens
- * the same connect sheet every gated action will use.
+ * The feed (flicko_feed design): one meme per page, vertical snap paging. Only the
+ * current page and its neighbours are rendered; the next image is prefetched.
  */
 export default function Feed() {
   const insets = useSafeAreaInsets();
-  const session = useSession((s) => s.session);
-  const signOut = useSession((s) => s.signOut);
-  const [connecting, setConnecting] = useState(false);
-  const short = session
-    ? `${session.wallet.slice(0, 4)}…${session.wallet.slice(-4)}`
-    : null;
+  const ids = useFeedStore((s) => s.ids);
+  const tab = useFeedStore((s) => s.tab);
+  const setTab = useFeedStore((s) => s.setTab);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [current, setCurrent] = useState(0);
+  const list = useRef<FlatList<string>>(null);
+
+  const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<string>[] }) => {
+    const first = viewableItems[0];
+    if (first?.index != null) setCurrent(first.index);
+  }).current;
+
+  // Prefetch the next page's image (remote images only; bundled ones are already local).
+  useEffect(() => {
+    const next = ids[current + 1] && useFeedStore.getState().memes[ids[current + 1]];
+    if (next && typeof next.imageUrl === "string") Image.prefetch(next.imageUrl);
+  }, [current, ids]);
+
+  const actions = useMemo<FeedPageActions>(
+    () => ({
+      onRemix: (meme: Meme) => {
+        // TODO: the camera doesn't take a template yet; it ignores `template` for now.
+        router.push({ pathname: "/camera", params: { template: meme.id } });
+      },
+      onShare: (meme: Meme) => {
+        const url = `${config.siteUrl}/m/${meme.id}`;
+        Share.share({ message: `$${meme.ticker} on Flicko ${url}`, url }).catch(() => {});
+      },
+      onBuy: (meme: Meme) => {
+        // Milestone 2: open the buy sheet.
+        console.log("[feed] buy", meme.ticker);
+      },
+      onSell: (meme: Meme) => {
+        // Milestone 2: open the sheet in sell mode.
+        console.log("[feed] sell", meme.ticker);
+      },
+    }),
+    [],
+  );
+
+  const pickTab = useCallback(
+    (next: typeof tab) => {
+      setTab(next);
+      setCurrent(0);
+      list.current?.scrollToOffset({ offset: 0, animated: false });
+    },
+    [setTab],
+  );
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: string; index: number }) =>
+      Math.abs(index - current) > 1 ? (
+        <View style={{ width: size.width, height: size.height }} />
+      ) : (
+        <FeedPage
+          id={item}
+          width={size.width}
+          height={size.height}
+          active={index === current}
+          actions={actions}
+        />
+      ),
+    [actions, current, size],
+  );
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
-      <View style={styles.header}>
-        <Wordmark size={22} letterSpacing={-0.8} />
-        <DevnetPill />
-      </View>
-      <View style={styles.body}>
-        <Text style={[type.h1, { color: colors.text }]}>Feed coming soon</Text>
-        <Text style={styles.note}>
-          {short ? `Signed in as ${short}` : "You're browsing as a guest."}
-        </Text>
-        {short ? (
-          <TextButton label="Sign out" onPress={signOut} />
-        ) : (
-          <Button
-            label="Connect wallet"
-            icon={<WalletIcon />}
-            onPress={() => setConnecting(true)}
-          />
-        )}
-        {__DEV__ && (
-          <View style={styles.dev}>
-            <Link href="/dev/screens" style={styles.devLink}>
-              Preview onboarding screens
-            </Link>
-            <Link href="/dev/intro-frames" style={styles.devLink}>
-              Intro frames
-            </Link>
-            <Link href="/dev/face" style={styles.devLink}>
-              Face detection test
-            </Link>
-            {!short && (
-              <Text onPress={signOut} style={styles.devLink}>
-                Back to welcome
+    <View
+      style={styles.screen}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setSize({ width, height });
+      }}
+    >
+      {size.height > 0 && (
+        <FlatList
+          ref={list}
+          data={ids}
+          keyExtractor={(id) => id}
+          renderItem={renderItem}
+          extraData={current}
+          pagingEnabled
+          snapToInterval={size.height}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          disableIntervalMomentum
+          showsVerticalScrollIndicator={false}
+          getItemLayout={(_, index) => ({
+            length: size.height,
+            offset: size.height * index,
+            index,
+          })}
+          initialNumToRender={2}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          removeClippedSubviews
+          onViewableItemsChanged={onViewable}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+          ListEmptyComponent={
+            <View style={[styles.empty, { height: size.height }]}>
+              <Text style={styles.emptyText}>
+                {tab === "following"
+                  ? "Follow creators to see their memes here."
+                  : "Nothing launching right now."}
               </Text>
-            )}
-          </View>
-        )}
-      </View>
-      {connecting && (
-        <ConnectFlow
-          onClose={() => setConnecting(false)}
-          onBrowse={() => setConnecting(false)}
+            </View>
+          }
         />
       )}
+      <FeedTopBar
+        top={insets.top}
+        tab={tab}
+        onTab={pickTab}
+        onSearch={() => router.navigate("/markets")}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    paddingHorizontal: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  body: { flex: 1, justifyContent: "center", paddingHorizontal: 24, gap: 12 },
-  note: {
-    fontFamily: "DMSans_400Regular",
-    fontSize: 16,
-    color: colors.textMuted,
-  },
-  dev: { marginTop: 24, gap: 16 },
-  devLink: {
-    fontFamily: "DMSans_500Medium",
-    fontSize: 14,
-    color: ref.textSubtle,
+  screen: { flex: 1, backgroundColor: feed.bg },
+  empty: { alignItems: "center", justifyContent: "center", paddingHorizontal: 40 },
+  emptyText: {
+    fontFamily: geist.regular,
+    fontSize: 15,
+    color: feed.textMuted,
+    textAlign: "center",
   },
 });
