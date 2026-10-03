@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   type Ref,
 } from "react";
@@ -13,18 +14,25 @@ import {
   usePhotoOutput,
   type FlashMode,
 } from "react-native-vision-camera";
-import { createImageFaceDetector } from "react-native-vision-camera-face-detector";
+import {
+  createFaceDetector,
+  createFaceDetectorOutput,
+  createImageFaceDetector,
+} from "react-native-vision-camera-face-detector";
 import { SkiaCamera } from "react-native-vision-camera-skia";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { matrixTint } from "@/features/filters/catalog";
 import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
+import type { LiveFaces } from "@/features/face";
 
 export { composePhoto } from "@/features/filters/apply-filter";
 
 /** VisionCamera builds find the eyes in the captured photo. */
 export const detectsFaces = true;
+/** ...and track them live on the preview (with live filters on). */
+export const tracksFaces = true;
 export { useCameraPermission } from "react-native-vision-camera";
 
 /*
@@ -48,6 +56,8 @@ export interface CameraLayerRef {
 /** JPEG quality for the captured photo, 0-100 (NitroImage scale). */
 const PHOTO_JPEG_QUALITY = 95;
 const SLOW_FRAME_MS = 16;
+/** Look for faces on every Nth frame (about 10 a second at 30 fps). */
+const FACE_EVERY = 3;
 const SLOW_FOR_MS = 2000;
 
 export function CameraLayer({
@@ -57,6 +67,8 @@ export function CameraLayer({
   matrix,
   live,
   onSlow,
+  trackFaces = false,
+  onFaces,
 }: {
   ref?: Ref<CameraLayerRef>;
   facing: Facing;
@@ -64,6 +76,10 @@ export function CameraLayer({
   matrix: number[] | undefined;
   live: boolean;
   onSlow: () => void;
+  /** look for faces on the preview (a face filter is selected) */
+  trackFaces?: boolean;
+  /** live eye positions; called about 10 times a second while tracking */
+  onFaces?: (faces: LiveFaces) => void;
   /** read by the expo-camera fallback; VisionCamera takes the flash per capture */
   flash?: import("@/features/camera/settings").FlashSetting;
 }) {
@@ -98,6 +114,68 @@ export function CameraLayer({
   useEffect(() => {
     matrixValue.value = matrix ?? null;
   }, [matrix, matrixValue]);
+
+  // Live face tracking runs in the frame processor; results go to JS.
+  const faceDetector = useMemo(
+    () =>
+      createFaceDetector({
+        performanceMode: "fast",
+        runLandmarks: true,
+        cameraFacing: facing,
+      }),
+    [facing],
+  );
+  const tracking = useSharedValue(trackFaces);
+  const mirrored = useSharedValue(facing === "front");
+  const frameCount = useSharedValue(0);
+  const hadFaces = useSharedValue(false);
+  useEffect(() => {
+    tracking.value = trackFaces;
+    mirrored.value = facing === "front";
+  }, [trackFaces, facing, tracking, mirrored]);
+  const onFacesRef = useRef(onFaces);
+  onFacesRef.current = onFaces;
+  const reportFaces = useCallback((faces: LiveFaces) => onFacesRef.current?.(faces), []);
+
+  // Plain preview: a face detector output next to the photo output. Its points are in
+  // the upright frame (like the Skia path), mapped onto the preview the same way.
+  const hadPlainFaces = useRef(false);
+  const mirrorMode = facing === "front" ? "on" : "auto";
+  const faceOutput = useMemo(
+    () =>
+      createFaceDetectorOutput({
+        performanceMode: "fast",
+        runLandmarks: true,
+        cameraFacing: facing,
+        mirrorMode,
+        onFacesDetected(found) {
+          const faces: LiveFaces["faces"] = [];
+          let aspect = 0;
+          for (const face of found) {
+            const a = face.landmarks?.LEFT_EYE;
+            const b = face.landmarks?.RIGHT_EYE;
+            if (!a || !b || !face.frameWidth || !face.frameHeight) continue;
+            aspect = face.frameWidth / face.frameHeight;
+            const x = (p: { x: number }) =>
+              facing === "front" ? 1 - p.x / face.frameWidth : p.x / face.frameWidth;
+            faces.push({
+              lx: x(a),
+              ly: a.y / face.frameHeight,
+              rx: x(b),
+              ry: b.y / face.frameHeight,
+            });
+          }
+          // Report changes, and one empty result when the faces leave.
+          if (faces.length === 0 && !hadPlainFaces.current) return;
+          hadPlainFaces.current = faces.length > 0;
+          onFacesRef.current?.({ kind: "frame", faces, aspect });
+        },
+        onError(err) {
+          console.warn("[camera] live face detection failed", err);
+        },
+      }),
+    [facing, mirrorMode],
+  );
 
   const slowSince = useSharedValue(0);
   // 0 = not checked yet, 1 = frames can be read, -1 = they can't (stop trying)
@@ -146,9 +224,40 @@ export function CameraLayer({
           canvas.drawImage(frameTexture, 0, 0);
         }
       });
+      const renderMs = Date.now() - start;
+
+      // Every few frames, find the eyes (not counted as render time).
+      if (tracking.value && ++frameCount.value % FACE_EVERY === 0) {
+        try {
+          const found = faceDetector.detectFaces(frame);
+          const faces: LiveFaces["faces"] = [];
+          let aspect = 0;
+          for (const face of found) {
+            const a = face.landmarks?.LEFT_EYE;
+            const b = face.landmarks?.RIGHT_EYE;
+            if (!a || !b || !face.frameWidth || !face.frameHeight) continue;
+            aspect = face.frameWidth / face.frameHeight;
+            const x = (p: { x: number }) =>
+              mirrored.value ? 1 - p.x / face.frameWidth : p.x / face.frameWidth;
+            faces.push({
+              lx: x(a),
+              ly: a.y / face.frameHeight,
+              rx: x(b),
+              ry: b.y / face.frameHeight,
+            });
+          }
+          // Report changes, and one empty result when the faces leave.
+          if (faces.length > 0 || hadFaces.value) {
+            hadFaces.value = faces.length > 0;
+            scheduleOnRN(reportFaces, { kind: "frame", faces, aspect });
+          }
+        } catch {
+          // A frame the detector can't read: skip it.
+        }
+      }
       frame.dispose();
 
-      if (Date.now() - start <= SLOW_FRAME_MS) {
+      if (renderMs <= SLOW_FRAME_MS) {
         slowSince.value = 0;
       } else if (slowSince.value === 0) {
         slowSince.value = start;
@@ -157,7 +266,18 @@ export function CameraLayer({
         scheduleOnRN(reportSlow);
       }
     },
-    [matrixValue, slowSince, bufferCheck, reportSlow],
+    [
+      matrixValue,
+      slowSince,
+      bufferCheck,
+      reportSlow,
+      tracking,
+      frameCount,
+      faceDetector,
+      mirrored,
+      hadFaces,
+      reportFaces,
+    ],
   );
 
   if (live) {
@@ -188,8 +308,8 @@ export function CameraLayer({
         style={StyleSheet.absoluteFill}
         device={facing}
         isActive={active}
-        outputs={[photoOutput]}
-        mirrorMode={facing === "front" ? "on" : "auto"}
+        outputs={trackFaces ? [photoOutput, faceOutput] : [photoOutput]}
+        mirrorMode={mirrorMode}
         resizeMode="cover"
       />
       {matrix && (

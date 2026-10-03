@@ -14,6 +14,7 @@ import {
   bracketPaths,
   layoutFor,
   STICKER_SIZE,
+  type Eyes,
   type Placement,
   type Rect,
   type StickerPose,
@@ -23,8 +24,8 @@ import { colors } from "@/theme";
 /*
  * Filter content on the live preview, laid out in the safe zone exactly as it will be
  * baked into the photo: viewfinder brackets + frame text, or the sticker (drag to move,
- * pinch to scale, kept inside the zone). Face filters draw nothing until a photo is
- * taken, when they go on the detected faces.
+ * pinch to scale, kept inside the zone). Face filters follow the eyes the camera is
+ * tracking live (`faces`, in view coordinates).
  */
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 2.5;
@@ -35,14 +36,16 @@ export function LiveOverlay({
   centerX,
   sticker,
   onStickerChange,
+  faces = [],
 }: {
   filter: Filter;
   zone: Rect;
   centerX: number;
   sticker: StickerPose;
   onStickerChange: (pose: StickerPose) => void;
+  faces?: Eyes[];
 }) {
-  const layout = layoutFor(filter, zone, 1, { sticker, centerX });
+  const layout = layoutFor(filter, zone, 1, { sticker, centerX, faces });
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>

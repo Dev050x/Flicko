@@ -81,3 +81,6 @@ export function CameraLayer({
     </View>
   );
 }
+
+/** No frame access here, so face filters are placed only after the snap. */
+export const tracksFaces = false;

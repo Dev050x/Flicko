@@ -43,10 +43,12 @@ import {
   filterById,
   firstIndexOf,
 } from "@/features/filters/catalog";
+import { liveEyesInView, smoothEyes, type LiveFaces } from "@/features/face";
 import {
   approxEyes,
   defaultStickerPose,
   layoutFor,
+  type Eyes,
   type Rect,
   type StickerPose,
 } from "@/features/filters/placement";
@@ -107,6 +109,7 @@ const FACE_HINT: Record<string, string> = {
   "laser-eyes": "Lasers lock onto your eyes after you snap",
   "deal-with-it": "Glasses lock onto your eyes after you snap",
 };
+const FIND_FACE_HINT = "Point the camera at a face";
 
 /*
  * Live Skia filters switch off for the rest of the session once a device is too slow.
@@ -170,12 +173,27 @@ export default function CameraScreen() {
 
   // The filter name shows for 1.5s after a change, then fades; the premium chip stays.
   const nameOpacity = useSharedValue(0);
-  // Face filters explain themselves for 3s (they're placed on the photo, not live).
+  // Face filters follow the eyes live when the camera can track them; otherwise they
+  // explain for 3s that they're placed on the photo.
   const hintOpacity = useSharedValue(0);
+  const trackingFaces = filter.type === "face" && !!cameraModule?.tracksFaces;
+  const [liveEyes, setLiveEyes] = useState<Eyes[]>([]);
+  useEffect(() => {
+    if (!trackingFaces) setLiveEyes([]);
+  }, [trackingFaces]);
+  const onFaces = (found: LiveFaces) => {
+    if (!view) return;
+    const next = liveEyesInView(found, view);
+    setLiveEyes((prev) => smoothEyes(prev, next));
+  };
   const faceHint =
-    filter.type === "face" && cameraModule?.detectsFaces
-      ? FACE_HINT[filter.id]
-      : undefined;
+    filter.type !== "face" || !cameraModule?.detectsFaces
+      ? undefined
+      : trackingFaces
+        ? liveEyes.length === 0
+          ? FIND_FACE_HINT
+          : undefined
+        : FACE_HINT[filter.id];
   useEffect(() => {
     const flashFor = (ms: number) =>
       withSequence(
@@ -304,6 +322,8 @@ export default function CameraScreen() {
             liveFiltersOff = true;
             setLive(false);
           }}
+          trackFaces={trackingFaces}
+          onFaces={onFaces}
         />
       ) : (
         <CameraCard
@@ -327,6 +347,7 @@ export default function CameraScreen() {
           centerX={view!.width / 2}
           sticker={sticker}
           onStickerChange={setStickerPose}
+          faces={liveEyes}
         />
       )}
 
