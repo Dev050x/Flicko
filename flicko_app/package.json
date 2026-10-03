@@ -40,5 +40,9 @@
   "workspaces": [
     "apps/*",
     "packages/*"
+  ],
+  "trustedDependencies": [
+    "@shopify/react-native-skia",
+    "bigint-buffer"
   ]
 }

@@ -47,7 +47,16 @@
         {
           "color": "#FF2D95"
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,
