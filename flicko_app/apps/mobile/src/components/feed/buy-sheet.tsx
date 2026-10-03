@@ -2,6 +2,7 @@ import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -20,7 +21,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { CloseIcon } from "@/components/ui/icons";
-import { grouped, price, skr } from "@/features/feed/format";
+import { config } from "@/config";
+import { useLaunchConfig } from "@/features/create/chain";
+import { compactCount, grouped, price, skr } from "@/features/feed/format";
+import {
+  buyLimit,
+  networkFeeSol,
+  quoteTrade,
+  skrNumber,
+  TOKEN_UNIT,
+  TradeProblem,
+  useMemeState,
+  useTokenAccountRent,
+  useTokenHolding,
+  useTrade,
+  type TradeSide,
+} from "@/features/feed/trade";
 import type { Meme } from "@/features/feed/types";
 import { formatSkr, useSkrBalance } from "@/features/wallet/skr-balance";
 import { useSession } from "@/store/session";
@@ -29,67 +45,94 @@ import { feed, geist } from "@/theme";
 import { MinusIcon, PlusIcon } from "./icons";
 
 /*
- * Buy sheet (flicko_feed "Buy sheet" design) over the dimmed feed. Launching memes buy
- * at the fixed launch price, clamped to the supply left. Trading memes reuse the sheet
- * for buy and sell at the pool price. Swipe down, the X, the dim or back closes it.
+ * Buy sheet (flicko_feed "Buy sheet" design) over the dimmed feed. The quote is live:
+ * the Meme account is read from the chain every few seconds and priced with the SDK's
+ * math, so the total is what the program will charge (launch prices climb along the
+ * curve as tokens sell). Trading memes reuse the sheet for buy and sell at the pool.
+ * Swipe down, the X, the dim or back closes it.
  */
-export type TradeSide = "buy" | "sell";
-
-export interface TradeOrder {
-  memeId: string;
-  ticker: string;
-  side: TradeSide;
-  quantity: number;
-  priceEach: number;
-  total: number;
-}
+export type { TradeSide };
 
 const CHIPS = [1, 10, 50] as const;
 const DEFAULT_QUANTITY = 10;
-// TODO(milestone 3): the pool's real limits (sell: the wallet's balance; buy: what the
-// SKR balance and pool depth allow). These caps only keep the mock stepper bounded.
-const MOCK_POOL_BUY_MAX = 10_000;
-const MOCK_HELD = 120;
-// One signature at the base fee. TODO(milestone 3): add rent for a new token account.
-const BASE_FEE_SOL = 0.000005;
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 900;
 
-const clamp = (n: number, max: number) => Math.max(1, Math.min(max, Math.round(n)));
+const clamp = (n: number, max: number) => Math.max(1, Math.min(Math.max(1, max), Math.round(n)));
 
-/** Two decimals; more for amounts under 0.01 so tiny prices don't read as 0.00. */
-const amount = (n: number) => price(n);
+/** big counts stay short: 742, 12,400, 1.2M */
+const count = (n: number) => (n >= 1_000_000 ? compactCount(n) : grouped(n));
 
 export function BuySheet({
   meme,
   side,
   onClose,
-  onApprove,
+  onDone,
+  onConnect,
 }: {
   meme: Meme;
   side: TradeSide;
   onClose: () => void;
-  onApprove: (order: TradeOrder) => void;
+  /** after a confirmed trade, with a message for a toast */
+  onDone: (message: string) => void;
+  /** a guest pressed approve */
+  onConnect: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const wallet = useSession((s) => s.session?.wallet);
   const balance = useSkrBalance(wallet);
+  const holding = useTokenHolding(wallet, meme.id);
+  const rent = useTokenAccountRent();
+  const launchConfig = useLaunchConfig();
+  const state = useMemeState(meme.id);
+  const fees = launchConfig.data
+    ? { creatorFeeBps: launchConfig.data.creatorFeeBps, burnBps: launchConfig.data.burnBps }
+    : undefined;
+  const trade = useTrade(fees);
+  const [problem, setProblem] = useState<string | null>(null);
 
-  const launching = meme.status === "launching";
-  const left = Math.max(0, meme.supplyTotal - meme.supplySold);
-  const max = launching ? left : side === "sell" ? MOCK_HELD : MOCK_POOL_BUY_MAX;
-  // TODO(milestone 3): quote the pool through @flicko/sdk (price impact, fees) instead
-  // of multiplying by the current pool price.
-  const priceEach = launching ? meme.launchPrice : (meme.poolPrice ?? meme.launchPrice);
-  const [quantity, setQuantity] = useState(() => clamp(DEFAULT_QUANTITY, Math.max(1, max)));
-  const total = quantity * priceEach;
-  const soldOut = max < 1;
+  const chain = state.data;
+  const launching = chain ? chain.phase === "launch" : meme.status === "launching";
+  const sold = chain ? Number(chain.tokensSold / TOKEN_UNIT) : meme.supplySold;
+  const total = chain ? Number(chain.saleSupply / TOKEN_UNIT) : meme.supplyTotal;
+  const left = Math.max(0, total - sold);
+  const skrUnits = balance.data != null ? BigInt(Math.floor(balance.data * 10 ** config.skrDecimals)) : 0n;
+  const held = holding.data ? Number(holding.data.amount / TOKEN_UNIT) : 0;
+  const max =
+    side === "sell"
+      ? held
+      : launching
+        ? left
+        : chain && fees
+          ? Math.max(1, buyLimit(chain, fees, skrUnits))
+          : 1;
+
+  const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
+  // Keep the amount in range as the limits load or move.
+  const shown = max < 1 ? 0 : clamp(quantity, max);
+  const quote = chain && fees && shown > 0 ? quoteTrade(chain, fees, side, shown) : null;
+  const totalSkr = quote ? skrNumber(quote.skr) : null;
+  const priceEach = totalSkr != null && shown > 0 ? totalSkr / shown : meme.price;
+  const fee = networkFeeSol(side === "buy" && holding.data && !holding.data.exists ? (rent.data ?? 0) : 0);
+
+  const busy = trade.step !== "idle";
+  const short =
+    !wallet || !quote
+      ? null
+      : side === "buy"
+        ? balance.data != null && quote.skr > skrUnits
+          ? "Not enough SKR"
+          : null
+        : held < 1
+          ? `No $${meme.ticker} to sell`
+          : null;
 
   const set = (n: number) => {
     const next = clamp(n, max);
-    if (next !== quantity) Haptics.selectionAsync().catch(() => {});
+    if (next !== shown) Haptics.selectionAsync().catch(() => {});
     setQuantity(next);
+    setProblem(null);
   };
 
   // Slide in, follow the finger down, close past a distance or a flick.
@@ -101,6 +144,7 @@ export function BuySheet({
   }, [offset, dim]);
 
   const close = () => {
+    if (busy) return;
     dim.value = withTiming(0, { duration: 160 });
     offset.value = withTiming(window.height, { duration: 200 }, (done) => {
       if (done) scheduleOnRN(onClose);
@@ -108,6 +152,7 @@ export function BuySheet({
   };
 
   const pan = Gesture.Pan()
+    .enabled(!busy)
     .activeOffsetY(8)
     .failOffsetX([-20, 20])
     .onUpdate((e) => {
@@ -127,13 +172,41 @@ export function BuySheet({
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: offset.value }] }));
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
 
+  const approve = async () => {
+    if (!wallet) return onConnect();
+    setProblem(null);
+    try {
+      const message = await trade.run(meme.id, meme.ticker, side, shown);
+      if (message) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        onDone(message);
+      }
+    } catch (err) {
+      setProblem(err instanceof TradeProblem ? err.message : "Something went wrong. Try again.");
+    }
+  };
+
   const verb = side === "buy" ? "Buy" : "Sell";
-  const subtitle = launching ? "fixed launch price" : "pool price";
+  const feePct = fees ? (fees.creatorFeeBps + fees.burnBps) / 100 : 2.5;
+  const subtitle = launching ? "launch price" : "pool price";
   const footnote = launching
-    ? `Your SKR goes into the $${meme.ticker} pool. Trading opens when all ${grouped(meme.supplyTotal)} sell.`
+    ? `Your SKR goes into the $${meme.ticker} pool. Trading opens when all ${count(total)} sell.`
     : side === "buy"
-      ? "Pool trades move the price. You'll see the exact amount in your wallet before you approve."
-      : "Selling moves the pool price down. You'll see the exact SKR in your wallet before you approve.";
+      ? `Pool trades move the price. Includes the ${feePct}% trading fee.`
+      : `Selling moves the pool price down. Includes the ${feePct}% trading fee.`;
+  const label = !wallet
+    ? "Connect wallet"
+    : trade.step === "wallet"
+      ? "Waiting for wallet…"
+      : trade.step === "confirming"
+        ? "Confirming…"
+        : max < 1
+          ? side === "sell"
+            ? `No $${meme.ticker} to sell`
+            : "Sold out"
+          : (short ?? "Approve in wallet");
+  const disabled = !!wallet && (busy || !quote || !!short || max < 1);
+  const totalText = totalSkr == null ? "—" : `${price(totalSkr)} SKR`;
 
   return (
     <Modal transparent visible statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={close}>
@@ -164,23 +237,27 @@ export function BuySheet({
             {launching ? (
               <View style={styles.supply}>
                 <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${Math.min(1, meme.supplySold / meme.supplyTotal) * 100}%` }]} />
+                  <View style={[styles.fill, { width: `${total > 0 ? Math.min(1, sold / total) * 100 : 0}%` }]} />
                 </View>
                 <View style={styles.row}>
                   <Text style={styles.soldLabel}>
                     <Text style={styles.mono}>
-                      {grouped(meme.supplySold)} / {grouped(meme.supplyTotal)}
+                      {count(sold)} / {count(total)}
                     </Text>{" "}
                     sold
                   </Text>
-                  <Text style={styles.leftText}>Only {grouped(left)} left</Text>
+                  <Text style={styles.leftText}>Only {count(left)} left</Text>
                 </View>
               </View>
             ) : (
               <View style={styles.supply}>
                 <View style={styles.row}>
-                  <Text style={styles.soldLabel}>Trading in pool</Text>
-                  <Text style={[styles.mono, { fontSize: 14 }]}>{skr(priceEach)}</Text>
+                  <Text style={styles.soldLabel}>
+                    {side === "sell" ? "You hold" : "Trading in pool"}
+                  </Text>
+                  <Text style={[styles.mono, { fontSize: 14 }]}>
+                    {side === "sell" ? `${count(held)} $${meme.ticker}` : `${skr(meme.price)} now`}
+                  </Text>
                 </View>
               </View>
             )}
@@ -190,21 +267,21 @@ export function BuySheet({
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="One less"
-                disabled={soldOut || quantity <= 1}
-                onPress={() => set(quantity - 1)}
-                style={[styles.step, (soldOut || quantity <= 1) && styles.disabled]}
+                disabled={busy || shown <= 1}
+                onPress={() => set(shown - 1)}
+                style={[styles.step, (busy || shown <= 1) && styles.disabled]}
               >
                 <MinusIcon size={22} />
               </Pressable>
-              <Text style={styles.quantity} accessibilityLiveRegion="polite">
-                {soldOut ? 0 : grouped(quantity)}
+              <Text style={styles.quantity} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
+                {grouped(shown)}
               </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="One more"
-                disabled={soldOut || quantity >= max}
-                onPress={() => set(quantity + 1)}
-                style={[styles.step, (soldOut || quantity >= max) && styles.disabled]}
+                disabled={busy || shown >= max}
+                onPress={() => set(shown + 1)}
+                style={[styles.step, (busy || shown >= max) && styles.disabled]}
               >
                 <PlusIcon size={22} />
               </Pressable>
@@ -212,14 +289,14 @@ export function BuySheet({
 
             <View style={styles.chips}>
               {[...CHIPS, "max" as const].map((chip) => {
-                const value = chip === "max" ? max : Math.min(chip, max);
-                const selected = !soldOut && (chip === "max" ? quantity === max : quantity === chip);
+                const value = chip === "max" ? max : chip;
+                const selected = shown > 0 && (chip === "max" ? shown === max : shown === chip);
                 return (
                   <Pressable
                     key={chip}
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
-                    disabled={soldOut}
+                    disabled={busy || max < 1}
                     onPress={() => set(value)}
                     style={[styles.chip, selected && styles.chipOn]}
                   >
@@ -234,42 +311,33 @@ export function BuySheet({
             <View style={styles.divider} />
 
             <View style={styles.summary}>
-              <SummaryRow label="Price each" value={skr(priceEach)} />
-              <SummaryRow label="Network fee" value={`≈ ${BASE_FEE_SOL} SOL`} />
+              <SummaryRow label={side === "sell" ? "Average price" : "Price each"} value={`${price(priceEach)} SKR`} />
+              <SummaryRow label="Network fee" value={`≈ ${fee < 0.001 ? fee : fee.toFixed(4)} SOL`} />
               <SummaryRow
                 label="Your SKR balance"
-                value={
-                  !wallet ? "Not connected" : balance.data == null ? "—" : `${formatSkr(balance.data)} SKR`
-                }
+                value={!wallet ? "Not connected" : balance.data == null ? "—" : `${formatSkr(balance.data)} SKR`}
               />
               <View style={[styles.row, { marginTop: 10 }]}>
                 <Text style={styles.totalLabel}>{side === "sell" ? "You get" : "Total"}</Text>
-                <Text style={styles.total}>
-                  {launching ? "" : "≈ "}
-                  {amount(total)} SKR
-                </Text>
+                {state.isLoading ? (
+                  <ActivityIndicator color={feed.textSecondary} />
+                ) : (
+                  <Text style={styles.total}>{totalText}</Text>
+                )}
               </View>
             </View>
 
             <Pressable
               accessibilityRole="button"
-              disabled={soldOut}
-              onPress={() =>
-                onApprove({
-                  memeId: meme.id,
-                  ticker: meme.ticker,
-                  side,
-                  quantity,
-                  priceEach,
-                  total,
-                })
-              }
-              style={({ pressed }) => [styles.approve, (pressed || soldOut) && { opacity: 0.85 }]}
+              disabled={disabled}
+              onPress={approve}
+              style={({ pressed }) => [styles.approve, (pressed || disabled) && { opacity: 0.7 }]}
             >
-              <Text style={styles.approveText}>{soldOut ? "Sold out" : "Approve in wallet"}</Text>
+              {busy && <ActivityIndicator color={feed.text} style={{ marginRight: 10 }} />}
+              <Text style={styles.approveText}>{label}</Text>
             </Pressable>
 
-            <Text style={styles.footnote}>{footnote}</Text>
+            <Text style={[styles.footnote, problem && { color: feed.pinkText }]}>{problem ?? footnote}</Text>
           </Animated.View>
         </GestureDetector>
       </GestureHandlerRootView>
@@ -392,6 +460,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: feed.accent,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },

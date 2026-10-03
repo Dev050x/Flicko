@@ -24,6 +24,7 @@ export interface LaunchConfig {
   /** SKR base units, burned on create */
   creationFee: bigint;
   creatorFeeBps: number;
+  burnBps: number;
   minSupply: bigint;
   maxSupply: bigint;
   minStartPrice: bigint;
@@ -43,6 +44,7 @@ export const useLaunchConfig = () =>
         return {
           creationFee: account.creationFee,
           creatorFeeBps: account.creatorFeeBps,
+          burnBps: account.burnBps,
           minSupply: account.minSupply,
           maxSupply: account.maxSupply,
           minStartPrice: account.minStartPrice,
