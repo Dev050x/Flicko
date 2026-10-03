@@ -139,3 +139,22 @@ export const geist = {
   mono: "GeistMono_400Regular",
   monoMedium: "GeistMono_500Medium",
 } as const;
+
+/*
+ * Markets and meme detail (flicko-markets-kit). Numbers (prices, stats, amounts,
+ * percentages) use DM Mono 500; labels stay DM Sans.
+ */
+export const market = {
+  line: "#221D2B", // row dividers
+  label: "#8E86A0",
+  chipSelected: "#221B2E",
+  chipSelectedBorder: "#4A4458",
+  segment: "#2A2536",
+  spark: "#3DF5C4",
+  barTrack: "rgba(255,255,255,0.14)",
+} as const;
+
+export const mono = {
+  regular: "DMMono_400Regular",
+  medium: "DMMono_500Medium",
+} as const;

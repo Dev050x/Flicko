@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "side": "buy",
+      "skr": 120,
+      "priceSkr": 0.00212,
+      "trader": "@pixelape",
+      "ageSec": 2
+    },
+    {
+      "side": "sell",
+      "skr": 48,
+      "priceSkr": 0.00209,
+      "trader": "7xKp...3fQa",
+      "ageSec": 5
+    },
+    {
+      "side": "buy",
+      "skr": 15,
+      "priceSkr": 0.0021,
+      "trader": "@degen_dev",
+      "ageSec": 9
+    },
+    {
+      "side": "buy",
+      "skr": 300,
+      "priceSkr": 0.00208,
+      "trader": "@whale.skr",
+      "ageSec": 14
+    },
+    {
+      "side": "sell",
+      "skr": 22,
+      "priceSkr": 0.00201,
+      "trader": "B8h7...Fq2c",
+      "ageSec": 21
+    }
+  ]
+}

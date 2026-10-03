@@ -1,0 +1,121 @@
+{
+  "stats": {
+    "volume24hSkr": 1280000,
+    "trades24h": 84213,
+    "launchesToday": 342
+  },
+  "items": [
+    {
+      "mint": "MintSQUAD111111111111111111111111111111",
+      "symbol": "SQUAD",
+      "name": "Squad Selfie",
+      "age": "6h",
+      "phase": "pool",
+      "launchProgress": null,
+      "priceSkr": 0.0021,
+      "change24h": 845,
+      "marketCapSkr": 210000.0,
+      "volume24hSkr": 88400.0,
+      "holders": 1204,
+      "image": "thumb-0"
+    },
+    {
+      "mint": "MintBACK111111111111111111111111111111",
+      "symbol": "BACK",
+      "name": "We're So Back",
+      "age": "3h",
+      "phase": "launching",
+      "launchProgress": 82,
+      "priceSkr": 0.00061,
+      "change24h": 586,
+      "marketCapSkr": 48800.0,
+      "volume24hSkr": 31200.0,
+      "holders": 640,
+      "image": "thumb-1"
+    },
+    {
+      "mint": "MintGM3AM111111111111111111111111111111",
+      "symbol": "GM3AM",
+      "name": "Group Chat 3AM",
+      "age": "1d",
+      "phase": "pool",
+      "launchProgress": null,
+      "priceSkr": 0.0134,
+      "change24h": 91,
+      "marketCapSkr": 1340000.0,
+      "volume24hSkr": 212000.0,
+      "holders": 4800,
+      "image": "thumb-2"
+    },
+    {
+      "mint": "MintPIZZA111111111111111111111111111111",
+      "symbol": "PIZZA",
+      "name": "Pizza Party",
+      "age": "22h",
+      "phase": "pool",
+      "launchProgress": null,
+      "priceSkr": 0.0091,
+      "change24h": 1200,
+      "marketCapSkr": 910000.0,
+      "volume24hSkr": 402000.0,
+      "holders": 3900,
+      "image": "thumb-6"
+    },
+    {
+      "mint": "MintCOUCH111111111111111111111111111111",
+      "symbol": "COUCH",
+      "name": "Couch Traders",
+      "age": "5h",
+      "phase": "launching",
+      "launchProgress": 41,
+      "priceSkr": 0.00018,
+      "change24h": 197,
+      "marketCapSkr": 14400.0,
+      "volume24hSkr": 9600.0,
+      "holders": 212,
+      "image": "thumb-3"
+    },
+    {
+      "mint": "MintLASER111111111111111111111111111111",
+      "symbol": "LASER",
+      "name": "Laser Eyes On",
+      "age": "4h",
+      "phase": "pool",
+      "launchProgress": null,
+      "priceSkr": 0.00184,
+      "change24h": 338,
+      "marketCapSkr": 184000.0,
+      "volume24hSkr": 52300.0,
+      "holders": 1204,
+      "image": "thumb-5"
+    },
+    {
+      "mint": "MintMOON111111111111111111111111111111",
+      "symbol": "MOON",
+      "name": "Moon Crew",
+      "age": "2d",
+      "phase": "pool",
+      "launchProgress": null,
+      "priceSkr": 0.048,
+      "change24h": -30,
+      "marketCapSkr": 4800000.0,
+      "volume24hSkr": 690000.0,
+      "holders": 11000,
+      "image": "thumb-4"
+    },
+    {
+      "mint": "MintWAGMI111111111111111111111111111111",
+      "symbol": "WAGMI",
+      "name": "WAGMI Squad",
+      "age": "9h",
+      "phase": "launching",
+      "launchProgress": 12,
+      "priceSkr": 0.00011,
+      "change24h": -4.5,
+      "marketCapSkr": 8800.0,
+      "volume24hSkr": 2100.0,
+      "holders": 96,
+      "image": "thumb-7"
+    }
+  ]
+}

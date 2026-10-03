@@ -25,6 +25,8 @@ export const config = {
   programId: env(process.env.EXPO_PUBLIC_PROGRAM_ID, devnet.programId),
   /** address lookup table for create_meme (bun run devnet:lut) */
   lookupTable: env(process.env.EXPO_PUBLIC_LOOKUP_TABLE, devnet.lookupTable),
+  /** build Markets and meme detail against src/mocks instead of the server */
+  useMocks: process.env.EXPO_PUBLIC_USE_MOCKS === "1",
   /** links to a meme for sharing: <siteUrl>/m/<mint> */
   siteUrl: env(process.env.EXPO_PUBLIC_SITE_URL, "https://flicko.app"),
   /*

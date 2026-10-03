@@ -1,0 +1,80 @@
+{
+  "mint": "MintDIP1111111111111111111111111111111",
+  "symbol": "DIP",
+  "name": "Bought the dip",
+  "creator": {
+    "handle": "laser_lord",
+    "wallet": "L4s3...Lrd1",
+    "memes": 9
+  },
+  "description": "Bobo and the squad photobombing a selfie. Snapped on Flicko.",
+  "createdAt": "2026-10-02T04:10:00Z",
+  "phase": "pool",
+  "trendingRank": 2,
+  "priceSkr": 0.0021,
+  "change": {
+    "5m": -5.3,
+    "1h": 8.5,
+    "6h": 274,
+    "24h": 845
+  },
+  "marketCapSkr": 210000,
+  "liquiditySkr": 77300,
+  "liquidityLocked": true,
+  "holders": 1204,
+  "volume24hSkr": 88400,
+  "trades24h": 4845,
+  "supply": 100000000,
+  "activity24h": {
+    "buys": 3612,
+    "sells": 1233,
+    "buyers": 1980,
+    "sellers": 612
+  },
+  "pool": {
+    "tokenAmount": 18400000,
+    "skrAmount": 38600,
+    "tokenAddress": "7Vertk...pump",
+    "poolAddress": "CyJwKn...Crk5"
+  },
+  "safety": {
+    "mintAuthorityRevoked": true,
+    "freezeAuthority": null,
+    "liquidityLocked": true,
+    "creatorHoldsPct": 2.1,
+    "passed": 4,
+    "total": 4
+  },
+  "reactions": {
+    "rocket": 116,
+    "fire": 48,
+    "poop": 9
+  },
+  "position": {
+    "tokens": 120000,
+    "avgBuySkr": 0.00152,
+    "valueSkr": 252,
+    "pnlSkr": 69.6,
+    "pnlPct": 38
+  },
+  "sparkline24h": [
+    0.00031,
+    0.00034,
+    0.0004,
+    0.00052,
+    0.00071,
+    0.0009,
+    0.00118,
+    0.0014,
+    0.00162,
+    0.00181,
+    0.00196,
+    0.00205,
+    0.00218,
+    0.00224,
+    0.00221,
+    0.00216,
+    0.00212,
+    0.0021
+  ]
+}

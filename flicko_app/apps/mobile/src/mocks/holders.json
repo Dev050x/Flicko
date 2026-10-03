@@ -1,0 +1,61 @@
+{
+  "total": 1204,
+  "top10Pct": 38.2,
+  "creatorPct": 2.1,
+  "items": [
+    {
+      "rank": 1,
+      "label": "Pool",
+      "tag": "Locked liquidity",
+      "address": "CyJw...Crk5",
+      "pct": 18.4,
+      "amount": 18400000,
+      "valueSkr": 38600
+    },
+    {
+      "rank": 2,
+      "label": "@whale.skr",
+      "tag": null,
+      "address": "Wh4l...e5kr",
+      "pct": 4.9,
+      "amount": 4900000,
+      "valueSkr": 10300
+    },
+    {
+      "rank": 3,
+      "label": null,
+      "tag": null,
+      "address": "2gE...EwA4",
+      "pct": 3.1,
+      "amount": 3100000,
+      "valueSkr": 6500
+    },
+    {
+      "rank": 4,
+      "label": "@bobo",
+      "tag": "Creator",
+      "address": "7xKp...3fQa",
+      "pct": 2.1,
+      "amount": 2100000,
+      "valueSkr": 4400
+    },
+    {
+      "rank": 5,
+      "label": null,
+      "tag": null,
+      "address": "Df7...WhLH",
+      "pct": 1.96,
+      "amount": 1960000,
+      "valueSkr": 4100
+    },
+    {
+      "rank": 6,
+      "label": "@pixelape",
+      "tag": null,
+      "address": "P1x3...Ap3e",
+      "pct": 1.92,
+      "amount": 1920000,
+      "valueSkr": 4000
+    }
+  ]
+}

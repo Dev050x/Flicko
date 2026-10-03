@@ -22,6 +22,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+        "@expo-google-fonts/dm-mono": "^0.4.2",
         "@expo-google-fonts/dm-sans": "^0.4.2",
         "@expo-google-fonts/geist": "^0.4.2",
         "@expo-google-fonts/geist-mono": "^0.4.3",
@@ -362,6 +363,8 @@
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
     "@expo-google-fonts/bricolage-grotesque": ["@expo-google-fonts/bricolage-grotesque@0.4.1", "", {}, "sha512-uijLLg+thOrFgw+gXtYA3dQJTBqqqleabcNFpamaYXqUUcbFe0J18C+4nfL0CyGzSJUicxUBLY4Zv7jdHmTGMA=="],
+
+    "@expo-google-fonts/dm-mono": ["@expo-google-fonts/dm-mono@0.4.2", "", {}, "sha512-loMaZOkQRs1r7yt4rN39zcr9e0J+smwnSx929yuODkuiPfsY4PaW18C9SEZ0BvXfcBKoRhatGoIBl8V2MOYVPQ=="],
 
     "@expo-google-fonts/dm-sans": ["@expo-google-fonts/dm-sans@0.4.2", "", {}, "sha512-e/fLH5aCJzkEenz7axvEn8N7IJAKhUwNjIxS75h9j+Ip1M9S7d22M19gJN3A7QW4egVkBJRyQh1hQFhngQn9yA=="],
 
