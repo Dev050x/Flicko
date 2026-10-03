@@ -399,28 +399,33 @@ export default function MemeDetail() {
           )}
         </View>
 
+        {/*
+         * Sticky children get their style moved to a wrapper and a plain fill style
+         * themselves, so the row lives on an inner View.
+         */}
         <View
-          style={styles.tabs}
-          accessibilityRole="tablist"
+          style={styles.tabsSticky}
           onLayout={(e) => (tabsY.current = e.nativeEvent.layout.y)}
         >
-          {TABS.map((t) => {
-            const on = t.id === tab;
-            return (
-              <Pressable
-                key={t.id}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                onPress={() => pickTab(t.id)}
-                style={styles.tab}
-              >
-                <Text style={[styles.tabText, on && styles.tabTextOn]}>
-                  {t.label}
-                </Text>
-                {on && <View style={styles.tabLine} />}
-              </Pressable>
-            );
-          })}
+          <View style={styles.tabs} accessibilityRole="tablist">
+            {TABS.map((t) => {
+              const on = t.id === tab;
+              return (
+                <Pressable
+                  key={t.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => pickTab(t.id)}
+                  style={styles.tab}
+                >
+                  <Text style={[styles.tabText, on && styles.tabTextOn]}>
+                    {t.label}
+                  </Text>
+                  {on && <View style={styles.tabLine} />}
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <View
@@ -678,12 +683,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontVariant: ["tabular-nums"],
   },
+  tabsSticky: { marginTop: 20, backgroundColor: D.bg },
   tabs: {
     flexDirection: "row",
-    marginTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: D.line,
-    backgroundColor: D.bg,
   },
   tab: { flex: 1, height: 46, alignItems: "center", justifyContent: "center" },
   tabText: { fontFamily: geist.medium, fontSize: 15, color: D.muted },
