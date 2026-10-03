@@ -54,12 +54,19 @@ type RawFilter = (typeof data.filters)[number] & {
   notes?: string;
 };
 
+/*
+ * Premium filters (SKR burned to post with them) are switched off for now: every filter
+ * is free, so no lock chip shows and nothing is burned at launch. Flip this back to
+ * turn them on; prices stay in filters.json (the server's unlock route reads them).
+ */
+export const PREMIUM_ENABLED = false;
+
 export const FILTERS: Filter[] = (data.filters as RawFilter[]).map((f) => ({
   id: f.id,
   name: f.name,
   category: f.category as FilterCategory,
   type: f.type as FilterType,
-  premium: f.premium,
+  premium: PREMIUM_ENABLED && f.premium,
   priceSkr: f.priceSkr,
   overlay: f.overlay ? OVERLAYS[f.overlay] : undefined,
   anchor: f.anchor === "eyes" ? "eyes" : undefined,

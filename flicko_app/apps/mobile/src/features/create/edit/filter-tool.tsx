@@ -3,7 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { LockIcon, NoFilterIcon } from "@/components/ui/icons";
 import { detectFaces, eyeCenters } from "@/features/face";
-import { FILTERS, matrixTint, type Filter } from "@/features/filters/catalog";
+import {
+  FILTERS,
+  matrixTint,
+  PREMIUM_ENABLED,
+  type Filter,
+} from "@/features/filters/catalog";
 import { approxEyes } from "@/features/filters/placement";
 import { isLocked, useUnlockedFilters } from "@/features/filters/unlocks";
 import { cam, colors } from "@/theme";
@@ -93,9 +98,11 @@ export function FilterTool({ onNotice }: { onNotice: (text: string) => void }) {
           );
         })}
       </ScrollView>
-      <Text style={[panel.hint, { paddingHorizontal: 24 }]}>
-        Premium filters are free to try. Their SKR is burned when you launch.
-      </Text>
+      {PREMIUM_ENABLED && (
+        <Text style={[panel.hint, { paddingHorizontal: 24 }]}>
+          Premium filters are free to try. Their SKR is burned when you launch.
+        </Text>
+      )}
     </View>
   );
 }
