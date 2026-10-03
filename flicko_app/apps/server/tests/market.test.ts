@@ -97,7 +97,10 @@ const candle = (bucketStart: Date, close: string) => ({
 
 beforeAll(async () => {
   const db = await migratedDb();
-  await db.insert(users).values({ wallet: creator, username: "maker" });
+  await db.insert(users).values([
+    { wallet: creator, username: "maker" },
+    { wallet: t2, username: "whale" },
+  ]);
   await db.insert(memes).values([
     meme(X, ago(30 * 60), {
       phase: "graduated",
@@ -474,5 +477,72 @@ describe("reactions", () => {
       fire: 0,
       poop: 0,
     });
+  });
+});
+
+describe("meme page tabs", () => {
+  test("chart candles are continuous: quiet hours repeat the last close", async () => {
+    const { status, body } = await get(`/memes/${X}/candles?tf=1h&limit=24`);
+    expect(status).toBe(200);
+    expect(body.tf).toBe("1h");
+    const closes = body.candles.map((c: { close: string }) => c.close);
+    expect(closes).toHaveLength(24);
+    // the 30h-old candle seeds the window, then 1200 three hours ago, then 1500 now
+    expect([closes[0], closes[23]]).toEqual(["1000", "1500"]);
+    expect(closes).toContain("1200");
+    expect(body.candles[0]).toMatchObject({ open: "1000", high: "1000", volume: "0", trades: 0 });
+    const times = body.candles.map((c: { time: string }) => Date.parse(c.time));
+    expect(times[1] - times[0]).toBe(3_600_000);
+  });
+
+  test("4h candles merge 1h ones", async () => {
+    const { body } = await get(`/memes/${X}/candles?tf=4h&limit=6`);
+    expect(body.candles).toHaveLength(6);
+    expect(body.candles[5].close).toBe("1500");
+    expect(body.candles[5].high).toBe("1500");
+    expect((await get(`/memes/${X}/candles?tf=2h`)).status).toBe(400);
+  });
+
+  test("a meme with no trades has no candles yet", async () => {
+    expect((await get(`/memes/${Y}/candles?tf=15m`)).body.candles).toEqual([]);
+  });
+
+  test("trades carry the trader's username", async () => {
+    const { body } = await get(`/memes/${X}/trades`);
+    expect(body.items.map((t: { traderUsername: string | null }) => t.traderUsername)).toEqual([
+      null,
+      "whale",
+      null,
+    ]);
+  });
+
+  test("launch sale progress over time", async () => {
+    // Z: sale is 1.2e12; one launch trade bought 1000 base units, tokensSold says 2e11.
+    const { body } = await get(`/memes/${Z}/sold`);
+    const shares = body.points.map((p: { soldBps: number }) => p.soldBps);
+    expect(shares).toEqual([0, 0, 1666]);
+    expect(Date.parse(body.points[0].time)).toBeLessThan(Date.parse(body.points[1].time));
+  });
+
+  test("holders list the vault first, then wallets by balance", async () => {
+    const { status, body } = await get(`/memes/${Z}/holders`);
+    expect(status).toBe(200);
+    // Z is launching: the vault holds everything not yet sold (1.5e12 − 2e11).
+    expect(body.items[0]).toMatchObject({
+      rank: 1,
+      wallet: null,
+      kind: "pool",
+      balance: "1300000000000",
+      shareBps: 8666,
+    });
+    expect(body.total).toBe(0);
+
+    const x = (await get(`/memes/${X}/holders`)).body;
+    expect(x.total).toBe(2);
+    expect(x.items.slice(1)).toEqual([
+      { rank: 2, wallet: holder, username: null, kind: "holder", balance: "2000000", shareBps: 0, value: "3000" },
+      { rank: 3, wallet: t2, username: "whale", kind: "holder", balance: "5", shareBps: 0, value: "0" },
+    ]);
+    expect((await get(`/memes/${key()}/holders`)).status).toBe(404);
   });
 });

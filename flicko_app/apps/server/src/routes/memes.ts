@@ -16,6 +16,13 @@ import {
 import { HttpError } from "../middleware/errors";
 import { getMeme, listCandles, listTrades, memeExists } from "../queries/memes";
 import {
+  CHART_TFS,
+  chartCandles,
+  listHolders,
+  soldOverTime,
+  usernamesFor,
+} from "../queries/chart";
+import {
   addReaction,
   getOverview,
   REACTIONS,
@@ -27,7 +34,12 @@ const mintParams = z.object({ mint: solanaAddress });
 
 const candleQuery = z.object({
   interval: z.enum(["1m", "5m", "1h", "1d"]).default("1h"),
+  /** chart timeframe: aggregated and gap-filled (see chartCandles) */
+  tf: z.enum(CHART_TFS).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
+});
+const holdersQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 const tradesQuery = pageQuery(100, 50);
@@ -54,8 +66,12 @@ export const memesRouter = (deps: ReadDeps) => {
       res.json({ meme, overview });
     })
     .get("/memes/:mint/candles", async (req, res) => {
-      const { interval, limit } = parseOr400(candleQuery, req.query);
+      const { interval, tf, limit } = parseOr400(candleQuery, req.query);
       const mint = await knownMint(deps.db, req.params);
+      if (tf) {
+        res.json({ tf, candles: await chartCandles(deps.db, mint, tf, limit) });
+        return;
+      }
       res.json({
         interval,
         candles: await listCandles(deps.db, mint, interval, limit),
@@ -64,8 +80,25 @@ export const memesRouter = (deps: ReadDeps) => {
     .get("/memes/:mint/trades", async (req, res) => {
       const { limit, offset } = parseOr400(tradesQuery, req.query);
       const mint = await knownMint(deps.db, req.params);
-      const items = await listTrades(deps.db, mint, limit, offset);
+      const rows = await listTrades(deps.db, mint, limit, offset);
+      const names = await usernamesFor(
+        deps.db,
+        rows.map((row) => row.trader),
+      );
+      const items = rows.map((row) => ({
+        ...row,
+        traderUsername: names.get(row.trader) ?? null,
+      }));
       res.json({ items, nextOffset: nextOffset(offset, limit, items.length) });
+    })
+    .get("/memes/:mint/sold", async (req, res) => {
+      const mint = await knownMint(deps.db, req.params);
+      res.json({ points: await soldOverTime(deps.db, mint) });
+    })
+    .get("/memes/:mint/holders", async (req, res) => {
+      const { limit } = parseOr400(holdersQuery, req.query);
+      const mint = await knownMint(deps.db, req.params);
+      res.json(await listHolders(deps.db, mint, limit));
     });
 
   if (deps.sessions) {
