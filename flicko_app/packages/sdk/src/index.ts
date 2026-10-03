@@ -13,3 +13,6 @@ export * from "./builders/builders";
 export * from "./attestation/attestation";
 export * from "./launch/launch";
 export * from "./accounts/config";
+export * from "./accounts/meme";
+export * from "./builders/trade";
+export * from "./quote/inverse";
