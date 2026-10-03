@@ -261,16 +261,28 @@ export const listCandles = async (
   }));
 };
 
+export interface TradeFilter {
+  side?: "buy" | "sell";
+  trader?: string;
+}
+
 export const listTrades = async (
   db: Db,
   mint: string,
   limit: number,
   offset: number,
+  filter: TradeFilter = {},
 ): Promise<TradeRow[]> => {
   const rows = await db
     .select()
     .from(trades)
-    .where(eq(trades.mint, mint))
+    .where(
+      and(
+        eq(trades.mint, mint),
+        filter.side ? eq(trades.isBuy, filter.side === "buy") : undefined,
+        filter.trader ? eq(trades.trader, filter.trader) : undefined,
+      ),
+    )
     .orderBy(desc(trades.slot), desc(trades.eventIndex))
     .limit(limit)
     .offset(offset);
@@ -284,4 +296,18 @@ export const listTrades = async (
     phase: row.phase,
     blockTime: row.blockTime.toISOString(),
   }));
+};
+
+/*
+ * The SKR size at the 95th percentile of this meme's trades: trades at or above it are
+ * its "large" ones. Null before any trade.
+ */
+export const largeTradeSkr = async (db: Db, mint: string) => {
+  const [row] = await db
+    .select({
+      p95: sql<string | null>`trunc(percentile_cont(0.95) within group (order by ${trades.skrAmount}))::text`,
+    })
+    .from(trades)
+    .where(eq(trades.mint, mint));
+  return row?.p95 ?? null;
 };

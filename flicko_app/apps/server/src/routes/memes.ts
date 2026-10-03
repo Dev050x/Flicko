@@ -14,7 +14,13 @@ import {
   walletOf,
 } from "../middleware/auth";
 import { HttpError } from "../middleware/errors";
-import { getMeme, listCandles, listTrades, memeExists } from "../queries/memes";
+import {
+  getMeme,
+  largeTradeSkr,
+  listCandles,
+  listTrades,
+  memeExists,
+} from "../queries/memes";
 import {
   CHART_TFS,
   chartCandles,
@@ -42,7 +48,10 @@ const holdersQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-const tradesQuery = pageQuery(100, 50);
+const tradesQuery = pageQuery(100, 50).extend({
+  side: z.enum(["buy", "sell"]).optional(),
+  trader: solanaAddress.optional(),
+});
 const reactBody = z.object({ kind: z.enum(REACTIONS) });
 const reactParams = mintParams.extend({ kind: z.enum(REACTIONS) });
 
@@ -78,9 +87,12 @@ export const memesRouter = (deps: ReadDeps) => {
       });
     })
     .get("/memes/:mint/trades", async (req, res) => {
-      const { limit, offset } = parseOr400(tradesQuery, req.query);
+      const { limit, offset, side, trader } = parseOr400(tradesQuery, req.query);
       const mint = await knownMint(deps.db, req.params);
-      const rows = await listTrades(deps.db, mint, limit, offset);
+      const [rows, largeSkr] = await Promise.all([
+        listTrades(deps.db, mint, limit, offset, { side, trader }),
+        largeTradeSkr(deps.db, mint),
+      ]);
       const names = await usernamesFor(
         deps.db,
         rows.map((row) => row.trader),
@@ -89,7 +101,11 @@ export const memesRouter = (deps: ReadDeps) => {
         ...row,
         traderUsername: names.get(row.trader) ?? null,
       }));
-      res.json({ items, nextOffset: nextOffset(offset, limit, items.length) });
+      res.json({
+        items,
+        largeSkr,
+        nextOffset: nextOffset(offset, limit, items.length),
+      });
     })
     .get("/memes/:mint/sold", async (req, res) => {
       const mint = await knownMint(deps.db, req.params);

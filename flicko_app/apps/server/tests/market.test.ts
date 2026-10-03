@@ -507,6 +507,18 @@ describe("meme page tabs", () => {
     expect((await get(`/memes/${Y}/candles?tf=15m`)).body.candles).toEqual([]);
   });
 
+  test("trades filter by side and trader and report the large-trade size", async () => {
+    const all = (await get(`/memes/${X}/trades`)).body;
+    // X's trades: 5, 2 and 1 SKR; the 95th percentile is 4.7 SKR.
+    expect(all.largeSkr).toBe("4700000");
+    const sells = (await get(`/memes/${X}/trades?side=sell`)).body.items;
+    expect(sells.map((t: { isBuy: boolean }) => t.isBuy)).toEqual([false]);
+    const mine = (await get(`/memes/${X}/trades?trader=${t2}`)).body.items;
+    expect(mine.map((t: { trader: string }) => t.trader)).toEqual([t2]);
+    expect((await get(`/memes/${X}/trades?side=both`)).status).toBe(400);
+    expect((await get(`/memes/${Y}/trades`)).body.largeSkr).toBeNull();
+  });
+
   test("trades carry the trader's username", async () => {
     const { body } = await get(`/memes/${X}/trades`);
     expect(body.items.map((t: { traderUsername: string | null }) => t.traderUsername)).toEqual([
