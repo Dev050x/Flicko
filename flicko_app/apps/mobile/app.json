@@ -64,6 +64,12 @@
             "minSdkVersion": 26
           }
         }
+      ],
+      [
+        "expo-dev-client",
+        {
+          "toolsButton": false
+        }
       ]
     ],
     "experiments": {
