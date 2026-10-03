@@ -67,7 +67,13 @@ function Capture({ module }: { module: typeof import("expo-camera") }) {
 
   return (
     <View style={styles.screen}>
-      <CameraView ref={shot} style={StyleSheet.absoluteFill} facing={facing} />
+      <CameraView
+        ref={shot}
+        style={StyleSheet.absoluteFill}
+        facing={facing}
+        // Selfies are saved as the preview showed them (mirrored), not flipped back.
+        mirror={facing === "front"}
+      />
       <View style={[styles.controls, { bottom: 32 + insets.bottom }]}>
         <TextButton label="Cancel" onPress={() => router.back()} />
         <Pressable
