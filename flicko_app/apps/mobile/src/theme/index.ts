@@ -107,5 +107,4 @@ export const cam = {
   coin: "#FFD24A",
   coinRim: "#C98F12",
   tabInactive: "#8E86A0",
-  guide: "rgba(255,255,255,0.7)",
 } as const;
