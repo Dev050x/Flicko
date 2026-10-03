@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, gt, lte, sql } from "drizzle-orm";
+import { launchParams, spotPrice } from "@flicko/sdk";
+import { and, asc, count, countDistinct, desc, eq, gt, lte, sql } from "drizzle-orm";
 import { memes, positions, reactions, trades } from "../db/schema";
 import type { Db } from "../db/types";
 import { listMarket, trendingRank, type MarketRow } from "./market";
@@ -30,6 +31,8 @@ export interface MemeOverview {
   trendingRank: number | null;
   /** price over the last 24h (or since launch), oldest first, SKR base units per token */
   priceLine: string[];
+  /** distinct wallets that ever bought */
+  buyersTotal: number;
   creatorBalance: string;
   creatorHoldsBps: number;
   creatorMemes: number;
@@ -44,12 +47,13 @@ const DAY_MS = 24 * 3_600_000;
 /*
  * The 24h price line: LINE_POINTS evenly spaced samples from 24h ago (or launch, if
  * later) to now, each the price after the last trade at or before that moment. The
- * first sample uses the last trade before the window, else the start price.
+ * first sample uses the last trade before the window, else the curve's starting spot
+ * price.
  */
 export const priceLine = async (
   db: Db,
   mint: string,
-  startPrice: string,
+  launchPrice: string,
   createdAt: Date,
   now = new Date(),
 ): Promise<string[]> => {
@@ -67,7 +71,7 @@ export const priceLine = async (
       .where(and(eq(trades.mint, mint), gt(trades.blockTime, from)))
       .orderBy(asc(trades.slot), asc(trades.eventIndex)),
   ]);
-  let price = before[0]?.price ?? startPrice;
+  let price = before[0]?.price ?? launchPrice;
   const span = Math.max(1, now.getTime() - from.getTime());
   const line: string[] = [];
   let next = 0;
@@ -77,6 +81,12 @@ export const priceLine = async (
     line.push(price);
   }
   return line;
+};
+
+/* The curve's spot price before any trade (what the indexer stores at creation). */
+export const launchSpotOf = (totalSupply: string, startPrice: string) => {
+  const params = launchParams(BigInt(totalSupply), BigInt(startPrice));
+  return spotPrice(params.virtualSkr, params.virtualTokens).toString();
 };
 
 const bps = (part: bigint, whole: bigint) =>
@@ -109,7 +119,7 @@ export const getOverview = async (
     .where(eq(memes.mint, mint));
   if (!meme) return null;
 
-  const [creatorPosition, [made], counts, rank, line] = await Promise.all([
+  const [creatorPosition, [made], counts, rank, line, buyersTotal] = await Promise.all([
     db
       .select({ balance: positions.balance })
       .from(positions)
@@ -122,7 +132,12 @@ export const getOverview = async (
       .where(eq(reactions.mint, mint))
       .groupBy(reactions.kind),
     trendingRank(db, mint),
-    priceLine(db, mint, meme.startPrice, meme.createdAt),
+    priceLine(db, mint, launchSpotOf(meme.totalSupply, meme.startPrice), meme.createdAt),
+    db
+      .select({ n: countDistinct(trades.trader) })
+      .from(trades)
+      .where(and(eq(trades.mint, mint), eq(trades.isBuy, true)))
+      .then((rows) => rows[0]?.n ?? 0),
   ]);
 
   const tally = Object.fromEntries(REACTIONS.map((k) => [k, 0])) as Record<ReactionKind, number>;
@@ -163,6 +178,7 @@ export const getOverview = async (
     market,
     trendingRank: rank,
     priceLine: line,
+    buyersTotal,
     creatorBalance: creatorBalance.toString(),
     creatorHoldsBps: bps(creatorBalance, BigInt(meme.totalSupply)),
     creatorMemes: made?.n ?? 0,

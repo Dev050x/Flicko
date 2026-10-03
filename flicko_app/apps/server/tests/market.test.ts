@@ -52,7 +52,8 @@ const meme = (
   uri: "https://example.com/meta.json",
   imageUrl: `https://blobs.test/memes/${mint}.jpg`,
   imageHash: "00".repeat(32),
-  totalSupply: "1000000000000",
+  // divisible by 15, so the curve starts exactly at the 1000 start price
+  totalSupply: "1500000000000",
   startPrice: "1000",
   price: "1000",
   createdSlot: 1,
@@ -194,7 +195,7 @@ describe("GET /market", () => {
     expect(x).toMatchObject({
       phase: "graduated",
       price: "1500",
-      marketCap: "1500000000",
+      marketCap: "2250000000",
       liquidity: "1000",
       holders: 2,
       launchProgressBps: 10000,
@@ -398,6 +399,12 @@ describe("GET /memes/:mint overview", () => {
     const z = (await get(`/memes/${Z}`)).body.overview.priceLine;
     expect([z[0], z[47]]).toEqual(["1000", "900"]);
 
+    // Y has never traded: its change is 0 in every window, not a rounding "drop".
+    const y = (await get(`/memes/${Y}`)).body.overview;
+    expect(y.market.change).toEqual({ m5: 0, h1: 0, h6: 0, h24: 0 });
+    expect(y.buyersTotal).toBe(0);
+    expect(body.overview.buyersTotal).toBe(2);
+
     // Y has no trades today, so it isn't ranked; hidden memes still have a page.
     expect((await get(`/memes/${Y}`)).body.overview.trendingRank).toBeNull();
     expect((await get(`/memes/${H}`)).status).toBe(200);
@@ -414,6 +421,28 @@ describe("GET /memes/:mint overview", () => {
       pnlBps: 5000,
     });
   });
+});
+
+test("an untraded meme whose curve starts a unit below its start price shows no change", async () => {
+  // Supply 1e12 isn't divisible by 15: the curve's first spot price is 999, not 1000.
+  const db = await migratedDb();
+  const R = key();
+  await db.insert(memes).values(meme(R, ago(30), { totalSupply: "1000000000000", price: "999" }));
+  const app = await serve(
+    createApp({
+      corsOrigin: "*",
+      health: { ping: async () => {}, cluster: "devnet", programId: "p", skrMint: "s" },
+      read: { db },
+    }),
+  );
+  try {
+    const body = (await (await fetch(`${app.url}/memes/${R}`)).json()) as any;
+    expect(body.overview.market.change).toEqual({ m5: 0, h1: 0, h6: 0, h24: 0 });
+    expect(body.meme.priceChange24hBps).toBe(0);
+    expect(new Set(body.overview.priceLine)).toEqual(new Set(["999"]));
+  } finally {
+    app.close();
+  }
 });
 
 describe("reactions", () => {

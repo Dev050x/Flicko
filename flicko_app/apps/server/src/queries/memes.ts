@@ -96,9 +96,16 @@ const volumeSub = (db: Db) =>
     .groupBy(trades.mint)
     .as("v");
 
+/*
+ * The curve's spot price before any trade, with the program's integer math
+ * (launchParams then spotPrice, both truncating). It can sit a unit below start_price,
+ * so changes measured against start_price showed a false drop on untraded memes.
+ */
+export const launchSpot = sql`div(div(${memes.startPrice} * div(${memes.totalSupply} * 16, 15), 1000000) * 1000000, div(${memes.totalSupply} * 16, 15))`;
+
 const referencePrice = sql`coalesce((select ${trades.priceAfter} from ${trades}
   where ${trades.mint} = ${memes.mint} and ${trades.blockTime} <= now() - interval '24 hours'
-  order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${memes.startPrice})`;
+  order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${launchSpot})`;
 
 export const changeBps = sql`(case when ${referencePrice} = 0 then 0
   else trunc((${memes.price} - ${referencePrice}) * 10000 / ${referencePrice}) end)`;

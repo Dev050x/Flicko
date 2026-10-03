@@ -43,7 +43,8 @@ const meme = (
   symbol: "MEME",
   uri: "https://example.com/meta.json",
   imageHash: "00".repeat(32),
-  totalSupply: "1000000000000",
+  // divisible by 15, so the curve starts exactly at the 1000 start price
+  totalSupply: "1500000000000",
   startPrice: "1000",
   price: "1000",
   imageUrl: `https://blobs.test/memes/${mint}.jpg`,
@@ -97,14 +98,14 @@ beforeAll(async () => {
     meme(A, ago(1)),
     meme(B, ago(40), {
       price: "1500",
-      tokensSold: "200000000000",
+      tokensSold: "300000000000",
       tradeCount: 2,
     }),
     meme(C, ago(20), { price: "800", tradeCount: 1 }),
     meme(D, ago(2), { hidden: true, tradeCount: 1 }),
     meme(E, ago(10), {
       phase: "graduated",
-      tokensSold: "800000000000",
+      tokensSold: "1200000000000",
       graduatedAt: ago(5),
     }),
     meme(F, ago(0.5), { imageUrl: null, tradeCount: 1 }),
@@ -211,8 +212,8 @@ describe("GET /memes/:mint", () => {
     expect(body.meme).toMatchObject({
       mint: B,
       holders: 2,
-      saleSupply: "800000000000",
-      marketCap: "1500000000",
+      saleSupply: "1200000000000",
+      marketCap: "2250000000",
       launchProgressBps: 2500,
       priceChange24hBps: 5000,
       volume24h: "900000000",

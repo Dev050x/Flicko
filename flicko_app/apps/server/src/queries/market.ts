@@ -13,7 +13,7 @@ import {
 } from "drizzle-orm";
 import { candles, memes, positions, trades, users } from "../db/schema";
 import type { Db } from "../db/types";
-import { TOKEN_UNIT } from "./memes";
+import { launchSpot, TOKEN_UNIT } from "./memes";
 
 /* test SKR has 6 decimals, like the meme tokens */
 const SKR_UNIT = "1000000";
@@ -152,7 +152,7 @@ const holdersSub = (db: Db) =>
 const referencePrice = (window: Window) =>
   sql`coalesce((select ${trades.priceAfter} from ${trades}
     where ${trades.mint} = ${memes.mint} and ${trades.blockTime} <= ${since(window)}
-    order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${memes.startPrice})`;
+    order by ${trades.slot} desc, ${trades.eventIndex} desc limit 1), ${launchSpot})`;
 
 const changeOf = (window: Window) => {
   const ref = referencePrice(window);

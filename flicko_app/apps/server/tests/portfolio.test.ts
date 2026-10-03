@@ -50,7 +50,8 @@ const meme = (
   uri: "https://example.com/meta.json",
   imageUrl: `https://blobs.test/memes/${mint}.jpg`,
   imageHash: "00".repeat(32),
-  totalSupply: "1000000000000",
+  // divisible by 15, so the curve starts exactly at the start price
+  totalSupply: "1500000000000",
   startPrice: price,
   price,
   createdSlot: 1,
