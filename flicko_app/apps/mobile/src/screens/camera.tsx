@@ -37,6 +37,7 @@ import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { WalletSheet } from "@/components/wallet/wallet-sheet";
 import { useLastShot } from "@/features/camera/last-shot";
 import { useCameraSettings } from "@/features/camera/settings";
+import { useCreateStore } from "@/features/create/store";
 import {
   FILTERS,
   filterById,
@@ -263,15 +264,13 @@ export default function CameraScreen() {
           centerX: toPhoto({ ...view, x: view.width / 2, width: 0 }).x,
         }),
       });
+      useCreateStore.getState().start(
+        { uri: composed.uri, width: composed.width, height: composed.height },
+        filter.id,
+      );
       router.push({
         pathname: "/create/preview",
-        params: {
-          photoUri: composed.uri,
-          width: String(composed.width),
-          height: String(composed.height),
-          filterId: filter.id,
-          ...(notice ? { notice } : {}),
-        },
+        params: notice ? { notice } : {},
       });
     } catch (err) {
       console.warn("[camera] capture failed", err);

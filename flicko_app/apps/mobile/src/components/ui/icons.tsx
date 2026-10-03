@@ -223,3 +223,124 @@ export function NoFilterIcon({ size = 24, color = colors.text }: IconProps) {
     </Line>
   );
 }
+
+/*
+ * Create flow (design-reference/CreateFlow.html).
+ */
+export function CloseIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M6 6 L18 18 M18 6 L6 18" />
+    </Line>
+  );
+}
+
+export function DownloadIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M12 4 V15 M7 10 L12 15 L17 10" />
+      <Path d="M5 19 H19" />
+    </Line>
+  );
+}
+
+export function StickerIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Circle cx={12} cy={12} r={8.5} />
+      <Circle cx={9} cy={10} r={0.8} />
+      <Circle cx={15} cy={10} r={0.8} />
+      <Path d="M8.5 14.5 Q12 17.5 15.5 14.5" />
+    </Line>
+  );
+}
+
+export function AdjustIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M5 7 H19 M5 17 H19" />
+      <Circle cx={9} cy={7} r={2.2} />
+      <Circle cx={15} cy={17} r={2.2} />
+    </Line>
+  );
+}
+
+export function CropIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M7 3 V17 H21" />
+      <Path d="M3 7 H17 V21" />
+    </Line>
+  );
+}
+
+export function DrawIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M4 20 L8 19 L19 8 L16 5 L5 16 Z" />
+    </Line>
+  );
+}
+
+export function FiltersIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M4 20 L14 10" />
+      <Path d="M16 3 V6 M14.5 4.5 H17.5 M20 8 V10 M19 9 H21" />
+    </Line>
+  );
+}
+
+export function ArrowRightIcon({ size = 20, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M5 12 H19 M13 6 L19 12 L13 18" />
+    </Line>
+  );
+}
+
+export function ShareIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M12 15 V4 M7 9 L12 4 L17 9" />
+      <Path d="M5 14 V19 H19 V14" />
+    </Line>
+  );
+}
+
+export function UndoIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M9 14 L4 9 L9 4" />
+      <Path d="M4 9 H15 A5 5 0 0 1 15 19 H11" />
+    </Line>
+  );
+}
+
+export function RedoIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M15 14 L20 9 L15 4" />
+      <Path d="M20 9 H9 A5 5 0 0 0 9 19 H13" />
+    </Line>
+  );
+}
+
+export function RotateIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M20 11 A8 8 0 1 0 17.7 17.7" />
+      <Path d="M20 4 V11 H13" />
+    </Line>
+  );
+}
+
+export function MirrorIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M12 3 V21" />
+      <Path d="M8 7 L3 17 H8 Z" />
+      <Path d="M16 7 L21 17 H16 Z" />
+    </Line>
+  );
+}

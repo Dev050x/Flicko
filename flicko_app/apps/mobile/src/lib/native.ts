@@ -19,7 +19,7 @@ const optional = <T>(name: string, native: string, load: () => T): T | null => {
   }
   if (!module) {
     console.warn(
-      `[native] ${name} is not in this build; falling back to expo-camera; make a new development build for live filters`,
+      `[native] ${name} is not in this build; make a new development build to use it`,
     );
   }
   loaded.set(name, module);
@@ -95,3 +95,10 @@ export const hasCameraStack = () => {
 export const hasSkia = () => !!TurboModuleRegistry.get("RNSkiaModule");
 
 export const hasPager = () => UIManager.hasViewManagerConfig("RNCViewPager");
+
+export const mediaLibrary = () =>
+  optional(
+    "expo-media-library",
+    "ExpoMediaLibrary",
+    () => require("expo-media-library") as typeof import("expo-media-library"),
+  );
