@@ -1,17 +1,38 @@
+import * as Haptics from "expo-haptics";
 import { memo, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 import { compactCount } from "@/features/feed/format";
 import { feed, geist } from "@/theme";
 
-import { HeartIcon, RemixIcon, ShareArrowIcon } from "./icons";
+import { CommentIcon, LikeIcon, RemixIcon, ShareIcon } from "./icons";
 
 /*
- * Like, Remix, Share: solid white icons with a soft drop shadow, label under
- * each. The heart turns pink and pops when liked.
+ * Like, Comments, Remix, Share (flicko-feed-icons, size 30) with a soft drop shadow
+ * and a label under each. Liking fills the heart pink, pops it 1 → 1.25 → 1 and gives
+ * a light haptic.
  */
 const ICON = 30;
+
+const shadow = {
+  filter: [
+    {
+      dropShadow: {
+        offsetX: 0,
+        offsetY: 1,
+        standardDeviation: 3,
+        color: "rgba(0,0,0,0.5)",
+      },
+    },
+  ],
+};
 
 function RailButton({
   label,
@@ -35,13 +56,17 @@ function RailButton({
 export const ActionRail = memo(function ActionRail({
   liked,
   likeCount,
+  commentCount,
   onLike,
+  onComments,
   onRemix,
   onShare,
 }: {
   liked: boolean;
   likeCount: number;
+  commentCount: number;
   onLike: () => void;
+  onComments: () => void;
   onRemix: () => void;
   onShare: () => void;
 }) {
@@ -53,45 +78,42 @@ export const ActionRail = memo(function ActionRail({
         label={liked ? "Unlike" : "Like"}
         text={compactCount(likeCount)}
         onPress={() => {
-          if (!liked) pop.value = withSequence(withTiming(1.25, { duration: 90 }), withSpring(1));
+          if (!liked) {
+            pop.value = withSequence(withTiming(1.25, { duration: 90 }), withSpring(1));
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+          }
           onLike();
         }}
         icon={
-          <Animated.View style={[styles.shadow, heartStyle]}>
-            <HeartIcon size={ICON} color={liked ? feed.liked : feed.text} />
+          <Animated.View style={[shadow, heartStyle]}>
+            <LikeIcon size={ICON} filled={liked} color={liked ? feed.liked : feed.text} />
           </Animated.View>
         }
+      />
+      <RailButton
+        label="Comments"
+        text={compactCount(commentCount)}
+        onPress={onComments}
+        icon={<View style={shadow}><CommentIcon size={ICON} /></View>}
       />
       <RailButton
         label="Remix"
         text="Remix"
         onPress={onRemix}
-        icon={<Animated.View style={styles.shadow}><RemixIcon size={ICON} /></Animated.View>}
+        icon={<View style={shadow}><RemixIcon size={ICON} /></View>}
       />
       <RailButton
         label="Share"
         text="Share"
         onPress={onShare}
-        icon={<Animated.View style={styles.shadow}><ShareArrowIcon size={ICON} /></Animated.View>}
+        icon={<View style={shadow}><ShareIcon size={ICON} /></View>}
       />
     </>
   );
 });
 
 const styles = StyleSheet.create({
-  item: { minWidth: 64, minHeight: 44, alignItems: "center", gap: 2 },
-  shadow: {
-    filter: [
-      {
-        dropShadow: {
-          offsetX: 0,
-          offsetY: 1,
-          standardDeviation: 3,
-          color: "rgba(0,0,0,0.45)",
-        },
-      },
-    ],
-  },
+  item: { minWidth: 64, minHeight: 44, alignItems: "center", gap: 3 },
   text: {
     fontFamily: geist.semibold,
     fontSize: 13,

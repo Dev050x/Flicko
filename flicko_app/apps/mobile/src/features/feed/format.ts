@@ -34,3 +34,6 @@ export const ago = (ms: number, now = Date.now()) => {
 /** "41 min", "2h 8m" */
 export const duration = (min: number) =>
   min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ""}`;
+
+/** supply counts: 742, 12,400, 800M */
+export const supplyCount = (n: number) => (n >= 1_000_000 ? compactCount(n) : grouped(n));

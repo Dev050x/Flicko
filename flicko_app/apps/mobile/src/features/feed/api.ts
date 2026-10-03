@@ -20,6 +20,8 @@ interface MemeCard {
   phase: "launch" | "graduated";
   /** SKR base units per whole token */
   price: string;
+  priceChange24hBps: number;
+  volume24h: string;
   launchProgressBps: number;
   createdAt: string;
   totalSupply: string;
@@ -63,6 +65,9 @@ export const toMeme = (card: MemeCard): Meme => {
     supplySold: trading ? tokensOf(saleSupply) : tokensOf(BigInt(card.tokensSold)),
     launchPrice,
     price,
+    totalSupply: tokensOf(BigInt(card.totalSupply)),
+    volume24h: skrOf(card.volume24h),
+    change24hPct: card.priceChange24hBps / 100,
     changeSinceLaunchPct: trading && launchPrice > 0 ? ((price - launchPrice) / launchPrice) * 100 : undefined,
     soldOutDurationMin:
       trading && card.graduatedAt
@@ -91,20 +96,27 @@ export const useFeedPages = (tab: FeedTab) =>
     staleTime: 30_000,
   });
 
-interface Candle {
-  close: string;
+interface TradeRow {
+  priceAfter: string;
 }
 
-/* Hourly closes over the last day, for a trading meme's sparkline. */
-export const usePriceHistory = (mint: string, enabled: boolean) =>
+const HISTORY_TRADES = 60;
+
+/*
+ * The price line for a meme: its launch price, then the price after each of its last
+ * trades (oldest first). Built from trades rather than hourly candles, which only exist
+ * for hours with trades, so a single buy already draws a line.
+ */
+export const usePriceHistory = (mint: string, launchPrice: number, enabled: boolean) =>
   useQuery({
-    queryKey: ["candles", mint, "1h"],
+    queryKey: ["price-history", mint],
     enabled,
-    staleTime: 60_000,
+    staleTime: 30_000,
     queryFn: async () => {
-      const { candles } = await api<{ candles: Candle[] }>(
-        `/memes/${mint}/candles?interval=1h&limit=24`,
+      const { items } = await api<{ items: TradeRow[] }>(
+        `/memes/${mint}/trades?limit=${HISTORY_TRADES}`,
       );
-      return candles.map((c) => skrOf(c.close));
+      const after = items.map((t) => skrOf(t.priceAfter)).reverse();
+      return items.length < HISTORY_TRADES ? [launchPrice, ...after] : after;
     },
   });

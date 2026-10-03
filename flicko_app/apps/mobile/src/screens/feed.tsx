@@ -16,13 +16,16 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BuySheet, type TradeSide } from "@/components/feed/buy-sheet";
 import { FeedPage, type FeedPageActions } from "@/components/feed/feed-page";
+import { ProfileMenu, type ProfileMenuAction } from "@/components/feed/profile-menu";
 import { FeedTopBar, TOP_BAR_HEIGHT } from "@/components/feed/top-bar";
 import { useToast } from "@/components/ui/toast";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
+import { WalletSheet } from "@/components/wallet/wallet-sheet";
 import { config } from "@/config";
 import { useFeedPages } from "@/features/feed/api";
 import { useFeedStore } from "@/features/feed/store";
 import type { FeedTab, Meme } from "@/features/feed/types";
+import { useSession } from "@/store/session";
 import { feed, geist } from "@/theme";
 
 /*
@@ -42,6 +45,8 @@ export default function Feed() {
   const [refreshing, setRefreshing] = useState(false);
   const [trade, setTrade] = useState<{ meme: Meme; side: TradeSide } | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
   const list = useRef<FlatList<string>>(null);
   const { toast, show } = useToast(insets.top + TOP_BAR_HEIGHT + 8);
 
@@ -63,6 +68,8 @@ export default function Feed() {
 
   const actions = useMemo<FeedPageActions>(
     () => ({
+      // TODO: a comments sheet once the server stores comments.
+      onComments: () => show("Comments are coming soon"),
       onRemix: (meme: Meme) => {
         // TODO: the camera doesn't take a template yet; it ignores `template` for now.
         router.navigate({ pathname: "/camera", params: { template: meme.id } });
@@ -74,7 +81,7 @@ export default function Feed() {
       onBuy: (meme: Meme) => setTrade({ meme, side: "buy" }),
       onSell: (meme: Meme) => setTrade({ meme, side: "sell" }),
     }),
-    [],
+    [show],
   );
 
   const pickTab = useCallback(
@@ -194,6 +201,7 @@ export default function Feed() {
         tab={tab}
         onTab={pickTab}
         onSearch={() => router.navigate("/markets")}
+        onProfile={() => setMenu(true)}
       />
       {trade && (
         <BuySheet
@@ -211,6 +219,20 @@ export default function Feed() {
           }}
         />
       )}
+      {menu && (
+        <ProfileMenu
+          top={insets.top + TOP_BAR_HEIGHT}
+          onClose={() => setMenu(false)}
+          onAction={(action: ProfileMenuAction) => {
+            setMenu(false);
+            if (action === "profile") router.push("/me");
+            else if (action === "wallet") setWalletOpen(true);
+            else if (action === "connect") setConnecting(true);
+            else useSession.getState().signOut();
+          }}
+        />
+      )}
+      {walletOpen && <WalletSheet onClose={() => setWalletOpen(false)} />}
       {connecting && (
         <ConnectFlow onClose={() => setConnecting(false)} onBrowse={() => setConnecting(false)} />
       )}

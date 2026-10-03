@@ -43,6 +43,7 @@ import { useSession } from "@/store/session";
 import { feed, geist } from "@/theme";
 
 import { MinusIcon, PlusIcon } from "./icons";
+import { PillButton } from "./pill-button";
 
 /*
  * Buy sheet (flicko_feed "Buy sheet" design) over the dimmed feed. The quote is live:
@@ -327,15 +328,17 @@ export function BuySheet({
               </View>
             </View>
 
-            <Pressable
-              accessibilityRole="button"
+            <PillButton
+              kind="accent"
+              label={label}
               disabled={disabled}
               onPress={approve}
-              style={({ pressed }) => [styles.approve, (pressed || disabled) && { opacity: 0.7 }]}
+              height={56}
+              style={styles.approve}
             >
               {busy && <ActivityIndicator color={feed.text} style={{ marginRight: 10 }} />}
               <Text style={styles.approveText}>{label}</Text>
-            </Pressable>
+            </PillButton>
 
             <Text style={[styles.footnote, problem && { color: feed.pinkText }]}>{problem ?? footnote}</Text>
           </Animated.View>
@@ -455,15 +458,8 @@ const styles = StyleSheet.create({
   rowValue: { fontFamily: geist.mono, fontSize: 14, color: feed.text },
   totalLabel: { fontFamily: geist.semibold, fontSize: 15, color: feed.text },
   total: { fontFamily: geist.monoMedium, fontSize: 22, color: feed.text },
-  approve: {
-    marginTop: 18,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: feed.accent,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  approve: { marginTop: 18 },
+
   approveText: { fontFamily: geist.semibold, fontSize: 17, color: feed.text },
   footnote: {
     marginTop: 12,

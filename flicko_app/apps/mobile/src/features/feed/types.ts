@@ -30,6 +30,12 @@ export interface Meme {
   launchPrice: number;
   /** SKR, the current curve or pool price */
   price: number;
+  /** whole tokens, the meme's full supply */
+  totalSupply: number;
+  /** SKR traded in the last 24h */
+  volume24h: number;
+  /** price change over 24h (or since launch for younger memes), percent */
+  change24hPct: number;
   /** trading only */
   changeSinceLaunchPct?: number;
   /** trading only, oldest first, for the sparkline */

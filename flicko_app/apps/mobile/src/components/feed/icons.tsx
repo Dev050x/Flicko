@@ -3,27 +3,43 @@ import Svg, { Circle, Path } from "react-native-svg";
 import { feed } from "@/theme";
 
 /*
- * Feed icons (24x24 viewBox): solid ones for the action rail, line ones for controls.
+ * Feed icons (24x24 viewBox, 2px round strokes).
  */
 type IconProps = { size?: number; color?: string };
 
-export function HeartIcon({ size = 30, color = feed.text }: IconProps) {
+const line = (color: string) => ({
+  fill: "none",
+  stroke: color,
+  strokeWidth: 2,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+});
+
+/*
+ * Rail icons from the flicko-feed-icons kit: 24x24, 2px stroke, round caps and joins.
+ * The comment bubble is drawn in the same style (the kit has no comment icon).
+ */
+const HEART =
+  "M12 20.2 C6.2 16.3 3 12.9 3 9.1 A4.6 4.6 0 0 1 12 7.2 A4.6 4.6 0 0 1 21 9.1 C21 12.9 17.8 16.3 12 20.2 Z";
+
+export function LikeIcon({
+  size = 30,
+  color = feed.text,
+  filled = false,
+}: IconProps & { filled?: boolean }) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
-      <Path
-        d="M12 20.6s-7.4-4.4-9.5-8.9C1 8.4 3 4.4 6.8 4.4c2.2 0 3.7 1.2 5.2 3.1 1.5-1.9 3-3.1 5.2-3.1 3.8 0 5.8 4 4.3 7.3-2.1 4.5-9.5 8.9-9.5 8.9z"
-        fill={color}
-      />
+      <Path d={HEART} {...line(color)} fill={filled ? color : "none"} />
     </Svg>
   );
 }
 
-export function BubbleIcon({ size = 30, color = feed.text }: IconProps) {
+export function CommentIcon({ size = 30, color = feed.text }: IconProps) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
       <Path
-        d="M12 3.2c-5.5 0-10 3.7-10 8.2 0 2.5 1.3 4.6 3.4 6.1L4.5 21l4.3-2c1 .3 2.1.5 3.2.5 5.5 0 10-3.7 10-8.2S17.5 3.2 12 3.2z"
-        fill={color}
+        d="M12 4 C7 4 3.5 7.1 3.5 11 C3.5 13 4.4 14.7 6 16 L5.2 19.8 L9.4 17.6 C10.2 17.8 11.1 18 12 18 C17 18 20.5 14.9 20.5 11 C20.5 7.1 17 4 12 4 Z"
+        {...line(color)}
       />
     </Svg>
   );
@@ -33,18 +49,20 @@ export function RemixIcon({ size = 30, color = feed.text }: IconProps) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
       <Path
-        fillRule="evenodd"
-        d="M9 4.5h6l1.6 2.2H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.7a2 2 0 0 1 2-2h3.4L9 4.5zM12 9.4a3.7 3.7 0 1 0 0 7.4 3.7 3.7 0 0 0 0-7.4z"
-        fill={color}
+        d="M3.5 8.5 A2 2 0 0 1 5.5 6.5 H7.5 L9 4.5 H15 L16.5 6.5 H18.5 A2 2 0 0 1 20.5 8.5 V17.5 A2 2 0 0 1 18.5 19.5 H5.5 A2 2 0 0 1 3.5 17.5 Z"
+        {...line(color)}
       />
+      <Path d="M15.2 11.4 A3.4 3.4 0 1 0 15.1 14.9" {...line(color)} />
+      <Path d="M15.6 9.4 V11.6 H13.4" {...line(color)} />
     </Svg>
   );
 }
 
-export function ShareArrowIcon({ size = 30, color = feed.text }: IconProps) {
+export function ShareIcon({ size = 30, color = feed.text }: IconProps) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
-      <Path d="M13.6 4.2v4.3C7.2 9.2 3.7 13.4 2.6 19.6c2.6-3.6 6-5.1 11-5.1v4.3l7.9-7.3-7.9-7.3z" fill={color} />
+      <Path d="M14 4.5 L20.5 11 L14 17.5" {...line(color)} />
+      <Path d="M20.5 11 H11 A6.5 6.5 0 0 0 4.5 17.5 V19.5" {...line(color)} />
     </Svg>
   );
 }
@@ -58,13 +76,6 @@ export function SearchIcon({ size = 24, color = feed.text }: IconProps) {
   );
 }
 
-const line = (color: string) => ({
-  fill: "none",
-  stroke: color,
-  strokeWidth: 2,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-});
 
 export function PlusIcon({ size = 22, color = feed.text }: IconProps) {
   return (
@@ -78,6 +89,22 @@ export function MinusIcon({ size = 22, color = feed.text }: IconProps) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
       <Path d="M5 12h14" {...line(color)} strokeWidth={2.2} />
+    </Svg>
+  );
+}
+
+export function ChevronDownIcon({ size = 16, color = feed.text }: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size}>
+      <Path d="M6 9.5l6 6 6-6" {...line(color)} strokeWidth={2.4} />
+    </Svg>
+  );
+}
+
+export function CheckMarkIcon({ size = 18, color = feed.text }: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size}>
+      <Path d="M5 12.5l4.5 4.5L19 7.5" {...line(color)} strokeWidth={2.4} />
     </Svg>
   );
 }
