@@ -211,3 +211,15 @@ export function FeedIcon({ size = 26, color = colors.text }: IconProps) {
     </Line>
   );
 }
+
+/*
+ * "No filter": a thin circle with a diagonal slash.
+ */
+export function NoFilterIcon({ size = 24, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color} width={1.6}>
+      <Circle cx={12} cy={12} r={8} />
+      <Path d="M6.4 17.6 L17.6 6.4" />
+    </Line>
+  );
+}

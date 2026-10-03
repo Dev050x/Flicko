@@ -18,6 +18,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 
+import { NoFilterIcon } from "@/components/ui/icons";
 import { FILTERS, matrixTint, type Filter } from "@/features/filters/catalog";
 import { cam, colors } from "@/theme";
 
@@ -182,6 +183,13 @@ function Item({
 }
 
 function Thumb({ filter }: { filter: Filter }) {
+  if (filter.type === "none") {
+    return (
+      <View style={[StyleSheet.absoluteFill, styles.normal]}>
+        <NoFilterIcon />
+      </View>
+    );
+  }
   if (filter.thumb) {
     return (
       <Image
@@ -235,6 +243,11 @@ const styles = StyleSheet.create({
     borderRadius: THUMB / 2,
     borderWidth: 2,
     borderColor: cam.thumbRing,
+  },
+  normal: {
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
   },
   artThumb: {
     backgroundColor: colors.surfaceRaised,
