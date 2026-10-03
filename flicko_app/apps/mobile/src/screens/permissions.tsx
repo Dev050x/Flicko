@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,21 +12,31 @@ import { useSession } from "@/store/session";
 import { colors, radius, ref, type } from "@/theme";
 
 const bobo = require("../../assets/characters/bobo-cheer.png");
+const moonMeme = require("../../assets/meme-wall/thumbs/03-to-the-moon.jpg");
 
 /*
  * Permission priming, step 2 of 2 (design-reference/ProfileSetup.html, right): explain,
  * then ask for the camera and straight after for notifications. "Not now" skips both;
- * the app asks again in context later.
+ * the app asks again in context later. When the camera is already allowed (e.g. the
+ * profile pic was snapped), only notifications are left, and the button says so.
  */
 export default function Permissions() {
   const insets = useSafeAreaInsets();
   const finishOnboarding = useSession((s) => s.finishOnboarding);
   const [asking, setAsking] = useState(false);
+  const [cameraAllowed, setCameraAllowed] = useState(false);
+
+  useEffect(() => {
+    camera()
+      ?.Camera.getCameraPermissionsAsync()
+      .then((p) => setCameraAllowed(p.granted))
+      .catch(() => {});
+  }, []);
 
   const allow = async () => {
     setAsking(true);
     try {
-      await camera()?.Camera.requestCameraPermissionsAsync();
+      if (!cameraAllowed) await camera()?.Camera.requestCameraPermissionsAsync();
       await notifications()?.requestPermissionsAsync();
     } catch (err) {
       console.warn("[permissions] request failed", err);
@@ -62,7 +72,12 @@ export default function Permissions() {
           until you tap Post.
         </Text>
         <View style={styles.notice}>
-          <View style={styles.noticeIcon} />
+          <Image
+            source={moonMeme}
+            style={styles.noticeIcon}
+            contentFit="cover"
+            accessibilityLabel="Bobo riding a rocket to the moon"
+          />
           <View style={{ gap: 2, flex: 1 }}>
             <Text style={styles.noticeTitle}>Your meme is up 50% 🚀</Text>
             <Text style={styles.noticeText}>
@@ -73,7 +88,11 @@ export default function Permissions() {
       </View>
 
       <View style={[styles.footer, { bottom: 40 + insets.bottom }]}>
-        <Button label="Allow camera" onPress={allow} disabled={asking} />
+        <Button
+          label={cameraAllowed ? "Allow notifications" : "Allow camera"}
+          onPress={allow}
+          disabled={asking}
+        />
         <TextButton label="Not now" onPress={finishOnboarding} />
       </View>
     </View>
@@ -113,7 +132,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surface,
   },
   noticeTitle: {
     fontFamily: "DMSans_700Bold",
