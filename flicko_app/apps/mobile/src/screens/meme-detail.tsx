@@ -25,11 +25,13 @@ import { WatchStar } from "@/components/markets/watch-star";
 import {
   ActivityCard,
   DetailsCard,
+  LaunchProgressCard,
   PositionCard,
   Reactions,
   SafetyCard,
   StatsGrid,
   safetyRows,
+  safetySummary,
 } from "@/components/meme/overview-sections";
 import { useToast } from "@/components/ui/toast";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
@@ -43,16 +45,15 @@ import {
   type MemeView,
   type ReactionKind,
 } from "@/features/meme/api";
-import { ageLong, priceSkr, shortAddress } from "@/lib/format";
+import { ageLong, priceCompact, shortAddress } from "@/lib/format";
 import { useSession } from "@/store/session";
-import { colors, fonts, market, mono } from "@/theme";
+import { market, detail as D, geist } from "@/theme";
 import { changeStyle } from "@/theme/priceChange";
 
 /*
- * Meme page. The Overview tab follows MemeDetail-overview.png top to bottom: header,
- * banner, title + creator, tags, price + 24h change, sparkline, timeframe row, tabs,
- * then position / stats / activity / safety / reactions / details, with a sticky
- * Buy + Sell bar.
+ * Meme page in two states. Launching: identity, chips, launch price, launch progress,
+ * tabs, launch stats, safety (lock pending), one Buy button. Trading: identity, chips,
+ * price + 24h change, sparkline, 5M-24H row, tabs, market stats, activity, Buy + Sell.
  */
 type Tab = "overview" | "chart" | "trades" | "holders";
 const TABS: { id: Tab; label: string }[] = [
@@ -63,43 +64,40 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const PAD = 16;
-const BAR_HEIGHT = 54;
+const BUTTON = 54;
 const defaultAvatar = require("../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 /* The feed's buy sheet takes a feed Meme; build one from the page's data. */
-const asFeedMeme = (m: MemeView): Meme => {
-  const sale = Math.floor(m.supply * 0.8);
-  return {
-    id: m.mint,
-    imageUrl: (m.image ?? "") as Meme["imageUrl"],
-    creator: {
-      wallet: m.creator.wallet,
-      handle: m.creator.handle ?? shortAddress(m.creator.wallet),
-      avatarUrl: defaultAvatar,
-      isFollowing: false,
-    },
-    ticker: m.symbol,
-    createdAt: m.createdAt,
-    status: m.phase === "pool" ? "trading" : "launching",
-    supplyTotal: sale,
-    supplySold: Math.max(0, sale - Math.floor(m.saleLeft)),
-    launchPrice: m.priceSkr,
-    price: m.priceSkr,
-    totalSupply: m.supply,
-    volume24h: m.volume24hSkr,
-    change24hPct: m.change["24h"],
-    likeCount: 0,
-    commentCount: 0,
-    likedByMe: false,
-  };
-};
+const asFeedMeme = (m: MemeView): Meme => ({
+  id: m.mint,
+  imageUrl: (m.image ?? "") as Meme["imageUrl"],
+  creator: {
+    wallet: m.creator.wallet,
+    handle: m.creator.handle ?? shortAddress(m.creator.wallet),
+    avatarUrl: defaultAvatar,
+    isFollowing: false,
+  },
+  ticker: m.symbol,
+  createdAt: m.createdAt,
+  status: m.phase === "pool" ? "trading" : "launching",
+  supplyTotal: Math.floor(m.saleSupply),
+  supplySold: Math.floor(m.sold),
+  launchPrice: m.startPriceSkr,
+  price: m.priceSkr,
+  totalSupply: m.supply,
+  volume24h: m.volume24hSkr,
+  change24hPct: m.change["24h"],
+  likeCount: 0,
+  commentCount: 0,
+  likedByMe: false,
+});
 
 const explorerUrl = (address: string) =>
   `https://explorer.solana.com/address/${address}?cluster=${config.cluster}`;
 
 export default function MemeDetail() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { mint } = useLocalSearchParams<{ mint: string }>();
   const client = useQueryClient();
   const detail = useMemeDetail(mint);
@@ -110,6 +108,7 @@ export default function MemeDetail() {
   const [trade, setTrade] = useState<TradeSide | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [viewer, setViewer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const scroll = useRef<ScrollView>(null);
   const sectionsY = useRef(0);
@@ -117,8 +116,10 @@ export default function MemeDetail() {
   const { toast, show } = useToast(insets.top + 64);
 
   const meme = detail.data;
-  const rows = useMemo(() => (meme ? safetyRows(meme, safety.data) : []), [meme, safety.data]);
-  const passed = rows.filter((r) => r.ok === true).length;
+  const summary = useMemo(
+    () => (meme ? safetySummary(safetyRows(meme, safety.data)) : "Safety checks"),
+    [meme, safety.data],
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -170,16 +171,11 @@ export default function MemeDetail() {
         onPress={() => (router.canGoBack() ? router.back() : router.replace("/markets"))}
         style={styles.iconButton}
       >
-        <BackIcon />
+        <BackIcon color={D.text} />
       </Pressable>
-      <View style={styles.headerTitle}>
-        {meme?.image && <Image source={meme.image} style={styles.headerThumb} contentFit="cover" />}
-        {meme && (
-          <Text style={styles.headerTicker} numberOfLines={1}>
-            ${meme.symbol}
-          </Text>
-        )}
-      </View>
+      <Text style={styles.headerTicker} numberOfLines={1}>
+        {meme ? `$${meme.symbol}` : ""}
+      </Text>
       <WatchStar mint={mint} onSignIn={() => setConnecting(true)} />
       <Pressable
         accessibilityRole="button"
@@ -187,7 +183,7 @@ export default function MemeDetail() {
         onPress={() => setMenu(true)}
         style={styles.iconButton}
       >
-        <MoreIcon />
+        <MoreIcon color={D.text} />
       </Pressable>
     </View>
   );
@@ -204,22 +200,26 @@ export default function MemeDetail() {
             </Pressable>
           </View>
         ) : (
-          <View>
-            <View style={[styles.bone, { width, height: width * 0.6 }]} />
-            <View style={{ padding: PAD, gap: 14 }}>
-              <View style={[styles.bone, { width: 220, height: 26, borderRadius: 8 }]} />
-              <View style={[styles.bone, { width: 260, height: 16, borderRadius: 8 }]} />
-              <View style={[styles.bone, { width: 160, height: 40, borderRadius: 10, marginTop: 10 }]} />
-              <View style={[styles.bone, { width: width - PAD * 2, height: 60, borderRadius: 10 }]} />
+          <View style={{ padding: PAD, gap: 16 }}>
+            <View style={{ flexDirection: "row", gap: 14 }}>
+              <View style={[styles.bone, { width: 64, height: 64, borderRadius: 14 }]} />
+              <View style={{ gap: 10, justifyContent: "center" }}>
+                <View style={[styles.bone, { width: 180, height: 18 }]} />
+                <View style={[styles.bone, { width: 220, height: 12 }]} />
+              </View>
             </View>
+            <View style={[styles.bone, { width: 150, height: 36 }]} />
+            <View style={[styles.bone, { width: width - PAD * 2, height: 120 }]} />
           </View>
         )}
       </View>
     );
   }
 
+  const launching = meme.phase === "launching";
   const change24 = changeStyle(meme.change["24h"]);
   const handle = meme.creator.handle ? `@${meme.creator.handle}` : shortAddress(meme.creator.wallet);
+  const barHeight = launching ? BUTTON + 26 : BUTTON;
 
   return (
     <View style={styles.screen}>
@@ -227,80 +227,97 @@ export default function MemeDetail() {
       <ScrollView
         ref={scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: BAR_HEIGHT + insets.bottom + 32 }}
+        contentContainerStyle={{ paddingBottom: barHeight + insets.bottom + 36 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={refresh}
-            tintColor={colors.text}
-            colors={[colors.text]}
-            progressBackgroundColor={colors.surfaceRaised}
+            tintColor={D.text}
+            colors={[D.text]}
+            progressBackgroundColor={D.track}
           />
         }
       >
-        <View style={{ width, height: width * 0.6, backgroundColor: colors.surface }}>
-          {meme.image && (
-            <Image source={meme.image} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+        <View style={styles.identity}>
+          <Pressable
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Open the meme"
+            onPress={() => meme.image && setViewer(true)}
+            style={styles.thumb}
+          >
+            {meme.image && <Image source={meme.image} style={StyleSheet.absoluteFill} contentFit="cover" />}
+          </Pressable>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.title} numberOfLines={2}>
+              {meme.name}
+            </Text>
+            <Text style={styles.byline} numberOfLines={1}>
+              by <Text style={styles.handle}>{handle}</Text> · launched {ageLong(meme.createdAt)} ago
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.chips}>
+          {launching ? (
+            <View style={[styles.chip, styles.chipLime]}>
+              <Text style={[styles.chipText, { color: D.lime }]}>Launching</Text>
+            </View>
+          ) : (
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>Trading</Text>
+            </View>
+          )}
+          {!launching && meme.trendingRank !== null && (
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>#{meme.trendingRank} trending</Text>
+            </View>
+          )}
+          <Pressable accessibilityRole="button" accessibilityLabel={summary} onPress={toSafety} style={styles.chip}>
+            <Text style={styles.chipText}>{summary}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.priceBlock}>
+          <View style={styles.priceLine} accessible accessibilityLabel={`${meme.priceSkr} SKR`}>
+            <Text style={styles.price}>{priceCompact(meme.priceSkr)}</Text>
+            <Text style={styles.priceUnit}>SKR</Text>
+          </View>
+          {launching ? (
+            <Text style={styles.priceNote}>Launch price · rises as it sells</Text>
+          ) : (
+            <Text style={styles.priceNote}>
+              <Text style={[styles.tabular, { color: change24.text }]}>{change24.label}</Text> past 24H
+            </Text>
           )}
         </View>
 
-        <View style={styles.block}>
-          <Text style={styles.title}>{meme.name}</Text>
-          <View style={styles.creatorLine}>
-            <Image source={defaultAvatar} style={styles.creatorAvatar} />
-            <Text style={styles.creatorText} numberOfLines={1}>
-              by <Text style={styles.creatorHandle}>{handle}</Text> · launched {ageLong(meme.createdAt)} ago
-            </Text>
+        {launching ? (
+          <View style={{ paddingHorizontal: PAD, marginTop: 20 }}>
+            <LaunchProgressCard meme={meme} />
           </View>
-
-          <View style={styles.tags}>
-            <View style={styles.tag}>
-              <Text style={styles.tagText}>
-                {meme.phase === "pool" ? "Trading in pool" : `Launching · ${Math.floor(meme.launchPct)}%`}
-              </Text>
-            </View>
-            {meme.trendingRank !== null && (
-              <View style={styles.tag}>
-                <Text style={styles.tagText}>#{meme.trendingRank} trending</Text>
-              </View>
-            )}
+        ) : (
+          <>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${passed} of ${rows.length} safety checks passed`}
-              onPress={toSafety}
-              style={[styles.tag, styles.tagOutline]}
+              accessibilityLabel="Open the chart"
+              onPress={() => setTab("chart")}
+              style={styles.spark}
             >
-              <Text style={styles.tagText}>
-                {safety.data ? `${passed}/${rows.length} safety checks` : "Safety checks"}
-              </Text>
+              <Sparkline values={meme.sparkline} width={width - PAD * 2} height={64} color={market.spark} />
             </Pressable>
-          </View>
-
-          <View style={styles.priceLine}>
-            <Text style={styles.price}>{priceSkr(meme.priceSkr)}</Text>
-            <Text style={styles.priceUnit}>SKR</Text>
-          </View>
-          <Text style={styles.changeLine}>
-            <Text style={[styles.changeValue, { color: change24.text }]}>{change24.label}</Text>
-            {"  "}past 24H
-          </Text>
-        </View>
-
-        <View style={styles.spark}>
-          <Sparkline values={meme.sparkline} width={width - PAD * 2} height={64} color={market.spark} />
-        </View>
-
-        <View style={styles.windows}>
-          {WINDOWS.map((w) => {
-            const tone = changeStyle(meme.change[w]);
-            return (
-              <View key={w} style={styles.windowCell}>
-                <Text style={styles.windowLabel}>{w.toUpperCase()}</Text>
-                <Text style={[styles.windowValue, { color: tone.text }]}>{tone.label}</Text>
-              </View>
-            );
-          })}
-        </View>
+            <View style={styles.windows}>
+              {WINDOWS.map((w) => {
+                const tone = changeStyle(meme.change[w]);
+                return (
+                  <View key={w} style={styles.windowCell}>
+                    <Text style={styles.windowLabel}>{w.toUpperCase()}</Text>
+                    <Text style={[styles.windowValue, { color: tone.text }]}>{tone.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         <View style={styles.tabs} accessibilityRole="tablist">
           {TABS.map((t) => {
@@ -324,7 +341,7 @@ export default function MemeDetail() {
           <View style={styles.sections} onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}>
             <PositionCard meme={meme} />
             <StatsGrid meme={meme} />
-            <ActivityCard meme={meme} />
+            {!launching && <ActivityCard meme={meme} />}
             <View onLayout={(e) => (safetyY.current = e.nativeEvent.layout.y)}>
               <SafetyCard meme={meme} checks={safety.data} />
             </View>
@@ -341,13 +358,32 @@ export default function MemeDetail() {
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
-        <PillButton kind="accent" label="Buy" onPress={() => setTrade("buy")} style={{ flex: 1 }}>
-          <Text style={styles.buyText}>Buy</Text>
-        </PillButton>
-        <PillButton kind="outline" label="Sell" onPress={() => setTrade("sell")} style={{ flex: 1 }}>
-          <Text style={styles.sellText}>Sell</Text>
-        </PillButton>
+        {launching ? (
+          <View style={{ flex: 1, gap: 8 }}>
+            <PillButton kind="accent" label="Buy at launch price" onPress={() => setTrade("buy")}>
+              <Text style={styles.buttonText}>Buy at launch price</Text>
+            </PillButton>
+            <Text style={styles.barNote}>Trading in the pool opens when the launch sells out</Text>
+          </View>
+        ) : (
+          <>
+            <PillButton kind="accent" label="Buy" onPress={() => setTrade("buy")} style={{ flex: 1 }}>
+              <Text style={styles.buttonText}>Buy</Text>
+            </PillButton>
+            <PillButton kind="outline" label="Sell" onPress={() => setTrade("sell")} style={{ flex: 1 }}>
+              <Text style={styles.buttonText}>Sell</Text>
+            </PillButton>
+          </>
+        )}
       </View>
+
+      {viewer && meme.image && (
+        <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={() => setViewer(false)}>
+          <Pressable accessibilityLabel="Close" onPress={() => setViewer(false)} style={styles.viewer}>
+            <Image source={meme.image} style={{ width, height }} contentFit="contain" />
+          </Pressable>
+        </Modal>
+      )}
 
       {menu && (
         <Modal transparent visible statusBarTranslucent onRequestClose={() => setMenu(false)}>
@@ -401,78 +437,66 @@ export default function MemeDetail() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 6,
-  },
+  screen: { flex: 1, backgroundColor: D.bg },
+  header: { height: 56, flexDirection: "row", alignItems: "center", paddingHorizontal: 6 },
   iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  headerTitle: {
+  headerTicker: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
     paddingLeft: 44,
+    textAlign: "center",
+    fontFamily: geist.semibold,
+    fontSize: 17,
+    color: D.text,
   },
-  headerThumb: { width: 30, height: 30, borderRadius: 8 },
-  headerTicker: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.text },
-  block: { paddingHorizontal: PAD, paddingTop: 18 },
-  title: { fontFamily: fonts.bodyBold, fontSize: 26, lineHeight: 32, color: colors.text },
-  creatorLine: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  creatorAvatar: { width: 28, height: 28, borderRadius: 8 },
-  creatorText: { flex: 1, fontFamily: fonts.body, fontSize: 14, color: colors.textMuted },
-  creatorHandle: { fontFamily: fonts.bodyBold, color: colors.text },
-  tags: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  tag: {
+  identity: { flexDirection: "row", alignItems: "center", gap: 14, padding: PAD },
+  thumb: { width: 64, height: 64, borderRadius: 14, overflow: "hidden", backgroundColor: D.track },
+  title: { fontFamily: geist.semibold, fontSize: 19, lineHeight: 24, color: D.text },
+  byline: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
+  handle: { fontFamily: geist.semibold, color: D.text },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: PAD },
+  chip: {
     height: 30,
     paddingHorizontal: 12,
     borderRadius: 15,
-    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: D.line,
     justifyContent: "center",
   },
-  tagOutline: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.borderStrong },
-  tagText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.text },
-  priceLine: { flexDirection: "row", alignItems: "baseline", gap: 8, marginTop: 22 },
-  price: { fontFamily: mono.medium, fontSize: 40, lineHeight: 46, color: colors.text, letterSpacing: -1 },
-  priceUnit: { fontFamily: fonts.body, fontSize: 18, color: colors.textMuted },
-  changeLine: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted, marginTop: 4 },
-  changeValue: { fontFamily: mono.medium },
+  chipLime: { borderColor: D.limeBorder },
+  chipText: { fontFamily: geist.medium, fontSize: 13, color: D.text },
+  priceBlock: { paddingHorizontal: PAD, marginTop: 20, gap: 4 },
+  priceLine: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+  price: {
+    fontFamily: geist.semibold,
+    fontSize: 32,
+    lineHeight: 38,
+    color: D.text,
+    fontVariant: ["tabular-nums"],
+  },
+  priceUnit: { fontFamily: geist.regular, fontSize: 15, color: D.muted },
+  priceNote: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
+  tabular: { fontFamily: geist.medium, fontVariant: ["tabular-nums"] },
   spark: { paddingHorizontal: PAD, marginTop: 18, height: 64 },
   windows: {
     flexDirection: "row",
     marginHorizontal: PAD,
     marginTop: 18,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: colors.border,
+    borderColor: D.line,
   },
   windowCell: { flex: 1, alignItems: "center", gap: 4 },
-  windowLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
-  windowValue: { fontFamily: mono.medium, fontSize: 14 },
-  tabs: {
-    flexDirection: "row",
-    marginTop: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
+  windowLabel: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
+  windowValue: { fontFamily: geist.medium, fontSize: 14, fontVariant: ["tabular-nums"] },
+  tabs: { flexDirection: "row", marginTop: 20, borderBottomWidth: 1, borderBottomColor: D.line },
   tab: { flex: 1, height: 46, alignItems: "center", justifyContent: "center" },
-  tabText: { fontFamily: fonts.bodyMedium, fontSize: 16, color: colors.textMuted },
-  tabTextOn: { fontFamily: fonts.bodyBold, color: colors.text },
-  tabLine: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: -1,
-    height: 2,
-    backgroundColor: colors.text,
-  },
-  sections: { paddingHorizontal: PAD, paddingTop: 18, gap: 16 },
+  tabText: { fontFamily: geist.medium, fontSize: 15, color: D.muted },
+  tabTextOn: { fontFamily: geist.semibold, color: D.text },
+  tabLine: { position: "absolute", left: 0, right: 0, bottom: -1, height: 2, backgroundColor: D.text },
+  sections: { paddingHorizontal: PAD, paddingTop: 16, gap: 12 },
   soon: { paddingVertical: 60, alignItems: "center" },
-  muted: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted },
+  muted: { fontFamily: geist.regular, fontSize: 14, color: D.muted },
   bar: {
     position: "absolute",
     left: 0,
@@ -482,32 +506,33 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: PAD,
     paddingTop: 12,
-    backgroundColor: colors.bg,
+    backgroundColor: D.bg,
   },
-  buyText: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
-  sellText: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
+  buttonText: { fontFamily: geist.semibold, fontSize: 17, color: D.text },
+  barNote: { fontFamily: geist.regular, fontSize: 12, color: D.muted, textAlign: "center" },
+  viewer: { flex: 1, backgroundColor: "#000", alignItems: "center", justifyContent: "center" },
   menu: {
     position: "absolute",
     right: 12,
     width: 220,
     padding: 6,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceRaised,
+    borderRadius: D.radius,
+    backgroundColor: D.bg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: D.line,
   },
-  menuItem: { height: 44, borderRadius: 10, paddingHorizontal: 12, justifyContent: "center" },
-  menuText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.text },
+  menuItem: { height: 44, borderRadius: 6, paddingHorizontal: 12, justifyContent: "center" },
+  menuText: { fontFamily: geist.medium, fontSize: 15, color: D.text },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
   outline: {
     height: 42,
     paddingHorizontal: 20,
     borderRadius: 21,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: D.line,
     alignItems: "center",
     justifyContent: "center",
   },
-  outlineText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text },
-  bone: { backgroundColor: colors.surface },
+  outlineText: { fontFamily: geist.semibold, fontSize: 14, color: D.text },
+  bone: { backgroundColor: D.track, borderRadius: 6 },
 });

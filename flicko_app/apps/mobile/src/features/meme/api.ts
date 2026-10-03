@@ -46,8 +46,18 @@ export interface MemeView {
   trades24h: number;
   /** whole tokens */
   supply: number;
+  /** whole tokens offered in the launch sale (4/5 of supply) */
+  saleSupply: number;
+  /** whole tokens sold in the launch sale */
+  sold: number;
   /** whole tokens left in the launch sale (launching only) */
   saleLeft: number;
+  /** SKR paid into the launch so far (net of fees) */
+  raisedSkr: number;
+  /** the creator's start price, SKR per token */
+  startPriceSkr: number;
+  /** wallets that ever bought */
+  buyersTotal: number;
   activity: { buys: number; sells: number; buyers: number; sellers: number };
   /** graduated: pool reserves; launching: SKR raised so far */
   pool: { tokens: number; skr: number };
@@ -79,6 +89,7 @@ interface ServerMeme {
   totalSupply: string;
   tokensSold: string;
   saleSupply: string;
+  startPrice: string;
   realSkr: string;
   poolSkr: string;
   poolTokens: string;
@@ -95,6 +106,7 @@ interface ServerOverview {
   };
   trendingRank: number | null;
   priceLine: string[];
+  buyersTotal: number;
   creatorHoldsBps: number;
   creatorMemes: number;
   reactions: Record<ReactionKind, number>;
@@ -131,7 +143,12 @@ const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview
     volume24hSkr: skrOf(m.volume.h24),
     trades24h: m.txns.h24,
     supply: Number(meme.totalSupply) / TOKEN,
+    saleSupply: Number(meme.saleSupply) / TOKEN,
+    sold: Number(meme.tokensSold) / TOKEN,
     saleLeft: Math.max(0, (Number(meme.saleSupply) - Number(meme.tokensSold)) / TOKEN),
+    raisedSkr: skrOf(meme.realSkr),
+    startPriceSkr: skrOf(meme.startPrice),
+    buyersTotal: overview.buyersTotal,
     activity: {
       buys: m.buys24h,
       sells: m.sells24h,
@@ -177,7 +194,12 @@ const mockView = (): MemeView => {
     volume24hSkr: d.volume24hSkr,
     trades24h: d.trades24h,
     supply: d.supply,
+    saleSupply: d.supply * 0.8,
+    sold: d.supply * 0.8,
     saleLeft: 0,
+    raisedSkr: d.pool.skrAmount,
+    startPriceSkr: d.priceSkr / 16,
+    buyersTotal: d.activity24h.buyers,
     activity: d.activity24h,
     pool: { tokens: d.pool.tokenAmount, skr: d.pool.skrAmount },
     memePda: d.pool.poolAddress,

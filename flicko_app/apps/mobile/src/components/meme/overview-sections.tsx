@@ -1,77 +1,166 @@
 import { Image } from "expo-image";
-import { Fragment, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View, type TextStyle } from "react-native";
 
-import { CheckIcon, CopyIcon, ExternalIcon, WarningIcon } from "@/components/markets/icons";
-import { REACTIONS, type MemeView, type ReactionKind, type SafetyChecks } from "@/features/meme/api";
-import { compact, grouped, priceSkr, shortAddress } from "@/lib/format";
-import { colors, fonts, mono } from "@/theme";
+import {
+  CheckIcon,
+  ClockIcon,
+  CopyIcon,
+  ExternalIcon,
+  WarningIcon,
+} from "@/components/markets/icons";
+import {
+  REACTIONS,
+  type MemeView,
+  type ReactionKind,
+  type SafetyChecks,
+} from "@/features/meme/api";
+import { compact, grouped, priceCompact, shortAddress } from "@/lib/format";
+import { colors, detail as D, geist } from "@/theme";
 import { changeStyle } from "@/theme/priceChange";
 
 /*
- * The cards of the meme page's Overview tab (MemeDetail-overview.png), top to bottom
- * below the tabs. Labels are DM Sans, numbers DM Mono 500.
+ * The meme page's sections below the tabs. Containers are outlined (no fill, 8px
+ * corners); numbers are Geist with tabular figures, addresses Geist Mono.
  */
 const defaultAvatar = require("../../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
-/** Creator holding this share of supply or more fails the safety check. */
+/** A creator holding this share of supply or more fails the safety check. */
 export const CREATOR_LIMIT_PCT = 5;
 
-function Card({ children, style }: { children: ReactNode; style?: object }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+const NUM: TextStyle = { fontVariant: ["tabular-nums"] };
+
+export function Card({
+  title,
+  right,
+  style,
+  children,
+}: {
+  title?: string;
+  right?: ReactNode;
+  style?: object;
+  children: ReactNode;
+}) {
+  return (
+    <View style={[styles.card, style]}>
+      {title && (
+        <View style={styles.cardHead}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          {right}
+        </View>
+      )}
+      {children}
+    </View>
+  );
 }
 
-const signed = (n: number, digits?: number) =>
-  `${n >= 0 ? "+" : "−"}${digits === undefined ? compact(Math.abs(n)) : Math.abs(n).toFixed(digits)}`;
+function Row({ label, children }: { label: ReactNode; children?: ReactNode }) {
+  return (
+    <View style={styles.row}>
+      {typeof label === "string" ? <Text style={styles.rowLabel}>{label}</Text> : label}
+      {children}
+    </View>
+  );
+}
+
+const signed = (n: number, format: (v: number) => string) =>
+  `${n >= 0 ? "+" : "−"}${format(Math.abs(n))}`;
 
 export function PositionCard({ meme }: { meme: MemeView }) {
   const p = meme.position;
   if (!p) return null;
   const tone = changeStyle(p.pnlPct);
   return (
-    <Card style={styles.position}>
-      <View style={{ flex: 1, gap: 6 }}>
+    <View style={[styles.card, styles.position]}>
+      <View style={{ flex: 1, gap: 4 }}>
         <Text style={styles.label}>Your position</Text>
-        <Text style={styles.positionAmount}>
-          {compact(p.tokens)} <Text style={styles.positionTicker}>${meme.symbol}</Text>
+        <Text style={[styles.positionAmount, NUM]}>
+          {compact(p.tokens)} ${meme.symbol}
         </Text>
         <Text style={styles.label}>
-          Avg buy <Text style={styles.monoMuted}>{priceSkr(p.avgBuySkr)}</Text>
+          Avg buy <Text style={NUM}>{priceCompact(p.avgBuySkr)}</Text>
         </Text>
       </View>
-      <View style={{ alignItems: "flex-end", gap: 8 }}>
-        <Text style={styles.positionValue}>
+      <View style={{ alignItems: "flex-end", gap: 6 }}>
+        <Text style={[styles.positionValue, NUM]}>
           {compact(p.valueSkr)} <Text style={styles.unit}>SKR</Text>
         </Text>
-        <Text style={[styles.pnl, { color: tone.text }]}>
-          {signed(p.pnlSkr)} SKR · {signed(p.pnlPct, 0)}%
+        <Text style={[styles.pnl, NUM, { color: tone.text }]}>
+          {signed(p.pnlSkr, compact)} SKR · {signed(p.pnlPct, (v) => v.toFixed(0))}%
         </Text>
       </View>
+    </View>
+  );
+}
+
+/* The launch sale's progress and what happens at sell-out, from the program's rules. */
+export function LaunchProgressCard({ meme }: { meme: MemeView }) {
+  const pct = Math.min(100, meme.launchPct);
+  const poolTokens = meme.supply - meme.saleSupply;
+  // The program: sell-out raises 3.2 × p0 × S and opens the pool at 16 × p0.
+  const raised = 3.2 * meme.startPriceSkr * meme.supply;
+  const openPrice = 16 * meme.startPriceSkr;
+  return (
+    <Card title="Launch progress" right={<Text style={[styles.cardTitle, NUM]}>{Math.floor(pct)}%</Text>}>
+      <View style={styles.track}>
+        <View style={[styles.fill, { width: `${pct}%` }]} />
+      </View>
+      <View style={styles.progressLine}>
+        <Text style={[styles.small, NUM]}>
+          {compact(meme.sold)} of {compact(meme.saleSupply)} sold
+        </Text>
+        <Text style={[styles.small, NUM]}>{compact(meme.saleLeft)} left</Text>
+      </View>
+      <Text style={styles.explain}>
+        When all {compact(meme.saleSupply)} sell, the other {compact(poolTokens)} ${meme.symbol} and
+        the {compact(raised)} SKR raised go into a pool at {priceCompact(openPrice)} SKR. That
+        liquidity locks forever and trading opens to everyone.
+      </Text>
     </Card>
   );
 }
 
 export function StatsGrid({ meme }: { meme: MemeView }) {
-  const cells = [
-    { label: "Market cap", value: compact(meme.marketCapSkr) },
-    { label: "Liquidity", value: compact(meme.liquiditySkr) },
-    { label: "Holders", value: grouped(meme.holders) },
-    { label: "Volume 24H", value: compact(meme.volume24hSkr) },
-    { label: "Trades 24H", value: grouped(meme.trades24h) },
-    { label: "Supply", value: compact(meme.supply) },
-  ];
+  const launching = meme.phase === "launching";
+  const cells: { label: string; value: string; unit?: string }[] = launching
+    ? [
+        { label: "Raised", value: compact(meme.raisedSkr), unit: "SKR" },
+        { label: "Buyers", value: grouped(meme.buyersTotal) },
+        { label: "Market cap", value: compact(meme.marketCapSkr) },
+        { label: "Supply", value: compact(meme.supply) },
+        { label: "In launch", value: compact(meme.saleSupply) },
+        { label: "Left", value: compact(meme.saleLeft) },
+      ]
+    : [
+        { label: "Market cap", value: compact(meme.marketCapSkr) },
+        { label: "Liquidity", value: compact(meme.liquiditySkr), unit: "locked" },
+        { label: "Holders", value: grouped(meme.holders) },
+        { label: "Volume 24H", value: compact(meme.volume24hSkr) },
+        { label: "Trades 24H", value: grouped(meme.trades24h) },
+        { label: "Supply", value: compact(meme.supply) },
+      ];
   return (
-    <View style={{ gap: 10 }}>
-      <Card style={styles.grid}>
-        {cells.map((c) => (
-          <View key={c.label} style={styles.gridCell}>
-            <Text style={styles.label}>{c.label}</Text>
-            <Text style={styles.gridValue}>{c.value}</Text>
+    <View style={{ gap: 8 }}>
+      <View style={[styles.card, styles.grid]}>
+        {cells.map((c, i) => (
+          <View
+            key={c.label}
+            style={[styles.cell, i % 3 !== 2 && styles.cellRight, i < 3 && styles.cellBottom]}
+          >
+            <Text style={styles.label} numberOfLines={1}>
+              {c.label}
+            </Text>
+            <Text style={[styles.cellValue, NUM]} numberOfLines={1}>
+              {c.value}
+              {c.unit && <Text style={styles.cellUnit}>{` ${c.unit}`}</Text>}
+            </Text>
           </View>
         ))}
-      </Card>
+      </View>
       <Text style={styles.caption}>
-        Values in SKR. {meme.phase === "pool" ? "Liquidity is locked in the pool forever." : "Liquidity locks in the pool forever when the launch sells out."}
+        {launching
+          ? "Values in SKR. Liquidity locks in the pool when the launch sells out."
+          : "Values in SKR. Liquidity is locked in the pool forever."}
       </Text>
     </View>
   );
@@ -80,85 +169,113 @@ export function StatsGrid({ meme }: { meme: MemeView }) {
 export function ActivityCard({ meme }: { meme: MemeView }) {
   const { buys, sells, buyers, sellers } = meme.activity;
   const total = buys + sells;
-  const buyShare = total === 0 ? 0.5 : buys / total;
+  const share = total === 0 ? 0.5 : buys / total;
   return (
-    <Card style={{ gap: 14 }}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>Activity · 24H</Text>
-        <Text style={styles.cardMeta}>
-          <Text style={styles.metaNum}>{grouped(buyers)}</Text> buyers ·{" "}
-          <Text style={styles.metaNum}>{grouped(sellers)}</Text> sellers
+    <Card
+      title="Activity · 24H"
+      right={
+        <Text style={[styles.small, NUM]}>
+          {grouped(buyers)} buyers · {grouped(sellers)} sellers
         </Text>
-      </View>
+      }
+    >
       <View style={styles.split}>
         {total === 0 ? (
-          <View style={[styles.splitPart, { flex: 1, backgroundColor: colors.border }]} />
+          <View style={[styles.splitPart, { flex: 1, backgroundColor: D.track }]} />
         ) : (
           <>
-            {buys > 0 && <View style={[styles.splitPart, { flex: buyShare, backgroundColor: colors.gain }]} />}
-            {sells > 0 && <View style={[styles.splitPart, { flex: 1 - buyShare, backgroundColor: colors.loss }]} />}
+            {buys > 0 && <View style={[styles.splitPart, { flex: share, backgroundColor: colors.gain }]} />}
+            {sells > 0 && (
+              <View style={[styles.splitPart, { flex: 1 - share, backgroundColor: colors.loss }]} />
+            )}
           </>
         )}
       </View>
-      <View style={styles.cardHeader}>
+      <View style={styles.progressLine}>
         <Text style={styles.side}>
-          <Text style={[styles.sideNum, { color: colors.gain }]}>{grouped(buys)}</Text> buys
+          <Text style={[NUM, { color: colors.gain }]}>{grouped(buys)}</Text> buys
         </Text>
         <Text style={styles.side}>
-          <Text style={[styles.sideNum, { color: colors.loss }]}>{grouped(sells)}</Text> sells
+          <Text style={[NUM, { color: colors.loss }]}>{grouped(sells)}</Text> sells
         </Text>
       </View>
     </Card>
   );
 }
 
+export type CheckState = "ok" | "fail" | "pending" | "checking";
+
 export const safetyRows = (meme: MemeView, checks: SafetyChecks | undefined) => {
+  const onChain = (ok: boolean | undefined): CheckState =>
+    ok === undefined ? "checking" : ok ? "ok" : "fail";
+  const launching = meme.phase === "launching";
   const holdsOk = meme.creatorHoldsPct < CREATOR_LIMIT_PCT;
-  return [
-    { ok: checks?.mintAuthorityRevoked, claim: "Mint authority revoked", note: "Supply is fixed" },
-    { ok: checks?.noFreezeAuthority, claim: "No freeze authority", note: "Wallets can't be frozen" },
+  const rows: { state: CheckState; claim: string; note: string }[] = [
     {
-      ok: checks?.liquidityLocked,
-      claim: "Liquidity locked",
-      note: meme.phase === "pool" ? "Forever" : "At sell-out, forever",
+      state: onChain(checks?.mintAuthorityRevoked),
+      claim: "Mint authority revoked",
+      note: "Supply is fixed",
     },
     {
-      ok: holdsOk,
+      state: onChain(checks?.noFreezeAuthority),
+      claim: "No freeze authority",
+      note: "Wallets can't be frozen",
+    },
+    launching
+      ? { state: "pending", claim: "Liquidity locks", note: "At sellout" }
+      : { state: onChain(checks?.liquidityLocked), claim: "Liquidity locked", note: "Forever" },
+    {
+      state: holdsOk ? "ok" : "fail",
       claim: `Creator holds ${Number(meme.creatorHoldsPct.toFixed(1))}%`,
       note: holdsOk ? `Below ${CREATOR_LIMIT_PCT}%` : `${CREATOR_LIMIT_PCT}% or more`,
     },
   ];
+  return rows;
 };
 
-export function SafetyCard({
-  meme,
-  checks,
-  onLayout,
-}: {
-  meme: MemeView;
-  checks: SafetyChecks | undefined;
-  onLayout?: (e: LayoutChangeEvent) => void;
-}) {
-  const rows = safetyRows(meme, checks);
+/** "4/4 safety checks", "3/4 safety checks · 1 pending" */
+export const safetySummary = (rows: { state: CheckState }[]) => {
+  if (rows.some((r) => r.state === "checking")) return "Safety checks";
+  const passed = rows.filter((r) => r.state === "ok").length;
+  const pending = rows.filter((r) => r.state === "pending").length;
+  return `${passed}/${rows.length} safety checks${pending ? ` · ${pending} pending` : ""}`;
+};
+
+export function SafetyCard({ meme, checks }: { meme: MemeView; checks: SafetyChecks | undefined }) {
   return (
-    <Card style={{ paddingVertical: 4 }}>
-      <View onLayout={onLayout} style={[styles.cardHeader, { paddingVertical: 14 }]}>
-        <Text style={styles.cardTitle}>Safety</Text>
-        <Text style={styles.cardMeta}>Checked on-chain</Text>
-      </View>
-      {rows.map((r) => (
-        <View key={r.claim} style={styles.safetyRow}>
-          <View style={styles.safetyIcon}>
-            {r.ok === undefined ? null : r.ok ? <CheckIcon size={16} /> : <WarningIcon size={16} />}
-          </View>
-          <Text style={[styles.safetyClaim, r.ok === false && { color: colors.loss }]} numberOfLines={1}>
-            {r.claim}
-          </Text>
-          <Text style={[styles.safetyNote, r.ok === false && { color: colors.loss }]} numberOfLines={1}>
-            {r.ok === undefined ? "Checking…" : r.note}
-          </Text>
-        </View>
-      ))}
+    <Card title="Safety" right={<Text style={styles.small}>Checked on-chain</Text>}>
+      {safetyRows(meme, checks).map((r) => {
+        const tone =
+          r.state === "fail" ? colors.loss : r.state === "ok" ? D.text : D.muted;
+        return (
+          <Row
+            key={r.claim}
+            label={
+              <View style={styles.safetyLeft}>
+                <View style={styles.safetyIcon}>
+                  {r.state === "ok" ? (
+                    <CheckIcon size={16} color={D.text} />
+                  ) : r.state === "fail" ? (
+                    <WarningIcon size={16} color={colors.loss} />
+                  ) : r.state === "pending" ? (
+                    <ClockIcon size={16} color={D.muted} />
+                  ) : null}
+                </View>
+                <Text style={[styles.safetyClaim, { color: tone }]} numberOfLines={1}>
+                  {r.claim}
+                </Text>
+              </View>
+            }
+          >
+            <Text
+              style={[styles.rowValueMuted, r.state === "fail" && { color: colors.loss }]}
+              numberOfLines={1}
+            >
+              {r.state === "checking" ? "Checking…" : r.note}
+            </Text>
+          </Row>
+        );
+      })}
     </Card>
   );
 }
@@ -171,22 +288,23 @@ export function Reactions({
   onReact: (kind: ReactionKind, on: boolean) => void;
 }) {
   return (
-    <View style={{ gap: 12 }}>
+    <View style={{ gap: 10 }}>
       <Text style={styles.cardTitle}>Reactions</Text>
       <View style={styles.reactions}>
         {REACTIONS.map(({ kind, emoji }) => {
           const on = meme.myReactions.includes(kind);
+          const count = meme.reactions[kind];
           return (
             <Pressable
               key={kind}
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
-              accessibilityLabel={`${kind}, ${meme.reactions[kind]}`}
+              accessibilityLabel={`${kind}, ${count}`}
               onPress={() => onReact(kind, !on)}
               style={[styles.reaction, on && styles.reactionOn]}
             >
               <Text style={styles.emoji}>{emoji}</Text>
-              <Text style={styles.reactionCount}>{grouped(meme.reactions[kind])}</Text>
+              {count > 0 && <Text style={[styles.reactionCount, NUM]}>{grouped(count)}</Text>}
             </Pressable>
           );
         })}
@@ -211,122 +329,122 @@ export function DetailsCard({
   onExplore: (address: string) => void;
 }) {
   const address = (value: string) => (
-    <View style={styles.addressRow}>
-      <Text style={styles.detailValue}>{shortAddress(value)}</Text>
+    <View style={styles.inline}>
+      <Text style={styles.address}>{shortAddress(value)}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel="Copy address" hitSlop={10} onPress={() => onCopy(value)}>
-        <CopyIcon size={16} />
+        <CopyIcon size={16} color={D.muted} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open in explorer" hitSlop={10} onPress={() => onExplore(value)}>
-        <ExternalIcon size={16} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open in explorer"
+        hitSlop={10}
+        onPress={() => onExplore(value)}
+      >
+        <ExternalIcon size={16} color={D.muted} />
       </Pressable>
     </View>
   );
-  const rows: { label: string; value: ReactNode }[] = [
-    { label: "Created", value: <Text style={styles.detailText}>{dateLabel(meme.createdAt)}</Text> },
-    {
-      label: meme.phase === "pool" ? "In pool" : "In launch",
-      value: (
-        <Text style={styles.detailValue}>
+  return (
+    <Card title="Details">
+      <Row label="Created">
+        <Text style={styles.rowValue}>{dateLabel(meme.createdAt)}</Text>
+      </Row>
+      <Row label={meme.phase === "pool" ? "In pool" : "In launch"}>
+        <Text style={[styles.rowValue, NUM]}>
           {compact(meme.pool.tokens)} ${meme.symbol} + {compact(meme.pool.skr)} SKR
         </Text>
-      ),
-    },
-    { label: "Token address", value: address(meme.mint) },
-    { label: "Pool address", value: address(meme.memePda) },
-    {
-      label: "Creator",
-      value: (
-        <View style={styles.addressRow}>
+      </Row>
+      <Row label="Token address">{address(meme.mint)}</Row>
+      <Row label="Pool address">{address(meme.memePda)}</Row>
+      <Row label="Creator">
+        <View style={styles.inline}>
           <Image source={defaultAvatar} style={styles.creatorAvatar} />
-          <Text style={styles.detailText}>
+          <Text style={styles.rowValue}>
             {meme.creator.handle ? `@${meme.creator.handle}` : shortAddress(meme.creator.wallet)}
           </Text>
         </View>
-      ),
-    },
-  ];
-  return (
-    <Card style={{ paddingVertical: 4 }}>
-      <Text style={[styles.cardTitle, { paddingVertical: 14 }]}>Details</Text>
-      {rows.map((r) => (
-        <Fragment key={r.label}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>{r.label}</Text>
-            {r.value}
-          </View>
-        </Fragment>
-      ))}
+      </Row>
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    borderColor: D.line,
+    borderRadius: D.radius,
+    padding: 14,
   },
-  label: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
-  unit: { fontFamily: fonts.body, fontSize: 14, color: colors.textMuted },
-  monoMuted: { fontFamily: mono.medium, color: colors.textMuted },
-  position: { flexDirection: "row", alignItems: "center" },
-  positionAmount: { fontFamily: mono.medium, fontSize: 17, color: colors.text },
-  positionTicker: { fontFamily: mono.medium },
-  positionValue: { fontFamily: mono.medium, fontSize: 19, color: colors.text },
-  pnl: { fontFamily: mono.medium, fontSize: 13 },
-  grid: { flexDirection: "row", flexWrap: "wrap", rowGap: 22, paddingVertical: 18 },
-  gridCell: { width: "33.33%", gap: 6 },
-  gridValue: { fontFamily: mono.medium, fontSize: 17, color: colors.text },
-  caption: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted },
-  cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardTitle: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
-  cardMeta: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
-  metaNum: { fontFamily: mono.medium },
-  split: { flexDirection: "row", height: 8, gap: 4 },
-  splitPart: { height: 8, borderRadius: 4 },
-  side: { fontFamily: fonts.body, fontSize: 14, color: colors.text },
-  sideNum: { fontFamily: mono.medium },
-  safetyRow: {
+  cardHead: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    height: 54,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  safetyIcon: { width: 18, alignItems: "center" },
-  safetyClaim: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.text },
-  safetyNote: { fontFamily: fonts.body, fontSize: 13, color: colors.textMuted },
-  reactions: { flexDirection: "row", gap: 10 },
-  reaction: {
-    height: 44,
-    paddingHorizontal: 18,
-    borderRadius: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  reactionOn: { borderColor: colors.text },
-  emoji: { fontSize: 17 },
-  reactionCount: { fontFamily: mono.medium, fontSize: 15, color: colors.text },
-  detailRow: {
+  cardTitle: { fontFamily: geist.semibold, fontSize: 15, color: D.text },
+  row: {
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    height: 52,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: D.line,
   },
-  detailLabel: { fontFamily: fonts.body, fontSize: 15, color: colors.textMuted },
-  detailText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.text },
-  detailValue: { fontFamily: mono.medium, fontSize: 14, color: colors.text },
-  addressRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  rowLabel: { fontFamily: geist.regular, fontSize: 14, color: D.secondary },
+  rowValue: { fontFamily: geist.medium, fontSize: 14, color: D.text },
+  rowValueMuted: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
+  label: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
+  small: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
+  unit: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
+  caption: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
+  position: { flexDirection: "row", alignItems: "center", borderColor: D.positionBorder },
+  positionAmount: { fontFamily: geist.medium, fontSize: 17, color: D.text },
+  positionValue: { fontFamily: geist.medium, fontSize: 18, color: D.text },
+  pnl: { fontFamily: geist.medium, fontSize: 13 },
+  track: { height: 8, borderRadius: 4, backgroundColor: D.track, overflow: "hidden" },
+  fill: { height: 8, borderRadius: 4, backgroundColor: D.accent },
+  progressLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  explain: {
+    fontFamily: geist.regular,
+    fontSize: 13,
+    lineHeight: 19,
+    color: D.muted,
+    marginTop: 12,
+  },
+  grid: { padding: 0, flexDirection: "row", flexWrap: "wrap" },
+  cell: { width: "33.333%", paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
+  cellRight: { borderRightWidth: 1, borderRightColor: D.line },
+  cellBottom: { borderBottomWidth: 1, borderBottomColor: D.line },
+  cellValue: { fontFamily: geist.medium, fontSize: 16, color: D.text },
+  cellUnit: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
+  split: { flexDirection: "row", height: 8, gap: 4 },
+  splitPart: { height: 8, borderRadius: 4 },
+  side: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
+  safetyLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  safetyIcon: { width: 18, alignItems: "center" },
+  safetyClaim: { flexShrink: 1, fontFamily: geist.medium, fontSize: 14 },
+  reactions: { flexDirection: "row", gap: 8 },
+  reaction: {
+    height: 40,
+    minWidth: 52,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: D.line,
+  },
+  reactionOn: { borderColor: D.text },
+  emoji: { fontSize: 16 },
+  reactionCount: { fontFamily: geist.medium, fontSize: 14, color: D.text },
+  inline: { flexDirection: "row", alignItems: "center", gap: 10 },
+  address: { fontFamily: geist.mono, fontSize: 13, color: D.text },
   creatorAvatar: { width: 22, height: 22, borderRadius: 11 },
 });

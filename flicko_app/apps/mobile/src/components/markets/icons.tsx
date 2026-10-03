@@ -160,3 +160,12 @@ export function FlagIcon({ size = 18, color = colors.text }: IconProps) {
     </Line>
   );
 }
+
+export function ClockIcon({ size = 16, color = colors.textMuted }: IconProps) {
+  return (
+    <Line size={size} color={color} width={2.2}>
+      <Circle cx={12} cy={12} r={8.5} />
+      <Path d="M12 7.5 V12 L15 14" />
+    </Line>
+  );
+}

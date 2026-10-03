@@ -48,3 +48,23 @@ export const ageLong = (ms: number, now = Date.now()) => {
 /** "7xKp…3fQa" */
 export const shortAddress = (address: string) =>
   address.length > 12 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address;
+
+const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
+
+/**
+ * Prices below 0.001 in subscript-zero notation: 0.000009 → "0.0₅9" (the subscript is
+ * how many zeros follow the decimal point), keeping up to 4 significant digits.
+ * Everything else as `priceSkr`.
+ */
+export const priceCompact = (n: number) => {
+  if (!Number.isFinite(n) || n <= 0 || n >= 0.001) return priceSkr(n);
+  // 9.120e-6 → digits "912", exponent -6 → 5 zeros after the point
+  const [mantissa, exponent] = n.toExponential(3).split("e");
+  const zeros = -Number(exponent) - 1;
+  const digits = mantissa.replace(".", "").replace(/0+$/, "");
+  const sub = String(zeros)
+    .split("")
+    .map((d) => SUBSCRIPT[Number(d)])
+    .join("");
+  return `0.0${sub}${digits}`;
+};

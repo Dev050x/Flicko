@@ -158,3 +158,22 @@ export const mono = {
   regular: "DMMono_400Regular",
   medium: "DMMono_500Medium",
 } as const;
+
+/*
+ * Meme page (detail redesign): flat page on the feed background, outlined containers
+ * with 8px corners, Geist with tabular numbers, Geist Mono only for addresses.
+ */
+export const detail = {
+  bg: "#0B0B0F",
+  line: "#2A2833",
+  track: "#23212B",
+  text: "#F5F3F7",
+  secondary: "#B9B5C4",
+  muted: "#9C98A8",
+  pending: "#3A3744",
+  accent: "#E5137A",
+  lime: "#C8FF4D",
+  limeBorder: "rgba(200,255,77,0.35)",
+  positionBorder: "rgba(229,19,122,0.45)",
+  radius: 8,
+} as const;
