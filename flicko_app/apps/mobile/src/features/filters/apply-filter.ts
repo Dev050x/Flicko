@@ -1,6 +1,9 @@
 import {
   ImageFormat,
+  PaintStyle,
   Skia,
+  StrokeCap,
+  StrokeJoin,
   type SkCanvas,
   type SkImage,
   type SkPaint,
@@ -9,13 +12,20 @@ import { Asset } from "expo-asset";
 import { File, Paths } from "expo-file-system";
 
 import type { Filter } from "./catalog";
-import { type Placement, type Rect } from "./placement";
+import {
+  bracketPaths,
+  type Brackets,
+  type Layout,
+  type Placement,
+  type Rect,
+} from "./placement";
 
 /*
- * Bakes the selected filter into a captured photo: crop to the chosen aspect, apply the
- * colour matrix, then draw the overlay art at the same placements the live view used
- * (face overlays use the detected eyes when there are any). Needs Skia, so it is only
- * loaded with the camera.
+ * Bakes the selected filter into a captured photo: crop to exactly what the preview
+ * showed, apply the colour matrix, then draw the filter content at the same layout the
+ * preview used (brackets, frame text, sticker; face overlays on the detected faces).
+ * Only the filter is drawn, never the camera UI. Needs Skia, so it is only loaded with
+ * the camera.
  */
 const OUTPUT_WIDTH = 1080;
 const JPEG_QUALITY = 92;
@@ -65,6 +75,20 @@ export const drawPlacement = (
   canvas.restore();
 };
 
+const drawBrackets = (canvas: SkCanvas, brackets: Brackets) => {
+  const paint = Skia.Paint();
+  paint.setStyle(PaintStyle.Stroke);
+  paint.setStrokeWidth(brackets.stroke);
+  paint.setStrokeCap(StrokeCap.Round);
+  paint.setStrokeJoin(StrokeJoin.Round);
+  paint.setColor(Skia.Color("#FFFFFF"));
+  paint.setAntiAlias(true);
+  for (const d of bracketPaths(brackets)) {
+    const path = Skia.Path.MakeFromSVGString(d);
+    if (path) canvas.drawPath(path, paint);
+  }
+};
+
 export interface Composed {
   uri: string;
   width: number;
@@ -72,19 +96,20 @@ export interface Composed {
 }
 
 /*
- * `crop` and `placements` are in the photo's pixel coordinates.
+ * `crop` and `layout` are in the photo's pixel coordinates.
  */
 export const composePhoto = async ({
   photoUri,
   filter,
   crop,
-  placements,
+  layout,
 }: {
   photoUri: string;
   filter: Filter;
   crop: Rect;
-  placements: Placement[];
+  layout: Layout;
 }): Promise<Composed> => {
+  const placements = layout.images;
   const photo = Skia.Image.MakeImageFromEncoded(
     await Skia.Data.fromURI(photoUri),
   );
@@ -104,6 +129,7 @@ export const composePhoto = async ({
   canvas.scale(width / crop.width, height / crop.height);
   canvas.translate(-crop.x, -crop.y);
   canvas.drawImage(photo, 0, 0, colorPaint(filter.matrix));
+  if (layout.brackets) drawBrackets(canvas, layout.brackets);
   placements.forEach((p, i) => drawPlacement(canvas, overlays[i], p));
   canvas.restore();
   surface.flush();

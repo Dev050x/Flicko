@@ -43,7 +43,7 @@
       "category": "meme",
       "type": "frame",
       "premium": false,
-      "overlay": "overlays/frame-to-the-moon.png",
+      "overlay": "overlays/text-to-the-moon.png",
       "thumb": "thumbs/to-the-moon.png"
     },
     {
@@ -52,7 +52,7 @@
       "category": "meme",
       "type": "frame",
       "premium": false,
-      "overlay": "overlays/frame-wagmi.png",
+      "overlay": "overlays/text-wagmi.png",
       "thumb": "thumbs/wagmi.png"
     },
     {
@@ -109,7 +109,7 @@
       "category": "solana",
       "type": "frame",
       "premium": false,
-      "overlay": "overlays/frame-seeker.png",
+      "overlay": "overlays/text-seeker.png",
       "thumb": null
     },
     {

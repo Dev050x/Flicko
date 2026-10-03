@@ -203,27 +203,24 @@ export function CameraLayer({
 }
 
 /*
- * Eye centres of the largest face in a photo (pixel coordinates), or null.
+ * Eye centres of every face in a photo (pixel coordinates); empty if none were found.
  */
 let detector: ReturnType<typeof createImageFaceDetector> | undefined;
 
-export const detectEyes = (uri: string): Eyes | null => {
+export const detectFaces = (uri: string): Eyes[] => {
   try {
     detector ??= createImageFaceDetector({
       performanceMode: "accurate",
       runLandmarks: true,
     });
-    const faces = detector.detectFaces(uri);
-    const face = [...faces].sort(
-      (a, b) =>
-        b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height,
-    )[0];
-    const a = face?.landmarks?.LEFT_EYE;
-    const b = face?.landmarks?.RIGHT_EYE;
-    if (!a || !b) return null;
-    return a.x <= b.x ? { left: a, right: b } : { left: b, right: a };
+    return detector.detectFaces(uri).flatMap((face) => {
+      const a = face.landmarks?.LEFT_EYE;
+      const b = face.landmarks?.RIGHT_EYE;
+      if (!a || !b) return [];
+      return [a.x <= b.x ? { left: a, right: b } : { left: b, right: a }];
+    });
   } catch (err) {
     console.warn("[camera] face detection failed", err);
-    return null;
+    return [];
   }
 };

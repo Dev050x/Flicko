@@ -35,7 +35,7 @@ import { Glass } from "@/components/ui/glass";
 import { LockIcon } from "@/components/ui/icons";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { WalletSheet } from "@/components/wallet/wallet-sheet";
-import { ASPECT_RATIO, useCameraSettings } from "@/features/camera/settings";
+import { useCameraSettings } from "@/features/camera/settings";
 import {
   FILTERS,
   filterById,
@@ -43,9 +43,8 @@ import {
 } from "@/features/filters/catalog";
 import {
   approxEyes,
-  containRect,
   defaultStickerPose,
-  placementsFor,
+  layoutFor,
   type Rect,
   type StickerPose,
 } from "@/features/filters/placement";
@@ -84,17 +83,23 @@ const useCameraPermission = cameraModule?.useCameraPermission ?? noPermission;
 /*
  * Positions from design-reference/Camera.html, measured up from the tab bar: shutter
  * centre 111, category chips 21. The filter label sits in the 60dp above the shutter
- * ring (carousel centre - 44 - 60), and the capture rect fills the space between the
- * avatar row (safe area + 100) and that label.
+ * ring (carousel centre - 44 - 60).
+ *
+ * The photo is the whole preview (Snapchat style). Filter content (frames, stickers,
+ * text) stays in the safe zone: below the avatar row (safe area + 110), above the label,
+ * 16dp from the left and clear of the right rail (16dp + 56dp from the right).
  */
 const SHUTTER_CENTER = 111;
 const CHIPS_BOTTOM = 21;
 const LABEL_HEIGHT = 60;
-const CAPTURE_TOP = 100;
-// Right rail: 4 buttons of 40dp, 12dp apart, from safe area + 12; stickers start below.
-const RAIL_BOTTOM = 12 + 4 * 40 + 3 * 12 + 8;
+const ZONE_TOP = 110;
+const ZONE_LEFT = 16;
+const ZONE_RIGHT = 16 + 56;
 const NAME_VISIBLE_MS = 1500;
-const NAME_FADE_MS = 200;
+const HINT_VISIBLE_MS = 3000;
+const FADE_MS = 200;
+const NO_FACE = "Couldn't find a face, placed it for you";
+const HINT_HEIGHT = 28;
 
 const FACE_HINT: Record<string, string> = {
   "laser-eyes": "Lasers lock onto your eyes after you snap",
@@ -113,7 +118,7 @@ export default function CameraScreen() {
   const focused = useIsFocused();
   const appActive = useAppActive();
   const permission = useCameraPermission();
-  const { facing, flash, timer, aspect, filterId, setFilter, restore } =
+  const { facing, flash, timer, filterId, setFilter, restore } =
     useCameraSettings();
   const filter = filterById(filterId);
   const unlocked = useUnlockedFilters();
@@ -143,40 +148,43 @@ export default function CameraScreen() {
   }, [restore]);
   useEffect(() => () => player?.remove(), [player]);
 
-  // The capture rect: what gets saved, between the avatar row and the filter label.
-  const labelTop = view ? view.height - SHUTTER_CENTER - SHUTTER / 2 - LABEL_HEIGHT : 0;
-  const crop = view
-    ? containRect(
-        {
-          x: 0,
-          y: insets.top + CAPTURE_TOP,
-          width: view.width,
-          height: labelTop - (insets.top + CAPTURE_TOP),
-        },
-        ASPECT_RATIO[aspect],
-      )
+  const labelTop = view
+    ? view.height - SHUTTER_CENTER - SHUTTER / 2 - LABEL_HEIGHT
+    : 0;
+  const zone: Rect | null = view
+    ? {
+        x: ZONE_LEFT,
+        y: insets.top + ZONE_TOP,
+        width: view.width - ZONE_LEFT - ZONE_RIGHT,
+        height: labelTop - (insets.top + ZONE_TOP),
+      }
     : null;
   const ready = !!cameraModule && permission.hasPermission;
 
-  // A sticker starts top-right (below the rail) and resets on a new filter or aspect.
+  // A sticker starts top-right of the safe zone and resets on a new filter.
   const [stickerPose, setStickerPose] = useState<StickerPose | null>(null);
-  useEffect(() => setStickerPose(null), [filterId, aspect]);
-  const sticker =
-    stickerPose ??
-    (crop ? defaultStickerPose(crop, insets.top + RAIL_BOTTOM) : null);
+  useEffect(() => setStickerPose(null), [filterId]);
+  const sticker = stickerPose ?? (zone ? defaultStickerPose(zone) : null);
 
   // The filter name shows for 1.5s after a change, then fades; the premium chip stays.
   const nameOpacity = useSharedValue(0);
+  // Face filters explain themselves for 3s (they're placed on the photo, not live).
+  const hintOpacity = useSharedValue(0);
+  const faceHint =
+    filter.type === "face" && cameraModule?.detectsFaces
+      ? FACE_HINT[filter.id]
+      : undefined;
   useEffect(() => {
-    nameOpacity.value =
-      filter.type === "none"
-        ? 0
-        : withSequence(
-            withTiming(1, { duration: 0 }),
-            withDelay(NAME_VISIBLE_MS, withTiming(0, { duration: NAME_FADE_MS })),
-          );
-  }, [filterId, filter.type, nameOpacity]);
+    const flashFor = (ms: number) =>
+      withSequence(
+        withTiming(1, { duration: 0 }),
+        withDelay(ms, withTiming(0, { duration: FADE_MS })),
+      );
+    nameOpacity.value = filter.type === "none" ? 0 : flashFor(NAME_VISIBLE_MS);
+    hintOpacity.value = faceHint ? flashFor(HINT_VISIBLE_MS) : 0;
+  }, [filterId, filter.type, faceHint, nameOpacity, hintOpacity]);
   const nameStyle = useAnimatedStyle(() => ({ opacity: nameOpacity.value }));
+  const hintStyle = useAnimatedStyle(() => ({ opacity: hintOpacity.value }));
 
   const onIndexChange = (index: number) => {
     const next = FILTERS[index];
@@ -194,7 +202,7 @@ export default function CameraScreen() {
   };
 
   const shoot = async () => {
-    if (busy || !cameraModule || !camera.current || !view || !crop) return;
+    if (busy || !cameraModule || !camera.current || !view || !zone) return;
     setBusy(true);
     let restoreBrightness: number | null = null;
     try {
@@ -224,7 +232,8 @@ export default function CameraScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setScreenFlash(false);
 
-      // The preview "covers" the page; map the page and the kept area onto the photo.
+      // The preview "covers" the page: the photo keeps exactly that visible area, and
+      // the safe zone maps onto it (1dp on screen = 1 / scale photo pixels).
       const scale = Math.max(view.width / shot.width, view.height / shot.height);
       const toPhoto = (r: Rect): Rect => ({
         x: (shot.width - view.width / scale) / 2 + (r.x - view.x) / scale,
@@ -232,19 +241,34 @@ export default function CameraScreen() {
         width: r.width / scale,
         height: r.height / scale,
       });
-      const photoCrop = toPhoto(crop);
-      const eyes =
-        (filter.type === "face" && cameraModule.detectEyes(shot.uri)) ||
-        approxEyes(photoCrop);
+      const photoZone = toPhoto(zone);
+      let notice: string | undefined;
+      let faces: ReturnType<typeof approxEyes>[] = [];
+      if (filter.type === "face") {
+        faces = cameraModule.detectFaces(shot.uri);
+        if (faces.length === 0) {
+          faces = [approxEyes(photoZone)];
+          notice = NO_FACE;
+        }
+      }
       const composed = await cameraModule.composePhoto({
         photoUri: shot.uri,
         filter,
-        crop: photoCrop,
-        placements: placementsFor(filter, photoCrop, eyes, sticker ?? undefined),
+        crop: toPhoto(view),
+        layout: layoutFor(filter, photoZone, 1 / scale, {
+          sticker: sticker ?? undefined,
+          faces,
+        }),
       });
       router.push({
         pathname: "/create/preview",
-        params: { photoUri: composed.uri, filterId: filter.id, aspect },
+        params: {
+          photoUri: composed.uri,
+          width: String(composed.width),
+          height: String(composed.height),
+          filterId: filter.id,
+          ...(notice ? { notice } : {}),
+        },
       });
     } catch (err) {
       console.warn("[camera] capture failed", err);
@@ -294,15 +318,12 @@ export default function CameraScreen() {
         />
       )}
 
-      {ready && crop && sticker && (
+      {ready && zone && sticker && (
         <LiveOverlay
           filter={filter}
-          rect={crop}
+          zone={zone}
           sticker={sticker}
           onStickerChange={setStickerPose}
-          faceHint={
-            cameraModule?.detectsFaces ? FACE_HINT[filter.id] : undefined
-          }
         />
       )}
 
@@ -315,6 +336,17 @@ export default function CameraScreen() {
         }
       />
       <ToolRail />
+
+      {faceHint && view && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.hintRow, { top: labelTop - 12 - HINT_HEIGHT }, hintStyle]}
+        >
+          <Glass style={styles.hint}>
+            <Text style={styles.hintText}>{faceHint}</Text>
+          </Glass>
+        </Animated.View>
+      )}
 
       {filter.type !== "none" && view && (
         <View pointerEvents="none" style={[styles.label, { top: labelTop }]}>
@@ -437,6 +469,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.text,
   },
+  hintRow: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  hint: {
+    height: HINT_HEIGHT,
+    borderRadius: HINT_HEIGHT / 2,
+    paddingHorizontal: 12,
+    justifyContent: "center",
+  },
+  hintText: { fontFamily: "DMSans_500Medium", fontSize: 12, color: colors.text },
   carousel: { position: "absolute", left: 0, right: 0, height: SHUTTER },
   chips: { position: "absolute", left: 0, right: 0 },
   countdown: {

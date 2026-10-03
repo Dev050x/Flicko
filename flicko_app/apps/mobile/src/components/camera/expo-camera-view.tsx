@@ -28,7 +28,7 @@ export const useCameraPermission = () => {
   };
 };
 
-export const detectEyes = (_uri: string): Eyes | null => null;
+export const detectFaces = (_uri: string): Eyes[] => [];
 
 export function CameraLayer({
   ref,

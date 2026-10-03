@@ -25,9 +25,9 @@ export interface Filter {
 
 const OVERLAYS: Record<string, ImageSourcePropType> = {
   "overlays/deal-with-it.png": require("../../../assets/filters/overlays/deal-with-it.png"),
-  "overlays/frame-seeker.png": require("../../../assets/filters/overlays/frame-seeker.png"),
-  "overlays/frame-to-the-moon.png": require("../../../assets/filters/overlays/frame-to-the-moon.png"),
-  "overlays/frame-wagmi.png": require("../../../assets/filters/overlays/frame-wagmi.png"),
+  "overlays/text-seeker.png": require("../../../assets/filters/overlays/text-seeker.png"),
+  "overlays/text-to-the-moon.png": require("../../../assets/filters/overlays/text-to-the-moon.png"),
+  "overlays/text-wagmi.png": require("../../../assets/filters/overlays/text-wagmi.png"),
   "overlays/laser-beam.png": require("../../../assets/filters/overlays/laser-beam.png"),
   "overlays/sticker-candle-up.png": require("../../../assets/filters/overlays/sticker-candle-up.png"),
   "overlays/sticker-chart-down.png": require("../../../assets/filters/overlays/sticker-chart-down.png"),

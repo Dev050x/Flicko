@@ -9,15 +9,14 @@ import { useCameraSettings } from "@/features/camera/settings";
 import { colors } from "@/theme";
 
 /*
- * Right rail: flip, flash (off → on → auto), timer (off → 3s → 10s), aspect
- * (4:5 → 1:1 → 9:16). 40dp glass circles 12dp apart, with hit slop up to 48dp.
+ * Right rail: flip, flash (off → on → auto), timer (off → 3s → 10s). 40dp glass
+ * circles 12dp apart, with hit slop up to 48dp.
  */
 const FLASH_LABEL = { off: "Flash off", on: "Flash on", auto: "Flash auto" };
 
 export function ToolRail() {
   const insets = useSafeAreaInsets();
-  const { flash, timer, aspect, flip, cycleFlash, cycleTimer, cycleAspect } =
-    useCameraSettings();
+  const { flash, timer, flip, cycleFlash, cycleTimer } = useCameraSettings();
 
   return (
     <View style={[styles.rail, { top: insets.top + 12 }]}>
@@ -41,12 +40,6 @@ export function ToolRail() {
         onPress={cycleTimer}
       >
         {timer ? <Text style={styles.text}>{timer}s</Text> : <TimerIcon />}
-      </RailButton>
-      <RailButton
-        label={`Aspect ratio ${aspect.replace(":", " by ")}`}
-        onPress={cycleAspect}
-      >
-        <Text style={styles.text}>{aspect}</Text>
       </RailButton>
     </View>
   );
