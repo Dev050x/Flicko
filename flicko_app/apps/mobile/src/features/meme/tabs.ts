@@ -100,32 +100,55 @@ interface ServerTrade {
 
 const PAGE = 50;
 
-/* Newest first, paged; the first page refreshes every 5s while the tab is open. */
-export const useTrades = (mint: string, enabled: boolean) =>
+export type TradeFilter = "all" | "buys" | "sells" | "mine";
+
+/*
+ * Newest first, 50 per page; the first page refreshes every 5s while shown. "mine"
+ * needs a wallet. `largeSkr` is the meme's 95th-percentile trade size (null before any).
+ */
+export const useTrades = (
+  mint: string,
+  enabled: boolean,
+  filter: TradeFilter = "all",
+  wallet?: string,
+) =>
   useInfiniteQuery({
-    queryKey: ["trades", mint],
-    enabled,
+    queryKey: ["trades", mint, filter, filter === "mine" ? wallet : null],
+    enabled: enabled && (filter !== "mine" || !!wallet),
     refetchInterval: enabled ? 5_000 : false,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       if (config.useMocks) {
-        const items: TradeView[] = tradesMock.items.map((t, i) => ({
-          id: `mock-${i}`,
-          side: t.side === "buy" ? "buy" : "sell",
-          skr: t.skr,
-          price: t.priceSkr,
-          tokens: t.skr / t.priceSkr,
-          trader: t.trader,
-          traderIsAddress: !t.trader.startsWith("@"),
-          wallet: t.trader,
-          at: Date.now() - t.ageSec * 1000,
-        }));
-        return { items, nextOffset: null };
+        const items: TradeView[] = tradesMock.items
+          .map((t, i): TradeView => ({
+            id: `mock-${i}`,
+            side: t.side === "buy" ? "buy" : "sell",
+            skr: t.skr,
+            price: t.priceSkr,
+            tokens: t.skr / t.priceSkr,
+            trader: t.trader,
+            traderIsAddress: !t.trader.startsWith("@"),
+            wallet: t.trader,
+            at: Date.now() - t.ageSec * 1000,
+          }))
+          .filter(
+            (t) =>
+              filter === "all" || (filter === "buys") === (t.side === "buy"),
+          );
+        return { items, largeSkr: 250, nextOffset: null };
       }
+      const params = new URLSearchParams({
+        limit: String(PAGE),
+        offset: String(pageParam),
+      });
+      if (filter === "buys") params.set("side", "buy");
+      if (filter === "sells") params.set("side", "sell");
+      if (filter === "mine" && wallet) params.set("trader", wallet);
       const res = await api<{
         items: ServerTrade[];
+        largeSkr: string | null;
         nextOffset: number | null;
-      }>(`/memes/${mint}/trades?limit=${PAGE}&offset=${pageParam}`);
+      }>(`/memes/${mint}/trades?${params}`);
       return {
         items: res.items.map((t): TradeView => ({
           id: t.signature,
@@ -140,6 +163,7 @@ export const useTrades = (mint: string, enabled: boolean) =>
           wallet: t.trader,
           at: Date.parse(t.blockTime),
         })),
+        largeSkr: res.largeSkr === null ? null : skrOf(res.largeSkr),
         nextOffset: res.nextOffset,
       };
     },

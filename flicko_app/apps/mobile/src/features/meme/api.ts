@@ -97,7 +97,10 @@ interface ServerMeme {
 }
 
 interface ServerOverview {
-  market: Omit<MarketRow, "mint" | "name" | "symbol" | "imageUrl" | "createdAt"> & {
+  market: Omit<
+    MarketRow,
+    "mint" | "name" | "symbol" | "imageUrl" | "createdAt"
+  > & {
     buys24h: number;
     sells24h: number;
     buyers24h: number;
@@ -120,7 +123,13 @@ interface ServerOverview {
   } | null;
 }
 
-const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview }): MemeView => {
+const toView = ({
+  meme,
+  overview,
+}: {
+  meme: ServerMeme;
+  overview: ServerOverview;
+}): MemeView => {
   const m = overview.market;
   const price = skrOf(meme.price);
   const graduated = meme.phase === "graduated";
@@ -136,7 +145,12 @@ const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview
     launchPct: m.launchProgressBps / 100,
     trendingRank: overview.trendingRank,
     priceSkr: price,
-    change: { "5m": m.change.m5 / 100, "1h": m.change.h1 / 100, "6h": m.change.h6 / 100, "24h": m.change.h24 / 100 },
+    change: {
+      "5m": m.change.m5 / 100,
+      "1h": m.change.h1 / 100,
+      "6h": m.change.h6 / 100,
+      "24h": m.change.h24 / 100,
+    },
     marketCapSkr: skrOf(m.marketCap),
     liquiditySkr: skrOf(m.liquidity),
     holders: m.holders,
@@ -145,7 +159,10 @@ const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview
     supply: Number(meme.totalSupply) / TOKEN,
     saleSupply: Number(meme.saleSupply) / TOKEN,
     sold: Number(meme.tokensSold) / TOKEN,
-    saleLeft: Math.max(0, (Number(meme.saleSupply) - Number(meme.tokensSold)) / TOKEN),
+    saleLeft: Math.max(
+      0,
+      (Number(meme.saleSupply) - Number(meme.tokensSold)) / TOKEN,
+    ),
     raisedSkr: skrOf(meme.realSkr),
     startPriceSkr: skrOf(meme.startPrice),
     buyersTotal: overview.buyersTotal,
@@ -157,7 +174,13 @@ const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview
     },
     pool: graduated
       ? { tokens: Number(meme.poolTokens) / TOKEN, skr: skrOf(meme.poolSkr) }
-      : { tokens: Math.max(0, (Number(meme.saleSupply) - Number(meme.tokensSold)) / TOKEN), skr: skrOf(meme.realSkr) },
+      : {
+          tokens: Math.max(
+            0,
+            (Number(meme.saleSupply) - Number(meme.tokensSold)) / TOKEN,
+          ),
+          skr: skrOf(meme.realSkr),
+        },
     memePda: meme.memePda,
     creatorHoldsPct: overview.creatorHoldsBps / 100,
     reactions: overview.reactions,
@@ -187,7 +210,12 @@ const mockView = (): MemeView => {
     launchPct: 100,
     trendingRank: d.trendingRank,
     priceSkr: d.priceSkr,
-    change: { "5m": d.change["5m"], "1h": d.change["1h"], "6h": d.change["6h"], "24h": d.change["24h"] },
+    change: {
+      "5m": d.change["5m"],
+      "1h": d.change["1h"],
+      "6h": d.change["6h"],
+      "24h": d.change["24h"],
+    },
     marketCapSkr: d.marketCapSkr,
     liquiditySkr: d.liquiditySkr,
     holders: d.holders,
@@ -204,7 +232,11 @@ const mockView = (): MemeView => {
     pool: { tokens: d.pool.tokenAmount, skr: d.pool.skrAmount },
     memePda: d.pool.poolAddress,
     creatorHoldsPct: d.safety.creatorHoldsPct,
-    reactions: { rocket: d.reactions.rocket, fire: d.reactions.fire, poop: d.reactions.poop },
+    reactions: {
+      rocket: d.reactions.rocket,
+      fire: d.reactions.fire,
+      poop: d.reactions.poop,
+    },
     myReactions: [],
     position: {
       tokens: d.position.tokens,
@@ -217,7 +249,8 @@ const mockView = (): MemeView => {
   };
 };
 
-export const memeKey = (mint: string, wallet: string | undefined) => ["meme", mint, wallet] as const;
+export const memeKey = (mint: string, wallet: string | undefined) =>
+  ["meme", mint, wallet] as const;
 
 export const useMemeDetail = (mint: string) => {
   const session = useSession((s) => s.session);
@@ -226,9 +259,12 @@ export const useMemeDetail = (mint: string) => {
     refetchInterval: 15_000,
     queryFn: async () => {
       if (config.useMocks) return mockView();
-      const res = await api<{ meme: ServerMeme; overview: ServerOverview }>(`/memes/${mint}`, {
-        token: session?.token,
-      });
+      const res = await api<{ meme: ServerMeme; overview: ServerOverview }>(
+        `/memes/${mint}`,
+        {
+          token: session?.token,
+        },
+      );
       return toView(res);
     },
   });
@@ -250,7 +286,11 @@ export const useSafetyChecks = (mint: string) =>
     staleTime: Infinity,
     queryFn: async (): Promise<SafetyChecks> => {
       if (config.useMocks) {
-        return { mintAuthorityRevoked: true, noFreezeAuthority: true, liquidityLocked: true };
+        return {
+          mintAuthorityRevoked: true,
+          noFreezeAuthority: true,
+          liquidityLocked: true,
+        };
       }
       const programId = new PublicKey(config.programId);
       const mintKey = new PublicKey(mint);
@@ -258,8 +298,9 @@ export const useSafetyChecks = (mint: string) =>
         connection.getParsedAccountInfo(mintKey),
         connection.getAccountInfo(memePda(mintKey, programId)),
       ]);
-      const parsed = (mintInfo.value?.data as { parsed?: { info?: Record<string, unknown> } })
-        ?.parsed?.info;
+      const parsed = (
+        mintInfo.value?.data as { parsed?: { info?: Record<string, unknown> } }
+      )?.parsed?.info;
       return {
         mintAuthorityRevoked: !!parsed && parsed.mintAuthority == null,
         noFreezeAuthority: !!parsed && parsed.freezeAuthority == null,
@@ -289,7 +330,10 @@ export const useReact = (mint: string) => {
       if (before) {
         client.setQueryData<MemeView>(key, {
           ...before,
-          reactions: { ...before.reactions, [kind]: before.reactions[kind] + (on ? 1 : -1) },
+          reactions: {
+            ...before.reactions,
+            [kind]: before.reactions[kind] + (on ? 1 : -1),
+          },
           myReactions: on
             ? [...before.myReactions, kind]
             : before.myReactions.filter((k) => k !== kind),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Svg, { Line, Path, Rect } from "react-native-svg";
@@ -12,11 +12,20 @@ import {
   type CandleView,
   type SoldPoint,
   type Timeframe,
+  type TradeView,
 } from "@/features/meme/tabs";
+import { useLiveTrades } from "@/features/meme/live";
 import { priceCompact } from "@/lib/format";
 import { detail as D, geist } from "@/theme";
 
-import { TradeHeader, TradeRow, TradeRowsLoading } from "./trade-row";
+import {
+  TradeRow,
+  TradeSheet,
+  TradesCardBottom,
+  TradesCardTop,
+  barPct,
+  isLarge,
+} from "./trade-row";
 
 /*
  * Chart tab. Trading: price + 24H change, timeframe chips, candles with volume and a
@@ -26,7 +35,7 @@ import { TradeHeader, TradeRow, TradeRowsLoading } from "./trade-row";
 const CHART_H = 200;
 const VOL_H = 50;
 const GUTTER = 50;
-const LIVE_ROWS = 5;
+const LIVE_ROWS = 8;
 
 const TF_LABEL: Record<Timeframe, string> = {
   "1m": "1m",
@@ -334,11 +343,13 @@ export function ChartTab({
   meme,
   width,
   wallet,
+  bottomInset,
   onSeeAll,
 }: {
   meme: MemeView;
   width: number;
   wallet: string | undefined;
+  bottomInset: number;
   onSeeAll: () => void;
 }) {
   const launching = meme.phase === "launching";
@@ -346,9 +357,26 @@ export function ChartTab({
   const candles = useCandles(meme.mint, tf, !launching);
   const sold = useSoldOverTime(meme.mint, launching);
   const trades = useTrades(meme.mint, true);
-  const latest = (trades.data?.pages[0]?.items ?? [])
-    .filter((t) => !launching || t.side === "buy")
-    .slice(0, LIVE_ROWS);
+  const [touching, setTouching] = useState(false);
+  const [sheet, setSheet] = useState<TradeView | null>(null);
+  const source = useMemo(
+    () => (trades.data?.pages[0]?.items ?? []).slice(0, LIVE_ROWS),
+    [trades.data],
+  );
+  const live = useLiveTrades(source, touching, "chart");
+  // live.rows only changes identity when the visible set changes
+  const rows = useMemo(() => live.rows.slice(0, LIVE_ROWS), [live.rows]);
+  const largeSkr = trades.data?.pages[0]?.largeSkr ?? null;
+  const ctx = useMemo(
+    () => ({
+      maxSkr: Math.max(0, ...rows.map((t) => t.skr)),
+      largeSkr,
+      liquiditySkr: meme.liquiditySkr,
+      creator: meme.creator.wallet,
+      wallet,
+    }),
+    [rows, largeSkr, meme.liquiditySkr, meme.creator.wallet, wallet],
+  );
   const chartW = width - 32;
 
   return (
@@ -400,34 +428,50 @@ export function ChartTab({
         </View>
       )}
 
-      <View style={styles.section}>
-        <View style={styles.liveHead}>
-          <Text style={styles.title}>
-            {launching ? "Latest buys" : "Live trades"}
-          </Text>
-          <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={10}>
-            <Text style={styles.seeAll}>See all</Text>
-          </Pressable>
-        </View>
-        <TradeHeader launching={launching} />
-        {trades.isLoading ? (
-          <TradeRowsLoading />
-        ) : latest.length === 0 ? (
-          <Text style={styles.emptyList}>
-            No trades yet. Be the first to buy.
-          </Text>
-        ) : (
-          latest.map((t) => (
+      <View
+        style={styles.section}
+        onTouchStart={() => setTouching(true)}
+        onTouchEnd={() => setTouching(false)}
+        onTouchCancel={() => setTouching(false)}
+      >
+        <View>
+          <TradesCardTop
+            symbol={meme.symbol}
+            launching={launching}
+            onSeeAll={onSeeAll}
+          />
+          {rows.map((t) => (
             <TradeRow
               key={t.id}
               trade={t}
               symbol={meme.symbol}
-              launching={launching}
+              bar={barPct(t, ctx.maxSkr)}
+              large={isLarge(t, ctx)}
               mine={!!wallet && t.wallet === wallet}
+              creator={t.wallet === meme.creator.wallet}
+              flash={t.id === live.fresh}
+              onPress={setSheet}
             />
-          ))
-        )}
+          ))}
+          <TradesCardBottom
+            state={
+              trades.isLoading
+                ? "loading"
+                : live.rows.length === 0
+                  ? "empty"
+                  : "rows"
+            }
+          />
+        </View>
       </View>
+      {sheet && (
+        <TradeSheet
+          trade={sheet}
+          symbol={meme.symbol}
+          bottomInset={bottomInset}
+          onClose={() => setSheet(null)}
+        />
+      )}
     </View>
   );
 }
@@ -517,19 +561,5 @@ const styles = StyleSheet.create({
     color: D.secondary,
     textAlign: "center",
     paddingHorizontal: 24,
-  },
-  liveHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  title: { fontFamily: geist.semibold, fontSize: 15, color: D.text },
-  seeAll: { fontFamily: geist.medium, fontSize: 13, color: D.secondary },
-  emptyList: {
-    fontFamily: geist.regular,
-    fontSize: 14,
-    color: D.secondary,
-    textAlign: "center",
-    paddingTop: 48,
   },
 });

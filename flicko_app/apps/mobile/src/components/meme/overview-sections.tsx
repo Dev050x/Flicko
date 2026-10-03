@@ -1,6 +1,12 @@
 import { Image } from "expo-image";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type TextStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type TextStyle,
+} from "react-native";
 
 import {
   CheckIcon,
@@ -57,7 +63,11 @@ export function Card({
 function Row({ label, children }: { label: ReactNode; children?: ReactNode }) {
   return (
     <View style={styles.row}>
-      {typeof label === "string" ? <Text style={styles.rowLabel}>{label}</Text> : label}
+      {typeof label === "string" ? (
+        <Text style={styles.rowLabel}>{label}</Text>
+      ) : (
+        label
+      )}
       {children}
     </View>
   );
@@ -86,7 +96,8 @@ export function PositionCard({ meme }: { meme: MemeView }) {
           {compact(p.valueSkr)} <Text style={styles.unit}>SKR</Text>
         </Text>
         <Text style={[styles.pnl, NUM, { color: tone.text }]}>
-          {signed(p.pnlSkr, compact)} SKR · {signed(p.pnlPct, (v) => v.toFixed(0))}%
+          {signed(p.pnlSkr, compact)} SKR ·{" "}
+          {signed(p.pnlPct, (v) => v.toFixed(0))}%
         </Text>
       </View>
     </View>
@@ -101,7 +112,10 @@ export function LaunchProgressCard({ meme }: { meme: MemeView }) {
   const raised = 3.2 * meme.startPriceSkr * meme.supply;
   const openPrice = 16 * meme.startPriceSkr;
   return (
-    <Card title="Launch progress" right={<Text style={[styles.cardTitle, NUM]}>{Math.floor(pct)}%</Text>}>
+    <Card
+      title="Launch progress"
+      right={<Text style={[styles.cardTitle, NUM]}>{Math.floor(pct)}%</Text>}
+    >
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${pct}%` }]} />
       </View>
@@ -112,9 +126,10 @@ export function LaunchProgressCard({ meme }: { meme: MemeView }) {
         <Text style={[styles.small, NUM]}>{compact(meme.saleLeft)} left</Text>
       </View>
       <Text style={styles.explain}>
-        When all {compact(meme.saleSupply)} sell, the other {compact(poolTokens)} ${meme.symbol} and
-        the {compact(raised)} SKR raised go into a pool at {priceCompact(openPrice)} SKR. That
-        liquidity locks forever and trading opens to everyone.
+        When all {compact(meme.saleSupply)} sell, the other{" "}
+        {compact(poolTokens)} ${meme.symbol} and the {compact(raised)} SKR
+        raised go into a pool at {priceCompact(openPrice)} SKR. That liquidity
+        locks forever and trading opens to everyone.
       </Text>
     </Card>
   );
@@ -133,7 +148,11 @@ export function StatsGrid({ meme }: { meme: MemeView }) {
       ]
     : [
         { label: "Market cap", value: compact(meme.marketCapSkr) },
-        { label: "Liquidity", value: compact(meme.liquiditySkr), unit: "locked" },
+        {
+          label: "Liquidity",
+          value: compact(meme.liquiditySkr),
+          unit: "locked",
+        },
         { label: "Holders", value: grouped(meme.holders) },
         { label: "Volume 24H", value: compact(meme.volume24hSkr) },
         { label: "Trades 24H", value: grouped(meme.trades24h) },
@@ -145,7 +164,11 @@ export function StatsGrid({ meme }: { meme: MemeView }) {
         {cells.map((c, i) => (
           <View
             key={c.label}
-            style={[styles.cell, i % 3 !== 2 && styles.cellRight, i < 3 && styles.cellBottom]}
+            style={[
+              styles.cell,
+              i % 3 !== 2 && styles.cellRight,
+              i < 3 && styles.cellBottom,
+            ]}
           >
             <Text style={styles.label} numberOfLines={1}>
               {c.label}
@@ -181,22 +204,38 @@ export function ActivityCard({ meme }: { meme: MemeView }) {
     >
       <View style={styles.split}>
         {total === 0 ? (
-          <View style={[styles.splitPart, { flex: 1, backgroundColor: D.track }]} />
+          <View
+            style={[styles.splitPart, { flex: 1, backgroundColor: D.track }]}
+          />
         ) : (
           <>
-            {buys > 0 && <View style={[styles.splitPart, { flex: share, backgroundColor: colors.gain }]} />}
+            {buys > 0 && (
+              <View
+                style={[
+                  styles.splitPart,
+                  { flex: share, backgroundColor: colors.gain },
+                ]}
+              />
+            )}
             {sells > 0 && (
-              <View style={[styles.splitPart, { flex: 1 - share, backgroundColor: colors.loss }]} />
+              <View
+                style={[
+                  styles.splitPart,
+                  { flex: 1 - share, backgroundColor: colors.loss },
+                ]}
+              />
             )}
           </>
         )}
       </View>
       <View style={styles.progressLine}>
         <Text style={styles.side}>
-          <Text style={[NUM, { color: colors.gain }]}>{grouped(buys)}</Text> buys
+          <Text style={[NUM, { color: colors.gain }]}>{grouped(buys)}</Text>{" "}
+          buys
         </Text>
         <Text style={styles.side}>
-          <Text style={[NUM, { color: colors.loss }]}>{grouped(sells)}</Text> sells
+          <Text style={[NUM, { color: colors.loss }]}>{grouped(sells)}</Text>{" "}
+          sells
         </Text>
       </View>
     </Card>
@@ -205,7 +244,10 @@ export function ActivityCard({ meme }: { meme: MemeView }) {
 
 export type CheckState = "ok" | "fail" | "pending" | "checking";
 
-export const safetyRows = (meme: MemeView, checks: SafetyChecks | undefined) => {
+export const safetyRows = (
+  meme: MemeView,
+  checks: SafetyChecks | undefined,
+) => {
   const onChain = (ok: boolean | undefined): CheckState =>
     ok === undefined ? "checking" : ok ? "ok" : "fail";
   const launching = meme.phase === "launching";
@@ -223,11 +265,17 @@ export const safetyRows = (meme: MemeView, checks: SafetyChecks | undefined) => 
     },
     launching
       ? { state: "pending", claim: "Liquidity locks", note: "At sellout" }
-      : { state: onChain(checks?.liquidityLocked), claim: "Liquidity locked", note: "Forever" },
+      : {
+          state: onChain(checks?.liquidityLocked),
+          claim: "Liquidity locked",
+          note: "Forever",
+        },
     {
       state: holdsOk ? "ok" : "fail",
       claim: `Creator holds ${Number(meme.creatorHoldsPct.toFixed(1))}%`,
-      note: holdsOk ? `Below ${CREATOR_LIMIT_PCT}%` : `${CREATOR_LIMIT_PCT}% or more`,
+      note: holdsOk
+        ? `Below ${CREATOR_LIMIT_PCT}%`
+        : `${CREATOR_LIMIT_PCT}% or more`,
     },
   ];
   return rows;
@@ -241,12 +289,25 @@ export const safetySummary = (rows: { state: CheckState }[]) => {
   return `${passed}/${rows.length} safety checks${pending ? ` · ${pending} pending` : ""}`;
 };
 
-export function SafetyCard({ meme, checks }: { meme: MemeView; checks: SafetyChecks | undefined }) {
+export function SafetyCard({
+  meme,
+  checks,
+}: {
+  meme: MemeView;
+  checks: SafetyChecks | undefined;
+}) {
   return (
-    <Card title="Safety" right={<Text style={styles.small}>Checked on-chain</Text>}>
+    <Card
+      title="Safety"
+      right={<Text style={styles.small}>Checked on-chain</Text>}
+    >
       {safetyRows(meme, checks).map((r) => {
         const tone =
-          r.state === "fail" ? colors.loss : r.state === "ok" ? D.text : D.muted;
+          r.state === "fail"
+            ? colors.loss
+            : r.state === "ok"
+              ? D.text
+              : D.muted;
         return (
           <Row
             key={r.claim}
@@ -261,14 +322,20 @@ export function SafetyCard({ meme, checks }: { meme: MemeView; checks: SafetyChe
                     <ClockIcon size={16} color={D.muted} />
                   ) : null}
                 </View>
-                <Text style={[styles.safetyClaim, { color: tone }]} numberOfLines={1}>
+                <Text
+                  style={[styles.safetyClaim, { color: tone }]}
+                  numberOfLines={1}
+                >
                   {r.claim}
                 </Text>
               </View>
             }
           >
             <Text
-              style={[styles.rowValueMuted, r.state === "fail" && { color: colors.loss }]}
+              style={[
+                styles.rowValueMuted,
+                r.state === "fail" && { color: colors.loss },
+              ]}
               numberOfLines={1}
             >
               {r.state === "checking" ? "Checking…" : r.note}
@@ -304,7 +371,11 @@ export function Reactions({
               style={[styles.reaction, on && styles.reactionOn]}
             >
               <Text style={styles.emoji}>{emoji}</Text>
-              {count > 0 && <Text style={[styles.reactionCount, NUM]}>{grouped(count)}</Text>}
+              {count > 0 && (
+                <Text style={[styles.reactionCount, NUM]}>
+                  {grouped(count)}
+                </Text>
+              )}
             </Pressable>
           );
         })}
@@ -313,7 +384,20 @@ export function Reactions({
   );
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 const dateLabel = (ms: number) => {
   const d = new Date(ms);
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
@@ -331,7 +415,12 @@ export function DetailsCard({
   const address = (value: string) => (
     <View style={styles.inline}>
       <Text style={styles.address}>{shortAddress(value)}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Copy address" hitSlop={10} onPress={() => onCopy(value)}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Copy address"
+        hitSlop={10}
+        onPress={() => onCopy(value)}
+      >
         <CopyIcon size={16} color={D.muted} />
       </Pressable>
       <Pressable
@@ -351,7 +440,8 @@ export function DetailsCard({
       </Row>
       <Row label={meme.phase === "pool" ? "In pool" : "In launch"}>
         <Text style={[styles.rowValue, NUM]}>
-          {compact(meme.pool.tokens)} ${meme.symbol} + {compact(meme.pool.skr)} SKR
+          {compact(meme.pool.tokens)} ${meme.symbol} + {compact(meme.pool.skr)}{" "}
+          SKR
         </Text>
       </Row>
       <Row label="Token address">{address(meme.mint)}</Row>
@@ -360,7 +450,9 @@ export function DetailsCard({
         <View style={styles.inline}>
           <Image source={defaultAvatar} style={styles.creatorAvatar} />
           <Text style={styles.rowValue}>
-            {meme.creator.handle ? `@${meme.creator.handle}` : shortAddress(meme.creator.wallet)}
+            {meme.creator.handle
+              ? `@${meme.creator.handle}`
+              : shortAddress(meme.creator.wallet)}
           </Text>
         </View>
       </Row>
@@ -398,11 +490,20 @@ const styles = StyleSheet.create({
   small: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
   unit: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
   caption: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
-  position: { flexDirection: "row", alignItems: "center", borderColor: D.positionBorder },
+  position: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderColor: D.positionBorder,
+  },
   positionAmount: { fontFamily: geist.medium, fontSize: 17, color: D.text },
   positionValue: { fontFamily: geist.medium, fontSize: 18, color: D.text },
   pnl: { fontFamily: geist.medium, fontSize: 13 },
-  track: { height: 8, borderRadius: 4, backgroundColor: D.track, overflow: "hidden" },
+  track: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: D.track,
+    overflow: "hidden",
+  },
   fill: { height: 8, borderRadius: 4, backgroundColor: D.accent },
   progressLine: {
     flexDirection: "row",
@@ -417,7 +518,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   grid: { padding: 0, flexDirection: "row", flexWrap: "wrap" },
-  cell: { width: "33.333%", paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
+  cell: {
+    width: "33.333%",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 4,
+  },
   cellRight: { borderRightWidth: 1, borderRightColor: D.line },
   cellBottom: { borderBottomWidth: 1, borderBottomColor: D.line },
   cellValue: { fontFamily: geist.medium, fontSize: 16, color: D.text },

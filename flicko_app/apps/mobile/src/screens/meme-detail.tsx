@@ -3,18 +3,22 @@ import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  FlatList,
   Linking,
   Modal,
   Pressable,
   RefreshControl,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  FadeIn,
+  LinearTransition,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { BuySheet, type TradeSide } from "@/components/feed/buy-sheet";
@@ -34,6 +38,15 @@ import {
   safetySummary,
 } from "@/components/meme/overview-sections";
 import { ChartTab } from "@/components/meme/chart-tab";
+import {
+  TradeRow,
+  TradeSheet,
+  TradesCardBottom,
+  TradesCardTop,
+  ROW_HEIGHT,
+  barPct,
+  isLarge,
+} from "@/components/meme/trade-row";
 import { useToast } from "@/components/ui/toast";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { config } from "@/config";
@@ -46,6 +59,12 @@ import {
   type MemeView,
   type ReactionKind,
 } from "@/features/meme/api";
+import { useLiveTrades } from "@/features/meme/live";
+import {
+  useTrades,
+  type TradeFilter,
+  type TradeView,
+} from "@/features/meme/tabs";
 import { ageLong, priceCompact, shortAddress } from "@/lib/format";
 import { useSession } from "@/store/session";
 import { market, detail as D, geist } from "@/theme";
@@ -63,6 +82,27 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "trades", label: "Trades" },
   { id: "holders", label: "Holders" },
 ];
+
+const TRADE_FILTERS: { id: TradeFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "buys", label: "Buys" },
+  { id: "sells", label: "Sells" },
+  { id: "mine", label: "Mine" },
+];
+
+/*
+ * The page is one FlatList so the Trades tab can virtualise its rows: the top section,
+ * the sticky tab bar, then either one content item or the trades card in pieces.
+ */
+type PageItem =
+  | {
+      key: string;
+      kind: "top" | "tabs" | "content" | "filters" | "cardTop" | "cardBottom";
+    }
+  | { key: string; kind: "trade"; trade: TradeView };
+
+// Rows below a new trade slide down to make room.
+const rowSlide = LinearTransition.duration(160).easing(Easing.out(Easing.quad));
 
 const PAD = 16;
 const BUTTON = 54;
@@ -112,14 +152,86 @@ export default function MemeDetail() {
   const [menu, setMenu] = useState(false);
   const [viewer, setViewer] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const scroll = useRef<ScrollView>(null);
+  const list = useRef<FlatList<PageItem>>(null);
   const sectionsY = useRef(0);
+  /** where the tab bar starts (the top section's height) */
   const tabsY = useRef(0);
+  const tabsH = useRef(66);
   const scrollY = useRef(0);
+  const downRef = useRef(false);
+  const [scrolledDown, setScrolledDown] = useState(false);
+  const [touching, setTouching] = useState(false);
+  const [filter, setFilter] = useState<TradeFilter>("all");
+  const [sheet, setSheet] = useState<TradeView | null>(null);
   const safetyY = useRef(0);
   const { toast, show } = useToast(insets.top + 64);
 
   const meme = detail.data;
+
+  // Trades tab: polled pages, de-duplicated, then fed through the live inserter.
+  const tradesQ = useTrades(mint, tab === "trades", filter, wallet);
+  const tradeSource = useMemo(() => {
+    const seen = new Set<string>();
+    const out: TradeView[] = [];
+    for (const page of tradesQ.data?.pages ?? []) {
+      for (const t of page.items) {
+        if (!seen.has(t.id)) {
+          seen.add(t.id);
+          out.push(t);
+        }
+      }
+    }
+    return out;
+  }, [tradesQ.data]);
+  const live = useLiveTrades(tradeSource, scrolledDown || touching, filter);
+  const largeSkr = tradesQ.data?.pages[0]?.largeSkr ?? null;
+  // The size bars' max only changes when the shown rows do.
+  const tradeCtx = useMemo(
+    () => ({
+      maxSkr: Math.max(0, ...live.rows.map((t) => t.skr)),
+      largeSkr,
+      liquiditySkr: meme?.liquiditySkr ?? 0,
+      creator: meme?.creator.wallet ?? "",
+      wallet,
+    }),
+    [live.rows, largeSkr, meme?.liquiditySkr, meme?.creator.wallet, wallet],
+  );
+
+  const items = useMemo<PageItem[]>(
+    () =>
+      tab === "trades"
+        ? [
+            { key: "top", kind: "top" },
+            { key: "tabs", kind: "tabs" },
+            { key: "filters", kind: "filters" },
+            { key: "cardTop", kind: "cardTop" },
+            ...live.rows.map((trade) => ({
+              key: trade.id,
+              kind: "trade" as const,
+              trade,
+            })),
+            { key: "cardBottom", kind: "cardBottom" },
+          ]
+        : [
+            { key: "top", kind: "top" },
+            { key: "tabs", kind: "tabs" },
+            { key: `content-${tab}`, kind: "content" },
+          ],
+    [tab, live.rows],
+  );
+
+  const onScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      const y = e.nativeEvent.contentOffset.y;
+      scrollY.current = y;
+      const down = y > tabsY.current + 8;
+      if (down !== downRef.current) {
+        downRef.current = down;
+        setScrolledDown(down);
+      }
+    },
+    [],
+  );
   const summary = useMemo(
     () =>
       meme ? safetySummary(safetyRows(meme, safety.data)) : "Safety checks",
@@ -165,16 +277,23 @@ export default function MemeDetail() {
     setTab(next);
     if (scrollY.current > tabsY.current) {
       requestAnimationFrame(() =>
-        scroll.current?.scrollTo({ y: tabsY.current, animated: false }),
+        list.current?.scrollToOffset({
+          offset: tabsY.current,
+          animated: false,
+        }),
       );
     }
   };
 
   const toSafety = () => {
     setTab("overview");
+    // The sticky tab bar covers the content's first tabsH pixels.
     requestAnimationFrame(() =>
-      scroll.current?.scrollTo({
-        y: Math.max(0, sectionsY.current + safetyY.current - 16),
+      list.current?.scrollToOffset({
+        offset: Math.max(
+          0,
+          tabsY.current + sectionsY.current + safetyY.current - 16,
+        ),
         animated: true,
       }),
     );
@@ -261,19 +380,308 @@ export default function MemeDetail() {
     ? `@${meme.creator.handle}`
     : shortAddress(meme.creator.wallet);
   const barHeight = launching ? BUTTON + 26 : BUTTON;
+  const tabMinHeight =
+    height - insets.top - 56 - tabsH.current - barHeight - insets.bottom;
+  const renderKey = `${tab}|${filter}|${live.fresh}|${tradeCtx.maxSkr}|${refreshing}|${safety.dataUpdatedAt}|${detail.dataUpdatedAt}`;
+
+  const topContent = (
+    <View onLayout={(e) => (tabsY.current = e.nativeEvent.layout.height)}>
+      <View style={styles.identity}>
+        <Pressable
+          accessibilityRole="imagebutton"
+          accessibilityLabel="Open the meme"
+          onPress={() => meme.image && setViewer(true)}
+          style={styles.thumb}
+        >
+          {meme.image && (
+            <Image
+              source={meme.image}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
+          )}
+        </Pressable>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={styles.title} numberOfLines={2}>
+            {meme.name}
+          </Text>
+          <Text style={styles.byline} numberOfLines={1}>
+            by <Text style={styles.handle}>{handle}</Text> · launched{" "}
+            {ageLong(meme.createdAt)} ago
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.chips}>
+        {launching ? (
+          <View style={[styles.chip, styles.chipLime]}>
+            <Text style={[styles.chipText, { color: D.lime }]}>Launching</Text>
+          </View>
+        ) : (
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>Trading</Text>
+          </View>
+        )}
+        {!launching && meme.trendingRank !== null && (
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>#{meme.trendingRank} trending</Text>
+          </View>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={summary}
+          onPress={toSafety}
+          style={styles.chip}
+        >
+          <Text style={styles.chipText}>{summary}</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.priceBlock}>
+        <View
+          style={styles.priceLine}
+          accessible
+          accessibilityLabel={`${meme.priceSkr} SKR`}
+        >
+          <Text style={styles.price}>{priceCompact(meme.priceSkr)}</Text>
+          <Text style={styles.priceUnit}>SKR</Text>
+        </View>
+        {launching ? (
+          <Text style={styles.priceNote}>Launch price · rises as it sells</Text>
+        ) : (
+          <Text style={styles.priceNote}>
+            <Text style={[styles.tabular, { color: change24.text }]}>
+              {change24.label}
+            </Text>{" "}
+            past 24H
+          </Text>
+        )}
+      </View>
+
+      {launching ? (
+        <View style={{ paddingHorizontal: PAD, marginTop: 20 }}>
+          <LaunchProgressCard meme={meme} />
+        </View>
+      ) : (
+        <>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open the chart"
+            onPress={() => pickTab("chart")}
+            style={styles.spark}
+          >
+            <Sparkline
+              values={meme.sparkline}
+              width={width - PAD * 2}
+              height={64}
+              color={market.spark}
+            />
+          </Pressable>
+          <View style={styles.windows}>
+            {WINDOWS.map((w) => {
+              const tone = changeStyle(meme.change[w]);
+              return (
+                <View key={w} style={styles.windowCell}>
+                  <Text style={styles.windowLabel}>{w.toUpperCase()}</Text>
+                  <Text style={[styles.windowValue, { color: tone.text }]}>
+                    {tone.label}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  const tabBar = (
+    <View
+      style={styles.tabsSticky}
+      onLayout={(e) => (tabsH.current = e.nativeEvent.layout.height)}
+    >
+      <View style={styles.tabs} accessibilityRole="tablist">
+        {TABS.map((t) => {
+          const on = t.id === tab;
+          return (
+            <Pressable
+              key={t.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              onPress={() => pickTab(t.id)}
+              style={styles.tab}
+            >
+              <Text style={[styles.tabText, on && styles.tabTextOn]}>
+                {t.label}
+              </Text>
+              {on && <View style={styles.tabLine} />}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const tabContent = (
+    <View
+      style={{
+        minHeight: tabMinHeight,
+      }}
+    >
+      {tab === "overview" ? (
+        <View
+          style={styles.sections}
+          onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}
+        >
+          <PositionCard meme={meme} />
+          <StatsGrid meme={meme} />
+          {!launching && <ActivityCard meme={meme} />}
+          <View onLayout={(e) => (safetyY.current = e.nativeEvent.layout.y)}>
+            <SafetyCard meme={meme} checks={safety.data} />
+          </View>
+          <Reactions meme={meme} onReact={onReact} />
+          <DetailsCard meme={meme} onCopy={copy} onExplore={explore} />
+        </View>
+      ) : tab === "chart" ? (
+        <View style={{ paddingTop: 16 }}>
+          <ChartTab
+            meme={meme}
+            width={width}
+            wallet={wallet}
+            bottomInset={insets.bottom}
+            onSeeAll={() => pickTab("trades")}
+          />
+        </View>
+      ) : (
+        <View style={styles.soon}>
+          <Text style={styles.muted}>
+            {TABS.find((t) => t.id === tab)?.label} is coming in the next
+            update.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  const tradesLaunching = launching;
+  const renderItem = ({ item }: { item: PageItem }) => {
+    switch (item.kind) {
+      case "top":
+        return topContent;
+      case "tabs":
+        return tabBar;
+      case "content":
+        return tabContent;
+      case "filters":
+        return (
+          <View style={styles.filters}>
+            {TRADE_FILTERS.filter(
+              (f) => !(tradesLaunching && f.id === "sells"),
+            ).map((f) => {
+              const on = f.id === filter;
+              return (
+                <Pressable
+                  key={f.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => {
+                    if (f.id === "mine" && !wallet) {
+                      setConnecting(true);
+                      return;
+                    }
+                    setFilter(f.id);
+                  }}
+                  style={[styles.filterChip, on && styles.filterChipOn]}
+                >
+                  <Text style={[styles.filterText, on && styles.filterTextOn]}>
+                    {f.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+      case "cardTop":
+        return (
+          <View style={styles.cardSide}>
+            <TradesCardTop symbol={meme.symbol} launching={tradesLaunching} />
+          </View>
+        );
+      case "trade":
+        return (
+          <View style={styles.cardSide}>
+            <TradeRow
+              trade={item.trade}
+              symbol={meme.symbol}
+              bar={barPct(item.trade, tradeCtx.maxSkr)}
+              large={isLarge(item.trade, tradeCtx)}
+              mine={!!wallet && item.trade.wallet === wallet}
+              creator={item.trade.wallet === meme.creator.wallet}
+              flash={item.trade.id === live.fresh}
+              onPress={setSheet}
+            />
+          </View>
+        );
+      case "cardBottom":
+        return (
+          <View
+            style={[
+              styles.cardSide,
+              // fill the screen below the rows so switching tabs never jumps
+              {
+                minHeight: Math.max(
+                  0,
+                  tabMinHeight - 128 - live.rows.length * ROW_HEIGHT,
+                ),
+              },
+            ]}
+          >
+            <TradesCardBottom
+              state={
+                tradesQ.isLoading
+                  ? "loading"
+                  : live.rows.length === 0
+                    ? "empty"
+                    : "rows"
+              }
+            />
+          </View>
+        );
+    }
+  };
 
   return (
     <View style={styles.screen}>
       {header}
-      <ScrollView
-        ref={scroll}
+      <Animated.FlatList
+        ref={list}
+        data={items}
+        keyExtractor={(item) => item.key}
+        renderItem={renderItem}
+        extraData={renderKey}
+        stickyHeaderIndices={[1]}
+        itemLayoutAnimation={tab === "trades" ? rowSlide : undefined}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingBottom: barHeight + insets.bottom + 36,
         }}
-        stickyHeaderIndices={[1]}
         scrollEventThrottle={32}
-        onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+        onScroll={onScroll}
+        onTouchStart={() => tab === "trades" && setTouching(true)}
+        onTouchEnd={() => setTouching(false)}
+        onTouchCancel={() => setTouching(false)}
+        onEndReachedThreshold={1.5}
+        onEndReached={() => {
+          if (
+            tab === "trades" &&
+            tradesQ.hasNextPage &&
+            !tradesQ.isFetchingNextPage
+          ) {
+            tradesQ.fetchNextPage();
+          }
+        }}
+        initialNumToRender={12}
+        windowSize={9}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -283,192 +691,29 @@ export default function MemeDetail() {
             progressBackgroundColor={D.track}
           />
         }
-      >
-        <View>
-          <View style={styles.identity}>
-            <Pressable
-              accessibilityRole="imagebutton"
-              accessibilityLabel="Open the meme"
-              onPress={() => meme.image && setViewer(true)}
-              style={styles.thumb}
-            >
-              {meme.image && (
-                <Image
-                  source={meme.image}
-                  style={StyleSheet.absoluteFill}
-                  contentFit="cover"
-                />
-              )}
-            </Pressable>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={styles.title} numberOfLines={2}>
-                {meme.name}
-              </Text>
-              <Text style={styles.byline} numberOfLines={1}>
-                by <Text style={styles.handle}>{handle}</Text> · launched{" "}
-                {ageLong(meme.createdAt)} ago
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.chips}>
-            {launching ? (
-              <View style={[styles.chip, styles.chipLime]}>
-                <Text style={[styles.chipText, { color: D.lime }]}>
-                  Launching
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>Trading</Text>
-              </View>
-            )}
-            {!launching && meme.trendingRank !== null && (
-              <View style={styles.chip}>
-                <Text style={styles.chipText}>
-                  #{meme.trendingRank} trending
-                </Text>
-              </View>
-            )}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={summary}
-              onPress={toSafety}
-              style={styles.chip}
-            >
-              <Text style={styles.chipText}>{summary}</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.priceBlock}>
-            <View
-              style={styles.priceLine}
-              accessible
-              accessibilityLabel={`${meme.priceSkr} SKR`}
-            >
-              <Text style={styles.price}>{priceCompact(meme.priceSkr)}</Text>
-              <Text style={styles.priceUnit}>SKR</Text>
-            </View>
-            {launching ? (
-              <Text style={styles.priceNote}>
-                Launch price · rises as it sells
-              </Text>
-            ) : (
-              <Text style={styles.priceNote}>
-                <Text style={[styles.tabular, { color: change24.text }]}>
-                  {change24.label}
-                </Text>{" "}
-                past 24H
-              </Text>
-            )}
-          </View>
-
-          {launching ? (
-            <View style={{ paddingHorizontal: PAD, marginTop: 20 }}>
-              <LaunchProgressCard meme={meme} />
-            </View>
-          ) : (
-            <>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Open the chart"
-                onPress={() => pickTab("chart")}
-                style={styles.spark}
-              >
-                <Sparkline
-                  values={meme.sparkline}
-                  width={width - PAD * 2}
-                  height={64}
-                  color={market.spark}
-                />
-              </Pressable>
-              <View style={styles.windows}>
-                {WINDOWS.map((w) => {
-                  const tone = changeStyle(meme.change[w]);
-                  return (
-                    <View key={w} style={styles.windowCell}>
-                      <Text style={styles.windowLabel}>{w.toUpperCase()}</Text>
-                      <Text style={[styles.windowValue, { color: tone.text }]}>
-                        {tone.label}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </>
-          )}
-        </View>
-
-        {/*
-         * Sticky children get their style moved to a wrapper and a plain fill style
-         * themselves, so the row lives on an inner View.
-         */}
+      />
+      {tab === "trades" && live.pending > 0 && (
         <View
-          style={styles.tabsSticky}
-          onLayout={(e) => (tabsY.current = e.nativeEvent.layout.y)}
+          pointerEvents="box-none"
+          style={[styles.pillRow, { top: insets.top + 56 + tabsH.current + 8 }]}
         >
-          <View style={styles.tabs} accessibilityRole="tablist">
-            {TABS.map((t) => {
-              const on = t.id === tab;
-              return (
-                <Pressable
-                  key={t.id}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => pickTab(t.id)}
-                  style={styles.tab}
-                >
-                  <Text style={[styles.tabText, on && styles.tabTextOn]}>
-                    {t.label}
-                  </Text>
-                  {on && <View style={styles.tabLine} />}
-                </Pressable>
-              );
-            })}
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              list.current?.scrollToOffset({
+                offset: tabsY.current,
+                animated: true,
+              });
+              live.resume();
+            }}
+            style={styles.newPill}
+          >
+            <Text style={styles.newPillText}>
+              {live.pending} new trade{live.pending === 1 ? "" : "s"}
+            </Text>
+          </Pressable>
         </View>
-
-        <View
-          style={{
-            minHeight:
-              height - insets.top - 56 - 46 - barHeight - insets.bottom,
-          }}
-        >
-          {tab === "overview" ? (
-            <View
-              style={styles.sections}
-              onLayout={(e) => (sectionsY.current = e.nativeEvent.layout.y)}
-            >
-              <PositionCard meme={meme} />
-              <StatsGrid meme={meme} />
-              {!launching && <ActivityCard meme={meme} />}
-              <View
-                onLayout={(e) => (safetyY.current = e.nativeEvent.layout.y)}
-              >
-                <SafetyCard meme={meme} checks={safety.data} />
-              </View>
-              <Reactions meme={meme} onReact={onReact} />
-              <DetailsCard meme={meme} onCopy={copy} onExplore={explore} />
-            </View>
-          ) : tab === "chart" ? (
-            <View style={{ paddingTop: 16 }}>
-              <ChartTab
-                meme={meme}
-                width={width}
-                wallet={wallet}
-                onSeeAll={() => pickTab("trades")}
-              />
-            </View>
-          ) : (
-            <View style={styles.soon}>
-              <Text style={styles.muted}>
-                {TABS.find((t) => t.id === tab)?.label} is coming in the next
-                update.
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
+      )}
 
       <View style={[styles.bar, { paddingBottom: insets.bottom + 12 }]}>
         {launching ? (
@@ -586,6 +831,14 @@ export default function MemeDetail() {
         <ConnectFlow
           onClose={() => setConnecting(false)}
           onBrowse={() => setConnecting(false)}
+        />
+      )}
+      {sheet && meme && (
+        <TradeSheet
+          trade={sheet}
+          symbol={meme.symbol}
+          bottomInset={insets.bottom}
+          onClose={() => setSheet(null)}
         />
       )}
       {toast}
@@ -756,4 +1009,31 @@ const styles = StyleSheet.create({
   },
   outlineText: { fontFamily: geist.semibold, fontSize: 14, color: D.text },
   bone: { backgroundColor: D.track, borderRadius: 6 },
+  filters: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: PAD,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  filterChip: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterChipOn: { backgroundColor: D.chipOn },
+  filterText: { fontFamily: geist.medium, fontSize: 13, color: D.secondary },
+  filterTextOn: { color: D.bg },
+  cardSide: { paddingHorizontal: PAD },
+  pillRow: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  newPill: {
+    height: 32,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: D.chipOn,
+    justifyContent: "center",
+  },
+  newPillText: { fontFamily: geist.semibold, fontSize: 13, color: D.bg },
 });

@@ -75,3 +75,55 @@ export const ageTiny = (ms: number, now = Date.now()) => {
   if (s < 60) return `${s}s`;
   return ageShort(ms, now);
 };
+
+/* ---- live trades ---- */
+
+const kmb = (n: number) => {
+  const abs = Math.abs(n);
+  const [div, suffix] =
+    abs >= 1e9 ? [1e9, "B"] : abs >= 1e6 ? [1e6, "M"] : [1e3, "K"];
+  return `${Number((n / div).toFixed(1))}${suffix}`;
+};
+
+/** SKR in trade rows: "0.42", "120", "48.5", "1.2K", "3.4M" */
+export const skrLive = (n: number) => {
+  if (n < 1) return n.toFixed(2);
+  const r = Number(n.toFixed(1));
+  return r < 1000 ? String(r) : kmb(n);
+};
+
+/** tokens in trade rows: "950", "57.1K", "1.2M", "3.4B" */
+export const tokensLive = (n: number) => (n < 1000 ? String(Math.round(n)) : kmb(n));
+
+/** "57.1 thousand" for screen readers */
+export const tokensSpoken = (n: number) => {
+  if (n < 1000) return String(Math.round(n));
+  const [div, word] =
+    n >= 1e9 ? [1e9, "billion"] : n >= 1e6 ? [1e6, "million"] : [1e3, "thousand"];
+  return `${Number((n / div).toFixed(1))} ${word}`;
+};
+
+/** "now" under 2s, then "2s", "45s", "3m", "5h", "2d" */
+export const ageLive = (ms: number, now = Date.now()) => {
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 2) return "now";
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+};
+
+/** "2 seconds ago" for screen readers */
+export const ageSpoken = (ms: number, now = Date.now()) => {
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 2) return "just now";
+  const [n, unit] =
+    s < 60
+      ? [s, "second"]
+      : s < 3600
+        ? [Math.floor(s / 60), "minute"]
+        : s < 86400
+          ? [Math.floor(s / 3600), "hour"]
+          : [Math.floor(s / 86400), "day"];
+  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+};
