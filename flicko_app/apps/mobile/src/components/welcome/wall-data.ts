@@ -1,6 +1,7 @@
 /*
  * Meme Wall items from assets/meme-wall/manifest.json with static requires (Metro needs
- * literal paths). Thumbs are 360x450; full/ is for later. Generated from the manifest.
+ * literal paths). Thumbs are 360x450; full/ is for later. Regenerate when the manifest
+ * changes.
  */
 import manifest from "../../../assets/meme-wall/manifest.json";
 
@@ -23,12 +24,23 @@ const thumbs: Record<string, number> = {
   "16-detective.jpg": require("../../../assets/meme-wall/thumbs/16-detective.jpg"),
   "17-dj-drop.jpg": require("../../../assets/meme-wall/thumbs/17-dj-drop.jpg"),
   "18-wagmi-squad.jpg": require("../../../assets/meme-wall/thumbs/18-wagmi-squad.jpg"),
+  "19-squad-selfie.jpg": require("../../../assets/meme-wall/thumbs/19-squad-selfie.jpg"),
+  "20-were-so-back.jpg": require("../../../assets/meme-wall/thumbs/20-were-so-back.jpg"),
+  "21-3am-group-chat.jpg": require("../../../assets/meme-wall/thumbs/21-3am-group-chat.jpg"),
+  "22-couch-traders.jpg": require("../../../assets/meme-wall/thumbs/22-couch-traders.jpg"),
+  "23-moon-crew.jpg": require("../../../assets/meme-wall/thumbs/23-moon-crew.jpg"),
+  "24-beach-club.jpg": require("../../../assets/meme-wall/thumbs/24-beach-club.jpg"),
+  "25-pizza-party.jpg": require("../../../assets/meme-wall/thumbs/25-pizza-party.jpg"),
+  "26-board-meeting.jpg": require("../../../assets/meme-wall/thumbs/26-board-meeting.jpg"),
+  "27-ape-tower.jpg": require("../../../assets/meme-wall/thumbs/27-ape-tower.jpg"),
+  "28-family-portrait.jpg": require("../../../assets/meme-wall/thumbs/28-family-portrait.jpg"),
 };
 
 export interface WallItem {
   id: string;
   caption: string;
   change: string;
+  group: boolean;
   image: number;
 }
 
@@ -36,5 +48,6 @@ export const wallItems: WallItem[] = manifest.map((item) => ({
   id: item.file,
   caption: item.caption,
   change: item.change,
+  group: item.group ?? false,
   image: thumbs[item.file]!,
 }));

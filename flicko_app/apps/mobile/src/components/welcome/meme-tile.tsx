@@ -33,8 +33,36 @@ export const tagLabel = (change: string, bumps: number) => {
 export const canBump = (change: string) => TAG.exec(change)?.[1] === "+";
 
 /*
- * One wall tile: the meme photo with its price chip bottom-left. The chip rolls up
- * (200ms) whenever its value changes.
+ * Light, see-through mask by price move (multiples count as percent, 3.2x = +220%).
+ * NEW keeps a soft amber mask.
+ */
+const MASKS: { min: number; color: string }[] = [
+  { min: 1000, color: "rgba(255, 210, 74, 0.38)" },
+  { min: 100, color: "rgba(61, 245, 196, 0.34)" },
+  { min: 10, color: "rgba(43, 217, 163, 0.28)" },
+  { min: 1, color: "rgba(127, 217, 187, 0.24)" },
+  { min: -1, color: "rgba(255, 255, 255, 0.18)" },
+  { min: -10, color: "rgba(255, 154, 155, 0.26)" },
+  { min: -50, color: "rgba(255, 77, 79, 0.30)" },
+  { min: -Infinity, color: "rgba(229, 38, 43, 0.40)" },
+];
+const NEW_MASK = "rgba(255, 178, 26, 0.28)";
+
+export const tileTint = (change: string) => {
+  if (change.trim().toUpperCase() === "NEW") return NEW_MASK;
+  const match = TAG.exec(change);
+  if (!match) return null;
+  const [, sign, digits, unit] = match;
+  const value = Number(digits!.replace(/,/g, ""));
+  const percent =
+    (sign === "-" ? -1 : 1) * (unit === "x" ? (value - 1) * 100 : value);
+  return MASKS.find((m) => percent >= m.min)!.color;
+};
+
+/*
+ * One wall tile: the meme photo, a light colour mask for its price move, and the price
+ * chip bottom-left.
+ * The chip rolls up (200ms) whenever its value changes.
  */
 export function MemeTile({
   image,
@@ -50,6 +78,7 @@ export function MemeTile({
   height: number;
 }) {
   const { text, color } = tagLabel(change, bumps);
+  const tint = tileTint(change);
   const roll = useSharedValue(0);
 
   useEffect(() => {
@@ -80,6 +109,16 @@ export function MemeTile({
         accessible={false}
         transition={0}
       />
+      {tint && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: tint,
+          }}
+        />
+      )}
       <View
         style={{
           position: "absolute",

@@ -2,91 +2,169 @@
   {
     "file": "01-gm-coffee.jpg",
     "caption": "GM",
-    "change": "+12%"
+    "change": "+12%",
+    "group": false
   },
   {
     "file": "02-beach-chill.jpg",
     "caption": "GAINS ONLY",
-    "change": "+420%"
+    "change": "+420%",
+    "group": false
   },
   {
     "file": "03-to-the-moon.jpg",
     "caption": "TO THE MOON",
-    "change": "+4,206%"
+    "change": "+4,206%",
+    "group": false
   },
   {
     "file": "04-rekt-rain.jpg",
     "caption": "REKT",
-    "change": "-38%"
+    "change": "-38%",
+    "group": false
   },
   {
     "file": "05-laptop-trader.jpg",
     "caption": "DYOR",
-    "change": "+69%"
+    "change": "+69%",
+    "group": false
   },
   {
     "file": "06-diamond-hands.jpg",
     "caption": "DIAMOND HANDS",
-    "change": "+888%"
+    "change": "+888%",
+    "group": false
   },
   {
     "file": "07-laser-eyes.jpg",
     "caption": "LASER EYES ON",
-    "change": "+1,337%"
+    "change": "+1,337%",
+    "group": false
   },
   {
     "file": "08-party-hats.jpg",
     "caption": "BULL RUN PARTY",
-    "change": "+250%"
+    "change": "+250%",
+    "group": true
   },
   {
     "file": "09-wake-me-at-100x.jpg",
     "caption": "WAKE ME AT 100X",
-    "change": "+3.2x"
+    "change": "+3.2x",
+    "group": false
   },
   {
     "file": "10-banana-hotline.jpg",
     "caption": "BANANA HOTLINE",
-    "change": "+77%"
+    "change": "+77%",
+    "group": false
   },
   {
     "file": "11-gym-gains.jpg",
     "caption": "GAINS",
-    "change": "+150%"
+    "change": "+150%",
+    "group": false
   },
   {
     "file": "12-pizza-day.jpg",
     "caption": "PIZZA DAY",
-    "change": "+10,000%"
+    "change": "+10,000%",
+    "group": false
   },
   {
     "file": "13-hodl-hug.jpg",
     "caption": "HODL",
-    "change": "+420%"
+    "change": "+420%",
+    "group": true
   },
   {
     "file": "14-astro-ape.jpg",
     "caption": "ASTRO APE",
-    "change": "+999%"
+    "change": "+999%",
+    "group": false
   },
   {
     "file": "15-rich-ape.jpg",
     "caption": "NEW WHALE",
-    "change": "+2,100%"
+    "change": "+2,100%",
+    "group": false
   },
   {
     "file": "16-detective.jpg",
     "caption": "CHART SLEUTH",
-    "change": "+33%"
+    "change": "+33%",
+    "group": false
   },
   {
     "file": "17-dj-drop.jpg",
     "caption": "DROPPING HEAT",
-    "change": "+600%"
+    "change": "+600%",
+    "group": false
   },
   {
     "file": "18-wagmi-squad.jpg",
     "caption": "WAGMI",
-    "change": "+500%"
+    "change": "+500%",
+    "group": true
+  },
+  {
+    "file": "19-squad-selfie.jpg",
+    "caption": "SQUAD SELFIE",
+    "change": "+690%",
+    "group": true
+  },
+  {
+    "file": "20-were-so-back.jpg",
+    "caption": "WE'RE SO BACK",
+    "change": "+1,200%",
+    "group": true
+  },
+  {
+    "file": "21-3am-group-chat.jpg",
+    "caption": "GROUP CHAT AT 3AM",
+    "change": "+42%",
+    "group": true
+  },
+  {
+    "file": "22-couch-traders.jpg",
+    "caption": "COUCH TRADERS",
+    "change": "+77%",
+    "group": true
+  },
+  {
+    "file": "23-moon-crew.jpg",
+    "caption": "MOON CREW",
+    "change": "+3,333%",
+    "group": true
+  },
+  {
+    "file": "24-beach-club.jpg",
+    "caption": "BEACH CLUB",
+    "change": "+420%",
+    "group": true
+  },
+  {
+    "file": "25-pizza-party.jpg",
+    "caption": "PIZZA PARTY",
+    "change": "+888%",
+    "group": true
+  },
+  {
+    "file": "26-board-meeting.jpg",
+    "caption": "WEN LAMBO?",
+    "change": "+150%",
+    "group": true
+  },
+  {
+    "file": "27-ape-tower.jpg",
+    "caption": "STACKING SKR",
+    "change": "+2,500%",
+    "group": true
+  },
+  {
+    "file": "28-family-portrait.jpg",
+    "caption": "FAMILY PORTRAIT",
+    "change": "NEW",
+    "group": true
   }
 ]
