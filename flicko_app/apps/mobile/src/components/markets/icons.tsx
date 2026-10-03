@@ -30,7 +30,8 @@ function Line({
   );
 }
 
-const STAR = "M12 3.5 L14.6 9 L20.5 9.6 L16 13.6 L17.3 19.5 L12 16.5 L6.7 19.5 L8 13.6 L3.5 9.6 L9.4 9 Z";
+// star-outline.svg / star-filled.svg (same path; the filled one also fills)
+const STAR = "M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.9l-5.3 2.7 1-5.8-4.2-4.1 5.9-.9z";
 
 export function StarIcon({
   size = 22,

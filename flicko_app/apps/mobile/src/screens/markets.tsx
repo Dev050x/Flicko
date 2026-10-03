@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProfileMenu, type ProfileMenuAction } from "@/components/feed/profile-menu";
 import { ChevronDownIcon, SearchIcon, StarIcon } from "@/components/markets/icons";
 import { MarketRow, MarketRowSkeleton, ROW_HEIGHT } from "@/components/markets/market-row";
+import { StatsStrip } from "@/components/markets/stats-strip";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { WalletSheet } from "@/components/wallet/wallet-sheet";
 import {
@@ -30,7 +31,6 @@ import {
   type MarketTab,
   type Window,
 } from "@/features/markets/api";
-import { compact, grouped } from "@/lib/format";
 import { useSession } from "@/store/session";
 import { colors, fonts, market, mono } from "@/theme";
 
@@ -194,22 +194,7 @@ export default function Markets() {
     </View>
   );
 
-  const statsStrip = (
-    <View style={styles.stats}>
-      {[
-        { label: "24H volume", value: stats.data ? `${compact(stats.data.volume24hSkr)} SKR` : "–" },
-        { label: "Trades 24H", value: stats.data ? grouped(stats.data.trades24h) : "–" },
-        { label: "Launches today", value: stats.data ? grouped(stats.data.launchesToday) : "–" },
-      ].map((s) => (
-        <View key={s.label} style={styles.stat}>
-          <Text style={styles.statLabel}>{s.label}</Text>
-          <Text style={styles.statValue} numberOfLines={1}>
-            {s.value}
-          </Text>
-        </View>
-      ))}
-    </View>
-  );
+  const statsStrip = <StatsStrip stats={stats.data} />;
 
   const listEmpty = loading ? (
     <View>
@@ -482,19 +467,6 @@ const styles = StyleSheet.create({
   sortItem: { height: 40, borderRadius: 10, paddingHorizontal: 12, justifyContent: "center" },
   sortItemText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.textMuted },
   list: { paddingHorizontal: 16, paddingBottom: 24 },
-  stats: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 4 },
-  stat: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 2,
-  },
-  statLabel: { fontFamily: fonts.body, fontSize: 11, color: market.label },
-  statValue: { fontFamily: mono.medium, fontSize: 15, color: colors.text },
   empty: {
     flex: 1,
     alignItems: "center",
