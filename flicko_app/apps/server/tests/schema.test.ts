@@ -60,9 +60,12 @@ describe("schema migrations", () => {
       "indexer_state",
       "memes",
       "positions",
+      "price_alerts",
+      "reactions",
       "trades",
       "uploads",
       "users",
+      "watchlist",
     ]);
   });
 

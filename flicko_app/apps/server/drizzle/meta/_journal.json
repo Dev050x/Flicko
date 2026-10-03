@@ -36,6 +36,13 @@
       "when": 1790991597603,
       "tag": "0004_filter_unlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791063713071,
+      "tag": "0005_market_extras",
+      "breakpoints": true
     }
   ]
 }

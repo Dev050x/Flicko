@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Keypair } from "@solana/web3.js";
 import { createApp } from "../src/app";
 import { createSessions } from "../src/auth/jwt";
+import { memoryNonceStore } from "../src/auth/nonces";
 import { candles, memes, positions, trades, users } from "../src/db/schema";
 import { migratedDb, serve } from "./support";
 
@@ -155,6 +156,18 @@ beforeAll(async () => {
         skrMint: "s",
       },
       read: { db, sessions },
+      auth: {
+        db,
+        nonces: memoryNonceStore(),
+        sessions,
+        policy: {
+          domain: "flicko.app",
+          uri: "https://flicko.app",
+          chainId: "solana:devnet",
+          statement: "Sign in to Flicko",
+          ttlSeconds: 300,
+        },
+      },
     }),
   ));
 });
@@ -162,7 +175,7 @@ beforeAll(async () => {
 afterAll(() => close());
 
 describe("GET /market", () => {
-  test("defaults to trending by 24h volume and hides hidden or image-less memes", async () => {
+  test("defaults to trending and hides hidden or image-less memes", async () => {
     const { status, body } = await get("/market");
     expect(status).toBe(200);
     expect(body).toMatchObject({
@@ -171,7 +184,8 @@ describe("GET /market", () => {
       order: "desc",
       nextOffset: null,
     });
-    expect(mints(body.items)).toEqual([Z, X, Y]);
+    // X: 1 SKR × 0.5 + 0 buyers + 25% × 0.2 = 5.5; Z: 9 × 0.5 + 1 × 0.3 − 10% × 0.2 = 2.8.
+    expect(mints(body.items)).toEqual([X, Z, Y]);
   });
 
   test("reports every window's change, volume and txns", async () => {
@@ -227,7 +241,7 @@ describe("GET /market", () => {
 
   test("paginates and validates", async () => {
     const first = await get("/market?limit=2");
-    expect(mints(first.body.items)).toEqual([Z, X]);
+    expect(mints(first.body.items)).toEqual([X, Z]);
     expect(first.body.nextOffset).toBe(2);
     expect(mints((await get("/market?limit=2&offset=2")).body.items)).toEqual([
       Y,
@@ -307,5 +321,45 @@ describe("GET /market/pumping-count", () => {
     } finally {
       app.close();
     }
+  });
+});
+
+describe("GET /market/stats", () => {
+  test("sums visible trades over 24h and counts today's launches", async () => {
+    const midnight = new Date();
+    midnight.setUTCHours(0, 0, 0, 0);
+    const today = [ago(60), ago(120)].filter((d) => d >= midnight).length;
+    expect((await get("/market/stats")).body).toEqual({
+      volume24h: "12000000",
+      trades24h: 3,
+      launchesToday: today,
+    });
+  });
+});
+
+describe("/me/watchlist", () => {
+  const send = async (method: string, path: string, auth = `Bearer ${token}`) =>
+    (await fetch(`${url}${path}`, { method, headers: { authorization: auth } }))
+      .status;
+
+  test("stars, lists newest first and unstars", async () => {
+    expect((await get("/me/watchlist")).status).toBe(401);
+    expect((await get("/me/watchlist", `Bearer ${token}`)).body).toEqual({
+      mints: [],
+      items: [],
+    });
+    expect(await send("POST", `/me/watchlist/${Z}`)).toBe(204);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(await send("POST", `/me/watchlist/${X}`)).toBe(204);
+    expect(await send("POST", `/me/watchlist/${X}`)).toBe(204);
+    expect(await send("POST", `/me/watchlist/${key()}`)).toBe(404);
+
+    const { body } = await get("/me/watchlist?window=h1", `Bearer ${token}`);
+    expect(body.mints).toEqual([X, Z]);
+    expect(mints(body.items)).toEqual([X, Z]);
+    expect(body.items[0].change.h1).toBe(2500);
+
+    expect(await send("DELETE", `/me/watchlist/${X}`)).toBe(204);
+    expect((await get("/me/watchlist", `Bearer ${token}`)).body.mints).toEqual([Z]);
   });
 });

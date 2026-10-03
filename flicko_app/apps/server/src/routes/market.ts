@@ -6,6 +6,7 @@ import {
   countPumping,
   listMarket,
   listReels,
+  marketStats,
   MARKET_SORTS,
   WINDOWS,
 } from "../queries/market";
@@ -33,6 +34,9 @@ export const marketRouter = (deps: ReadDeps) =>
         items,
         nextOffset: nextOffset(query.offset, query.limit, items.length),
       });
+    })
+    .get("/market/stats", async (_req, res) => {
+      res.json(await marketStats(deps.db));
     })
     .get("/market/pumping-count", async (_req, res) => {
       res.json({ count: await countPumping(deps.db) });

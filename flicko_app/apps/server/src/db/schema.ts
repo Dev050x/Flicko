@@ -209,3 +209,59 @@ export const filterUnlocks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.wallet, t.filterId] })],
 );
+
+/* Memes a wallet stars on Markets or the meme page. */
+export const watchlist = pgTable(
+  "watchlist",
+  {
+    wallet: text("wallet").notNull(),
+    mint: text("mint")
+      .notNull()
+      .references(() => memes.mint),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.wallet, t.mint] })],
+);
+
+export const reactionKind = pgEnum("reaction_kind", ["rocket", "fire", "poop"]);
+
+/* One reaction of each kind per wallet per meme. */
+export const reactions = pgTable(
+  "reactions",
+  {
+    wallet: text("wallet").notNull(),
+    mint: text("mint")
+      .notNull()
+      .references(() => memes.mint),
+    kind: reactionKind("kind").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.wallet, t.mint, t.kind] }),
+    index("reactions_mint_idx").on(t.mint),
+  ],
+);
+
+export const alertDirection = pgEnum("alert_direction", ["above", "below"]);
+
+/*
+ * "Ping me when the price crosses X". `price` is SKR base units per whole token, like
+ * memes.price; the notifier sets `triggered_at` once and never fires it again.
+ */
+export const priceAlerts = pgTable(
+  "price_alerts",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    wallet: text("wallet").notNull(),
+    mint: text("mint")
+      .notNull()
+      .references(() => memes.mint),
+    price: amount("price").notNull(),
+    direction: alertDirection("direction").notNull(),
+    triggeredAt: timestamp("triggered_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("price_alerts_mint_idx").on(t.mint)],
+);

@@ -15,6 +15,9 @@ import { candles, memes, positions, trades, users } from "../db/schema";
 import type { Db } from "../db/types";
 import { TOKEN_UNIT } from "./memes";
 
+/* test SKR has 6 decimals, like the meme tokens */
+const SKR_UNIT = "1000000";
+
 export const WINDOWS = ["m5", "h1", "h6", "h24"] as const;
 export type Window = (typeof WINDOWS)[number];
 export const MARKET_SORTS = [
@@ -69,6 +72,8 @@ export interface MarketQuery {
   order: "asc" | "desc";
   phase: "all" | "launch" | "graduated";
   q?: string;
+  /** only these mints (the watchlist) */
+  mints?: string[];
   limit: number;
   offset: number;
 }
@@ -112,6 +117,10 @@ const statsSub = (db: Db) =>
       txH24: sql<number>`count(*)`.as("tx_h24"),
       buys: sql<number>`count(*) filter (where ${trades.isBuy})`.as("buys"),
       makers: sql<number>`count(distinct ${trades.trader})`.as("makers"),
+      buyersH1:
+        sql<number>`count(distinct ${trades.trader}) filter (where ${trades.isBuy} and ${trades.blockTime} > ${since("h1")})`.as(
+          "buyers_h1",
+        ),
     })
     .from(trades)
     .where(gt(trades.blockTime, since("h24")))
@@ -160,6 +169,12 @@ const baseQuery = (db: Db) => {
   };
   const holderCount = sql`coalesce(${holders.holders}, 0)`;
   const hot = sql`((1 + ${txns.h24} + ${volume.h24} / 10000000) / power(${ageHours} + 2, 1.5))`;
+  /*
+   * Markets "Trending": volume_1h × 0.5 + unique_buyers_1h × 0.3 + change_1h × 0.2, with
+   * volume in whole SKR and the change in percent. Computed per request, so it is never
+   * more than a request old.
+   */
+  const trending = sql`(${volume.h1} / ${SKR_UNIT}::numeric * 0.5 + coalesce(${stats.buyersH1}, 0) * 0.3 + ${changeOf("h1")} / 100.0 * 0.2)`;
 
   const query = db
     .select({
@@ -201,7 +216,7 @@ const baseQuery = (db: Db) => {
     .leftJoin(stats, eq(stats.mint, memes.mint))
     .leftJoin(holders, eq(holders.mint, memes.mint));
 
-  return { query, volume, txns, holderCount, hot };
+  return { query, volume, txns, holderCount, hot, trending };
 };
 
 type BaseRow = Awaited<ReturnType<typeof baseQuery>["query"]>[number];
@@ -271,9 +286,9 @@ export const listMarket = async (
   db: Db,
   q: MarketQuery,
 ): Promise<MarketRow[]> => {
-  const { query, volume, txns, holderCount } = baseQuery(db);
+  const { query, volume, txns, holderCount, trending } = baseQuery(db);
   const primary: SQL = {
-    trending: volume[q.window],
+    trending,
     volume: volume[q.window],
     change: changeOf(q.window),
     txns: txns[q.window],
@@ -284,10 +299,14 @@ export const listMarket = async (
   }[q.sort];
   const direction = q.order === "asc" ? asc : desc;
   const tiebreak =
-    q.sort === "trending" ? [desc(txns[q.window]), desc(memes.createdAt)] : [];
+    q.sort === "trending" ? [desc(volume.h24), desc(memes.createdAt)] : [];
 
   const filters: SQL[] = [visible()];
   if (q.phase !== "all") filters.push(eq(memes.phase, q.phase));
+  if (q.mints) {
+    if (q.mints.length === 0) return [];
+    filters.push(inArray(memes.mint, q.mints));
+  }
   if (q.q) {
     const pattern = `%${escapeLike(q.q)}%`;
     filters.push(
@@ -368,4 +387,35 @@ export const countPumping = async (db: Db): Promise<number> => {
     .from(memes)
     .where(and(visible(), sql`${changeOf("h1")} > ${PUMPING_BPS}`));
   return row?.count ?? 0;
+};
+
+export interface MarketStats {
+  /** SKR base units traded in the last 24h */
+  volume24h: string;
+  trades24h: number;
+  /** memes created since midnight UTC */
+  launchesToday: number;
+}
+
+/* The stats strip on Markets, over visible memes. */
+export const marketStats = async (db: Db): Promise<MarketStats> => {
+  const [traded] = await db
+    .select({
+      volume: sql<string>`coalesce(sum(${trades.skrAmount}), 0)::text`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(trades)
+    .innerJoin(memes, eq(memes.mint, trades.mint))
+    .where(and(visible(), gt(trades.blockTime, since("h24"))));
+  const [launched] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(memes)
+    .where(
+      and(visible(), sql`${memes.createdAt} >= date_trunc('day', now() at time zone 'utc') at time zone 'utc'`),
+    );
+  return {
+    volume24h: traded?.volume ?? "0",
+    trades24h: traded?.count ?? 0,
+    launchesToday: launched?.count ?? 0,
+  };
 };
