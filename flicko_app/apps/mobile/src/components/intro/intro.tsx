@@ -36,7 +36,7 @@ import {
 import { BrandDefs } from "@/components/brand/brand-defs";
 import { Glow } from "@/components/brand/glow";
 import { TileFill } from "@/components/brand/logo-tile";
-import { Wordmark } from "@/components/brand/wordmark";
+import { Wordmark } from "@/components/ui/wordmark";
 
 /*
  * Timeline (ms). The design's keyframes at a slower pace:
