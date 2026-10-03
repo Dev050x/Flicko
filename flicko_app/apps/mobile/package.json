@@ -5,6 +5,8 @@
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/dm-sans": "^0.4.2",
+    "@expo-google-fonts/geist": "^0.4.2",
+    "@expo-google-fonts/geist-mono": "^0.4.3",
     "@expo-google-fonts/unbounded": "^0.4.1",
     "@expo/ui": "~57.0.21",
     "@flicko/sdk": "workspace:*",

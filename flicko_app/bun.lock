@@ -23,6 +23,8 @@
       "dependencies": {
         "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
         "@expo-google-fonts/dm-sans": "^0.4.2",
+        "@expo-google-fonts/geist": "^0.4.2",
+        "@expo-google-fonts/geist-mono": "^0.4.3",
         "@expo-google-fonts/unbounded": "^0.4.1",
         "@expo/ui": "~57.0.21",
         "@flicko/sdk": "workspace:*",
@@ -362,6 +364,10 @@
     "@expo-google-fonts/bricolage-grotesque": ["@expo-google-fonts/bricolage-grotesque@0.4.1", "", {}, "sha512-uijLLg+thOrFgw+gXtYA3dQJTBqqqleabcNFpamaYXqUUcbFe0J18C+4nfL0CyGzSJUicxUBLY4Zv7jdHmTGMA=="],
 
     "@expo-google-fonts/dm-sans": ["@expo-google-fonts/dm-sans@0.4.2", "", {}, "sha512-e/fLH5aCJzkEenz7axvEn8N7IJAKhUwNjIxS75h9j+Ip1M9S7d22M19gJN3A7QW4egVkBJRyQh1hQFhngQn9yA=="],
+
+    "@expo-google-fonts/geist": ["@expo-google-fonts/geist@0.4.2", "", {}, "sha512-cTsqJRQrvK5EniTVwH7UDK18RFf9Bc6yxciAuM936aViQ+eR6j3mLEI2rQkJXz5JP9kwtn8tHJviDyZ0ulH6oA=="],
+
+    "@expo-google-fonts/geist-mono": ["@expo-google-fonts/geist-mono@0.4.3", "", {}, "sha512-gjnwv1QOG4meZpMhrLjTIPC/+lhyNu8EcXa2eJPVbPrYvguVjCfBq+Ezq6cWKWW8ung6fqb2TjvuTalE6lqlnw=="],
 
     "@expo-google-fonts/material-symbols": ["@expo-google-fonts/material-symbols@0.4.48", "", {}, "sha512-aZztj44PyA/sj3TXSwwpLJwqMlTUJ49okbZJYURzEcuERxMQB0KbX7RrLBi8WJnuWz5HFOLlTRxORrJfNnUPNQ=="],
 

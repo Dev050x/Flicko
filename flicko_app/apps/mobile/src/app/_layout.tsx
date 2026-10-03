@@ -10,6 +10,15 @@ import {
   DMSans_500Medium,
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import {
+  Geist_400Regular,
+  Geist_500Medium,
+  Geist_600SemiBold,
+} from "@expo-google-fonts/geist";
+import {
+  GeistMono_400Regular,
+  GeistMono_500Medium,
+} from "@expo-google-fonts/geist-mono";
 import { Unbounded_800ExtraBold } from "@expo-google-fonts/unbounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Constants, { ExecutionEnvironment } from "expo-constants";
@@ -42,6 +51,11 @@ export default function RootLayout() {
     DMSans_400Regular,
     DMSans_500Medium,
     DMSans_700Bold,
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    GeistMono_400Regular,
+    GeistMono_500Medium,
   });
   const { hydrated, hydrate, session, isGuest, onboardingDone } = useSession();
   const [introDone, setIntroDone] = useState(false);

@@ -108,3 +108,34 @@ export const cam = {
   coinRim: "#C98F12",
   tabInactive: "#8E86A0",
 } as const;
+
+/*
+ * Feed and buy sheet (flicko_feed design): Geist for UI text (never above 600), Geist
+ * Mono for prices, counts and supply numbers.
+ */
+export const feed = {
+  bg: "#0B0B0F",
+  surface: "rgba(23,22,29,0.92)", // #17161D at 92%
+  sheet: "#15141A",
+  raised: "#1F1D26",
+  border: "#2A2833",
+  borderStrong: "#3A3744",
+  text: "#F5F3F7",
+  textSecondary: "#B9B5C4",
+  textMuted: "#9C98A8",
+  navInactive: "#8C8898",
+  accent: "#E5137A",
+  pinkText: "#FFB3D4",
+  liked: "#FF2E88",
+  lime: "#C8FF4D",
+  dim: "rgba(5,5,8,0.72)",
+  glass: "rgba(11,11,15,0.5)",
+} as const;
+
+export const geist = {
+  regular: "Geist_400Regular",
+  medium: "Geist_500Medium",
+  semibold: "Geist_600SemiBold",
+  mono: "GeistMono_400Regular",
+  monoMedium: "GeistMono_500Medium",
+} as const;
