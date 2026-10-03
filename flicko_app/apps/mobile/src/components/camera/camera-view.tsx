@@ -94,6 +94,8 @@ export function CameraLayer({
   }, [matrix, matrixValue]);
 
   const slowSince = useSharedValue(0);
+  // 0 = not checked yet, 1 = frames can be read, -1 = they can't (stop trying)
+  const bufferCheck = useSharedValue(0);
   const onSlowRef = useRef(onSlow);
   onSlowRef.current = onSlow;
   const reportSlow = useCallback(() => onSlowRef.current(), []);
@@ -108,6 +110,25 @@ export function CameraLayer({
       >[1],
     ) => {
       "worklet";
+      if (bufferCheck.value === -1) {
+        frame.dispose();
+        return;
+      }
+      if (bufferCheck.value === 0) {
+        // The Skia plugin catches render errors and only logs them, once per frame.
+        // Read one buffer ourselves first: if that throws (e.g. a build below minSdk 26
+        // has no HardwareBuffer support), switch to the plain preview once instead.
+        try {
+          frame.getNativeBuffer().release();
+          bufferCheck.value = 1;
+        } catch (err) {
+          bufferCheck.value = -1;
+          frame.dispose();
+          console.warn(`[camera] can't read camera frames (${String(err)}); using plain preview`);
+          scheduleOnRN(reportSlow);
+          return;
+        }
+      }
       const start = Date.now();
       render(({ canvas, frameTexture }) => {
         const m = matrixValue.value;
@@ -130,7 +151,7 @@ export function CameraLayer({
         scheduleOnRN(reportSlow);
       }
     },
-    [matrixValue, slowSince, reportSlow],
+    [matrixValue, slowSince, bufferCheck, reportSlow],
   );
 
   if (live) {
@@ -141,6 +162,16 @@ export function CameraLayer({
         isActive={active}
         outputs={[photoOutput]}
         onFrame={onFrame}
+        // "native" means Android's GPU-only PRIVATE format, which some phones can't
+        // stream for frame analysis (CameraX rejects 1280x720 PRIVATE ImageAnalysis);
+        // YUV works everywhere and Skia draws it directly.
+        pixelFormat="yuv"
+        warnIfRenderSkipped={false}
+        onError={(err) => {
+          // If the Skia pipeline still can't start, use the plain preview + tint.
+          console.warn("[camera] live filters unavailable, using plain preview", err);
+          reportSlow();
+        }}
       />
     );
   }
