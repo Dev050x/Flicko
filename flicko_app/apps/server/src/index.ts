@@ -24,6 +24,29 @@ const required = (name: string, value: string | undefined) => {
 };
 
 const sessions = createSessions(required("JWT_SECRET", env.JWT_SECRET));
+const programId = new PublicKey(env.programId);
+const chain = connectionSource(env.RPC_URL, env.WS_URL, programId);
+const decode = createEventDecoder(programId);
+const blobs = s3BlobStore({
+  bucket: required("S3_BUCKET", env.S3_BUCKET),
+  region: required("AWS_REGION", env.AWS_REGION),
+  accessKeyId: required("AWS_ACCESS_KEY_ID", env.AWS_ACCESS_KEY_ID),
+  secretAccessKey: required("AWS_SECRET_ACCESS_KEY", env.AWS_SECRET_ACCESS_KEY),
+  publicBaseUrl: env.S3_PUBLIC_BASE_URL,
+});
+const attestor = createAttestor(
+  parseSecretKey(required("ATTESTOR_SECRET_KEY", env.ATTESTOR_SECRET_KEY)),
+);
+const ai =
+  env.AI_PROVIDER === "deepseek"
+    ? deepSeekCaptions({
+        apiKey: required("DEEPSEEK_API_KEY", env.DEEPSEEK_API_KEY),
+        model: env.DEEPSEEK_MODEL,
+      })
+    : openAiCaptions({
+        apiKey: required("OPENAI_API_KEY", env.OPENAI_API_KEY),
+        model: env.OPENAI_MODEL,
+      });
 
 const app = createApp({
   corsOrigin: env.CORS_ORIGIN,
@@ -56,32 +79,16 @@ const app = createApp({
     skrMint: required("SKR_MINT", env.skrMint),
     skrDecimals: env.skrDecimals,
   },
-  uploads: {
+  uploads: { db: database.db, sessions, blobs, attestor, ai },
+  create: {
     db: database.db,
     sessions,
-    blobs: s3BlobStore({
-      bucket: required("S3_BUCKET", env.S3_BUCKET),
-      region: required("AWS_REGION", env.AWS_REGION),
-      accessKeyId: required("AWS_ACCESS_KEY_ID", env.AWS_ACCESS_KEY_ID),
-      secretAccessKey: required(
-        "AWS_SECRET_ACCESS_KEY",
-        env.AWS_SECRET_ACCESS_KEY,
-      ),
-      publicBaseUrl: env.S3_PUBLIC_BASE_URL,
-    }),
-    attestor: createAttestor(
-      parseSecretKey(required("ATTESTOR_SECRET_KEY", env.ATTESTOR_SECRET_KEY)),
-    ),
-    ai:
-      env.AI_PROVIDER === "deepseek"
-        ? deepSeekCaptions({
-            apiKey: required("DEEPSEEK_API_KEY", env.DEEPSEEK_API_KEY),
-            model: env.DEEPSEEK_MODEL,
-          })
-        : openAiCaptions({
-            apiKey: required("OPENAI_API_KEY", env.OPENAI_API_KEY),
-            model: env.OPENAI_MODEL,
-          }),
+    blobs,
+    attestor,
+    ai,
+    chain,
+    decode,
+    siteUrl: env.SIWS_URI,
   },
 });
 
@@ -97,12 +104,11 @@ const notifier = env.NOTIFY_ENABLED
     })
   : null;
 
-const programId = new PublicKey(env.programId);
 const indexer = env.INDEXER_ENABLED
   ? createIndexer({
       db: database.db,
-      chain: connectionSource(env.RPC_URL, env.WS_URL, programId),
-      decode: createEventDecoder(programId),
+      chain,
+      decode,
       log: (message) => console.log(`[indexer] ${message}`),
       onApplied: notifier?.notify,
     })

@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import { errorHandler, notFound } from "./middleware/errors";
 import { authRouter, type AuthDeps } from "./routes/auth";
+import { createRouter, type CreateDeps } from "./routes/create";
 import { feedRouter, type ReadDeps } from "./routes/feed";
 import { filtersRouter, type FilterDeps } from "./routes/filters";
 import { healthRouter, type HealthDeps } from "./routes/health";
@@ -19,6 +20,7 @@ export interface AppDeps {
   read?: ReadDeps;
   uploads?: UploadDeps;
   filters?: FilterDeps;
+  create?: CreateDeps;
 }
 
 export const createApp = (deps: AppDeps) => {
@@ -38,6 +40,10 @@ export const createApp = (deps: AppDeps) => {
 
   if (deps.uploads) {
     app.use(uploadsRouter(deps.uploads));
+  }
+
+  if (deps.create) {
+    app.use(createRouter(deps.create));
   }
 
   if (deps.filters) {
