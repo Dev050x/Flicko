@@ -60,3 +60,4 @@ export const detectFacesDetailed = async (
  */
 export const detectFaces = async (imageUri: string): Promise<Face[]> =>
   (await detectFacesDetailed(imageUri))?.faces ?? [];
+export { eyeCenters } from "./geometry";

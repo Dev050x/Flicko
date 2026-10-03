@@ -7,6 +7,8 @@
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo-google-fonts/unbounded": "^0.4.1",
     "@expo/ui": "~57.0.21",
+    "@flicko/sdk": "workspace:*",
+    "@noble/hashes": "^2.4.0",
     "@shopify/react-native-skia": "2.6.2",
     "@solana-mobile/mobile-wallet-adapter-protocol": "^2.3.0",
     "@solana-mobile/mobile-wallet-adapter-protocol-web3js": "^2.3.0",
@@ -31,6 +33,7 @@
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
     "expo-linking": "~57.0.11",
+    "expo-media-library": "~57.0.5",
     "expo-notifications": "~57.0.21",
     "expo-router": "~57.0.24",
     "expo-secure-store": "~57.0.4",
@@ -70,8 +73,8 @@
   "scripts": {
     "dev": "expo start",
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
     "check-types": "tsc --noEmit"

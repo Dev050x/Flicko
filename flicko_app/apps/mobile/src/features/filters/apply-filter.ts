@@ -75,7 +75,7 @@ export const drawPlacement = (
   canvas.restore();
 };
 
-const drawBrackets = (canvas: SkCanvas, brackets: Brackets) => {
+export const drawBrackets = (canvas: SkCanvas, brackets: Brackets) => {
   const paint = Skia.Paint();
   paint.setStyle(PaintStyle.Stroke);
   paint.setStrokeWidth(brackets.stroke);

@@ -58,6 +58,17 @@
       ],
       "expo-asset",
       [
+        "expo-media-library",
+        {
+          "photosPermission": false,
+          "savePhotosPermission": "Flicko saves your memes to your gallery when you tap Save.",
+          "isAccessMediaLocationEnabled": false,
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
+      [
         "expo-build-properties",
         {
           "android": {
