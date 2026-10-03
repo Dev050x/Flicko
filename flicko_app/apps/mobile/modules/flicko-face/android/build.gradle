@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'app.flicko'
+version = '0.1.0'
+
+android {
+  namespace "app.flicko.face"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+  // The model is read into memory by the module, but keep it uncompressed anyway so it
+  // is cheap to open.
+  androidResources {
+    noCompress 'task'
+  }
+}
+
+dependencies {
+  implementation 'com.google.mediapipe:tasks-vision:1.0.0'
+  implementation 'androidx.exifinterface:exifinterface:1.4.2'
+}
