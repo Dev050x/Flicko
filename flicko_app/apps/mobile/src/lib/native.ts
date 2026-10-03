@@ -1,4 +1,5 @@
 import { requireOptionalNativeModule } from "expo";
+import { TurboModuleRegistry, UIManager } from "react-native";
 
 /*
  * Native modules added after the installed development build was made are missing from
@@ -18,7 +19,7 @@ const optional = <T>(name: string, native: string, load: () => T): T | null => {
   }
   if (!module) {
     console.warn(
-      `[native] ${name} is not in this build; make a new development build to use it`,
+      `[native] ${name} is not in this build; falling back to expo-camera; make a new development build for live filters`,
     );
   }
   loaded.set(name, module);
@@ -45,3 +46,52 @@ export const notifications = () =>
     "ExpoNotificationPermissionsModule",
     () => require("expo-notifications") as typeof import("expo-notifications"),
   );
+
+export const audio = () =>
+  optional(
+    "expo-audio",
+    "ExpoAudio",
+    () => require("expo-audio") as typeof import("expo-audio"),
+  );
+
+export const brightness = () =>
+  optional(
+    "expo-brightness",
+    "ExpoBrightness",
+    () => require("expo-brightness") as typeof import("expo-brightness"),
+  );
+
+/*
+ * The live camera needs VisionCamera (a Nitro module) and Skia; the swipe shell needs
+ * the pager view. Builds made before these were added fall back instead of crashing.
+ */
+let cameraStack: boolean | undefined;
+
+export const hasCameraStack = () => {
+  if (cameraStack !== undefined) return cameraStack;
+  const missing: string[] = [];
+  if (!TurboModuleRegistry.get("NitroModules")) missing.push("NitroModules");
+  if (!TurboModuleRegistry.get("RNSkiaModule")) missing.push("RNSkiaModule");
+  if (missing.length === 0) {
+    try {
+      const { NitroModules } =
+        require("react-native-nitro-modules") as typeof import("react-native-nitro-modules");
+      if (!NitroModules.hasHybridObject("CameraFactory")) {
+        missing.push("VisionCamera (CameraFactory)");
+      }
+    } catch (err) {
+      missing.push(`NitroModules (${String(err)})`);
+    }
+  }
+  cameraStack = missing.length === 0;
+  if (!cameraStack) {
+    console.warn(
+      `[native] the camera is not in this build (missing ${missing.join(", ")}); falling back to expo-camera; make a new development build for live filters`,
+    );
+  }
+  return cameraStack;
+};
+
+export const hasSkia = () => !!TurboModuleRegistry.get("RNSkiaModule");
+
+export const hasPager = () => UIManager.hasViewManagerConfig("RNCViewPager");

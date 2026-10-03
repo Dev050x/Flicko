@@ -87,7 +87,12 @@ export default function RootLayout() {
               />
             </Stack.Protected>
             <Stack.Protected guard={(signedIn && onboardingDone) || isGuest}>
-              <Stack.Screen name="(tabs)/feed" />
+              <Stack.Screen name="(main)" />
+              <Stack.Screen name="me" options={{ animation: "slide_from_left" }} />
+              <Stack.Screen
+                name="create/preview"
+                options={{ animation: "slide_from_bottom" }}
+              />
             </Stack.Protected>
           </Stack>
         )}

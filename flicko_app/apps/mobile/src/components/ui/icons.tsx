@@ -1,4 +1,5 @@
-import Svg, { Circle, G, Path } from "react-native-svg";
+import type React from "react";
+import Svg, { Circle, G, Path, Rect } from "react-native-svg";
 
 import { colors, ref } from "@/theme";
 
@@ -123,5 +124,90 @@ export function ViewfinderIcon({ size = 240, color = colors.text }: IconProps) {
         d="M4 24 V12 Q4 4 12 4 H24 M76 4 H88 Q96 4 96 12 V24 M4 76 V88 Q4 96 12 96 H24 M96 76 V88 Q96 96 88 96 H76"
       />
     </Svg>
+  );
+}
+
+/*
+ * Camera home icons (design-reference/Camera.html).
+ */
+function Line({
+  size,
+  color,
+  width = 2,
+  children,
+}: IconProps & { width?: number; children: React.ReactNode }) {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size}>
+      <G
+        fill="none"
+        stroke={color}
+        strokeWidth={width}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {children}
+      </G>
+    </Svg>
+  );
+}
+
+export function FlipIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M4 9 A8 8 0 0 1 18.5 6.5" />
+      <Path d="M19 3 V7 H15" />
+      <Path d="M20 15 A8 8 0 0 1 5.5 17.5" />
+      <Path d="M5 21 V17 H9" />
+    </Line>
+  );
+}
+
+export function FlashIcon({
+  size = 22,
+  color = colors.text,
+  off = false,
+}: IconProps & { off?: boolean }) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M13 3 L5 13.5 H11.5 L10.5 21 L19 10 H12.5 Z" />
+      {off && <Path d="M4 4 L20 20" />}
+    </Line>
+  );
+}
+
+export function TimerIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Circle cx={12} cy={13.5} r={7.5} />
+      <Path d="M12 9.5 V13.5 L14.5 15.5" />
+      <Path d="M9.5 3 H14.5" />
+    </Line>
+  );
+}
+
+export function LockIcon({ size = 13, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color} width={2.4}>
+      <Rect x={5} y={11} width={14} height={9} rx={2} />
+      <Path d="M8 11 V8 A4 4 0 0 1 16 8 V11" />
+    </Line>
+  );
+}
+
+export function MarketsIcon({ size = 26, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M3 17 L9 11 L13 15 L21 7" />
+      <Path d="M15 7 H21 V13" />
+    </Line>
+  );
+}
+
+export function FeedIcon({ size = 26, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Rect x={5} y={3} width={14} height={18} rx={3} />
+      <Path d="M10.5 9.5 L14.5 12 L10.5 14.5 Z" />
+    </Line>
   );
 }

@@ -94,3 +94,18 @@ export const ref = {
   seekerBorder: "#1F4A3A",
   seekerText: "#8FD9C0",
 } as const;
+
+/*
+ * Camera home (design-reference/Camera.html): floating glass controls over the preview
+ * and the shared bottom tab bar.
+ */
+export const cam = {
+  glass: "rgba(14,11,20,0.40)",
+  glassBorder: "rgba(255,255,255,0.18)",
+  chipText: "rgba(255,255,255,0.75)",
+  thumbRing: "rgba(255,255,255,0.85)",
+  coin: "#FFD24A",
+  coinRim: "#C98F12",
+  tabInactive: "#8E86A0",
+  guide: "rgba(255,255,255,0.7)",
+} as const;
