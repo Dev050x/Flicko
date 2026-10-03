@@ -5,6 +5,8 @@
 /*
  * Expo inlines EXPO_PUBLIC_* only when read literally, so each one is spelled out below.
  */
+import devnet from "../../../config/devnet.json";
+
 const env = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
 
@@ -15,6 +17,11 @@ export const config = {
   ),
   cluster: env(process.env.EXPO_PUBLIC_CLUSTER, "devnet"),
   rpcUrl: env(process.env.EXPO_PUBLIC_RPC_URL, "https://api.devnet.solana.com"),
+  /*
+   * The test SKR mint recorded in flicko_app/config/devnet.json (6 decimals).
+   */
+  skrMint: env(process.env.EXPO_PUBLIC_SKR_MINT, devnet.skrMint),
+  skrDecimals: devnet.skrDecimals,
   /*
    * Seeker Genesis Token: its mint carries TokenGroupMember and MetadataPointer
    * extensions pointing here (docs.solanamobile.com, "Engaging Seeker users"). SGTs only

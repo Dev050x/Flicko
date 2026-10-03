@@ -23,6 +23,7 @@ interface SessionState {
   avatarUri: string | null;
   hydrate: () => Promise<void>;
   signIn: (session: Session) => void;
+  setMwaAuthToken: (authToken: string) => void;
   browseAsGuest: () => void;
   finishOnboarding: () => void;
   setAvatar: (uri: string | null) => void;
@@ -75,7 +76,7 @@ const parseSession = (raw: string | null): Session | null => {
   }
 };
 
-export const useSession = create<SessionState>((set) => ({
+export const useSession = create<SessionState>((set, get) => ({
   hydrated: false,
   session: null,
   isGuest: false,
@@ -107,6 +108,17 @@ export const useSession = create<SessionState>((set) => ({
     save(KEYS.session, JSON.stringify(session));
     save(KEYS.guest, null);
     set({ session, isGuest: false });
+  },
+
+  /*
+   * The wallet may hand back a new auth_token when it reauthorizes.
+   */
+  setMwaAuthToken: (authToken) => {
+    const session = get().session;
+    if (!session || session.mwaAuthToken === authToken) return;
+    const next = { ...session, mwaAuthToken: authToken };
+    save(KEYS.session, JSON.stringify(next));
+    set({ session: next });
   },
 
   browseAsGuest: () => {

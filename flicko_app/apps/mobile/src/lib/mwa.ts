@@ -1,4 +1,5 @@
 import type { Web3MobileWallet } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
+import type { Transaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Buffer } from "buffer";
 import { TurboModuleRegistry } from "react-native";
@@ -127,5 +128,33 @@ export const reauthorize = async (
     return result.auth_token;
   } catch {
     return null;
+  }
+};
+
+/*
+ * Signs and sends one transaction through the wallet, reusing the stored auth_token.
+ * Returns the base58 signature and the (possibly refreshed) auth_token to store.
+ */
+export const signAndSend = async (
+  authToken: string,
+  build: () => Promise<Transaction>,
+): Promise<{ signature: string; authToken: string }> => {
+  const transact = loadTransact();
+  try {
+    return await transact(async (wallet: Web3MobileWallet) => {
+      const refreshed = await reauthorize(wallet, authToken);
+      if (!refreshed) throw new ConnectError("declined");
+      const [signature] = await wallet.signAndSendTransactions({
+        transactions: [await build()],
+      });
+      if (!signature) throw new ConnectError("declined");
+      return { signature, authToken: refreshed };
+    });
+  } catch (err) {
+    if (err instanceof ConnectError) throw err;
+    if (errorCode(err) === "ERROR_WALLET_NOT_FOUND") {
+      throw new ConnectError("noWallet", err);
+    }
+    throw new ConnectError("declined", err);
   }
 };
