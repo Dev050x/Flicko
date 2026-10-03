@@ -45,6 +45,8 @@ export interface CameraLayerRef {
   capture: (flash: FlashMode) => Promise<Shot>;
 }
 
+/** JPEG quality for the captured photo, 0-100 (NitroImage scale). */
+const PHOTO_JPEG_QUALITY = 95;
 const SLOW_FRAME_MS = 16;
 const SLOW_FOR_MS = 2000;
 
@@ -65,7 +67,7 @@ export function CameraLayer({
   /** read by the expo-camera fallback; VisionCamera takes the flash per capture */
   flash?: import("@/features/camera/settings").FlashSetting;
 }) {
-  const photoOutput = usePhotoOutput({ quality: 0.92 });
+  const photoOutput = usePhotoOutput({ quality: 0.95 });
 
   useImperativeHandle(
     ref,
@@ -77,7 +79,8 @@ export function CameraLayer({
         );
         try {
           const image = await photo.toImageAsync();
-          const path = await image.saveToTemporaryFileAsync("jpg", 0.95);
+          // NitroImage takes quality as 0-100 (0.95 would round down to 0).
+          const path = await image.saveToTemporaryFileAsync("jpg", PHOTO_JPEG_QUALITY);
           return {
             uri: path.startsWith("file://") ? path : `file://${path}`,
             width: image.width,
