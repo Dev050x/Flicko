@@ -1,5 +1,5 @@
 import type { Web3MobileWallet } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
-import type { Transaction } from "@solana/web3.js";
+import type { Transaction, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Buffer } from "buffer";
 import { TurboModuleRegistry } from "react-native";
@@ -132,12 +132,25 @@ export const reauthorize = async (
 };
 
 /*
+ * The wallet signed but its RPC refused the transaction (e.g. simulation failed), so
+ * nothing landed. Different from the user declining.
+ */
+export class NotSubmittedError extends Error {
+  constructor(cause?: unknown) {
+    super("transaction not submitted");
+    this.cause = cause;
+  }
+}
+
+const NOT_SUBMITTED = [-4, "ERROR_NOT_SUBMITTED"];
+
+/*
  * Signs and sends one transaction through the wallet, reusing the stored auth_token.
  * Returns the base58 signature and the (possibly refreshed) auth_token to store.
  */
 export const signAndSend = async (
   authToken: string,
-  build: () => Promise<Transaction>,
+  build: () => Promise<Transaction | VersionedTransaction>,
 ): Promise<{ signature: string; authToken: string }> => {
   const transact = loadTransact();
   try {
@@ -154,6 +167,9 @@ export const signAndSend = async (
     if (err instanceof ConnectError) throw err;
     if (errorCode(err) === "ERROR_WALLET_NOT_FOUND") {
       throw new ConnectError("noWallet", err);
+    }
+    if (NOT_SUBMITTED.includes(errorCode(err) as never)) {
+      throw new NotSubmittedError(err);
     }
     throw new ConnectError("declined", err);
   }
