@@ -1,5 +1,6 @@
 import { BN } from "@anchor-lang/core";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -14,6 +15,7 @@ import {
   type Attestation,
 } from "../attestation/attestation";
 import { attestorPda, configPda, memeAccounts } from "../pda/pda";
+import { PROGRAM_ID } from "../core/constants";
 import type { FlickoProgram } from "../core/program";
 
 export const BPF_LOADER_UPGRADEABLE = new PublicKey(
@@ -269,3 +271,24 @@ export const claimCreatorFeesInstruction = (
     })
     .instruction();
 };
+
+/*
+ * Accounts every create_meme shares (plus the ATA program, for the creator's SKR account
+ * and premium-filter burns). With a realistic metadata uri the attestation pushes
+ * create_meme past the 1232-byte legacy transaction limit, so the app sends a v0
+ * transaction that loads these from an address lookup table.
+ */
+export const createMemeLookupAddresses = (
+  skrMint: PublicKey,
+  programId: PublicKey = PROGRAM_ID,
+  skrTokenProgram: PublicKey = TOKEN_PROGRAM_ID,
+) => [
+  configPda(programId),
+  attestorPda(programId),
+  SYSVAR_INSTRUCTIONS_PUBKEY,
+  skrMint,
+  TOKEN_2022_PROGRAM_ID,
+  skrTokenProgram,
+  SystemProgram.programId,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+];

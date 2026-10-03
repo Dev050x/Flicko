@@ -14,6 +14,7 @@
     "devnet:setup": "bun scripts/create-test-skr.ts && bun scripts/init-config.ts",
     "devnet:faucet": "bun scripts/skr-faucet.ts",
     "devnet:attestor": "bun scripts/set-attestor.ts",
+    "devnet:lut": "bun scripts/create-lookup-table.ts",
     "devnet:smoke": "bun scripts/smoke-test.ts"
   },
   "devDependencies": {

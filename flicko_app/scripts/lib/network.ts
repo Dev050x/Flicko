@@ -24,6 +24,7 @@ export interface NetworkConfig {
   skrMint?: string;
   skrDecimals?: number;
   attestor?: string;
+  lookupTable?: string;
 }
 
 export const RPC_URL = process.env.RPC_URL ?? "https://api.devnet.solana.com";

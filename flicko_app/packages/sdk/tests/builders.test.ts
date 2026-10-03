@@ -20,6 +20,7 @@ import {
   claimCreatorFeesInstruction,
   createMemeInstruction,
   createMemeInstructions,
+  createMemeLookupAddresses,
   initializeConfigInstruction,
   setAttestorInstruction,
   programDataAddress,
@@ -240,5 +241,17 @@ describe("instruction builders", () => {
       skr_vault: skrVault,
       creator_skr_account: userSkr,
     });
+  });
+});
+
+describe("createMemeLookupAddresses", () => {
+  test("covers the static accounts create_meme uses", () => {
+    const skrMint = Keypair.generate().publicKey;
+    const addresses = createMemeLookupAddresses(skrMint).map((a) => a.toBase58());
+    expect(addresses).toContain(configPda().toBase58());
+    expect(addresses).toContain(attestorPda().toBase58());
+    expect(addresses).toContain(skrMint.toBase58());
+    expect(addresses).toContain(ASSOCIATED_TOKEN_PROGRAM_ID.toBase58());
+    expect(new Set(addresses).size).toBe(addresses.length);
   });
 });

@@ -3,5 +3,6 @@
   "programId": "4BfMnkmQheerNffcJtEusXxVC16uhGExrRevBLUcZgBD",
   "skrMint": "2s9jDvT4hdK1ajJZ4xhAhk6aRxbTdgPdmr55mcgcSFUB",
   "skrDecimals": 6,
-  "attestor": "9Co5dEacb55Rj98w8KKX1LqahZinxWn32BWdGsF9D9Pc"
+  "attestor": "9Co5dEacb55Rj98w8KKX1LqahZinxWn32BWdGsF9D9Pc",
+  "lookupTable": "278H9V6XLsukYstj6BDnmKnBEZ7iAuNXzPiL8Z9ihyBR"
 }
