@@ -156,13 +156,18 @@ const faceImages = (filter: Filter, zone: Rect, eyes: Eyes): Placement[] => {
 
 /*
  * `faces`: eye pairs to dress (one entry per face). The live preview passes none, so
- * face filters draw nothing until a photo is taken.
+ * face filters draw nothing until a photo is taken. `centerX`: where frame text is
+ * centred (the screen/photo centre; the zone itself is off-centre to clear the rail).
  */
 export const layoutFor = (
   filter: Filter,
   zone: Rect,
   dp: number,
-  { sticker, faces = [] }: { sticker?: StickerPose; faces?: Eyes[] } = {},
+  {
+    sticker,
+    faces = [],
+    centerX = zone.x + zone.width / 2,
+  }: { sticker?: StickerPose; faces?: Eyes[]; centerX?: number } = {},
 ): Layout => {
   const source = filter.overlay;
   if (!source) return { images: [], brackets: null };
@@ -171,11 +176,13 @@ export const layoutFor = (
     const art = FRAME_TEXT[filter.id];
     const images: Placement[] = [];
     if (art) {
-      const width = Math.min(zone.width, (zone.width * art.width) / FRAME_INNER_WIDTH);
+      // Centred on centerX, never wider than the zone allows on either side of it.
+      const room = 2 * Math.min(centerX - zone.x, zone.x + zone.width - centerX);
+      const width = Math.min(room, (zone.width * art.width) / FRAME_INNER_WIDTH);
       const height = (width * art.height) / art.width;
       images.push({
         source,
-        x: zone.x + zone.width / 2,
+        x: centerX,
         y: zone.y + zone.height - FRAME_TEXT_GAP * dp,
         width,
         height,

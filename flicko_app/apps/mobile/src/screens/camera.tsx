@@ -258,6 +258,7 @@ export default function CameraScreen() {
         layout: layoutFor(filter, photoZone, 1 / scale, {
           sticker: sticker ?? undefined,
           faces,
+          centerX: toPhoto({ ...view, x: view.width / 2, width: 0 }).x,
         }),
       });
       router.push({
@@ -322,6 +323,7 @@ export default function CameraScreen() {
         <LiveOverlay
           filter={filter}
           zone={zone}
+          centerX={view!.width / 2}
           sticker={sticker}
           onStickerChange={setStickerPose}
         />

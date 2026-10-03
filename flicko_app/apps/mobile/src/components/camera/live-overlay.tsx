@@ -32,15 +32,17 @@ const MAX_SCALE = 2.5;
 export function LiveOverlay({
   filter,
   zone,
+  centerX,
   sticker,
   onStickerChange,
 }: {
   filter: Filter;
   zone: Rect;
+  centerX: number;
   sticker: StickerPose;
   onStickerChange: (pose: StickerPose) => void;
 }) {
-  const layout = layoutFor(filter, zone, 1, { sticker });
+  const layout = layoutFor(filter, zone, 1, { sticker, centerX });
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
