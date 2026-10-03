@@ -1,3 +1,5 @@
+import { File } from "expo-file-system";
+
 import { config } from "@/config";
 
 export class ApiError extends Error {
@@ -35,8 +37,9 @@ export const api = async <T>(
 };
 
 /*
- * multipart/form-data POST with a local file (`image`) plus text fields. React Native's
- * FormData streams the file from its uri.
+ * multipart/form-data POST with a local file (`image`) plus text fields. The app's fetch
+ * (expo/fetch) only takes real Blob parts, not React Native's { uri, name, type }
+ * objects, so the file goes in as an expo-file-system File (which is a Blob).
  */
 export const apiForm = async <T>(
   path: string,
@@ -53,7 +56,7 @@ export const apiForm = async <T>(
   },
 ): Promise<T> => {
   const form = new FormData();
-  form.append("image", file as unknown as Blob);
+  form.append("image", new File(file.uri) as unknown as Blob, file.name);
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
