@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BuySheet, type TradeSide } from "@/components/feed/buy-sheet";
 import { FeedPage, type FeedPageActions } from "@/components/feed/feed-page";
 import { FeedTopBar } from "@/components/feed/top-bar";
 import { config } from "@/config";
@@ -30,6 +31,7 @@ export default function Feed() {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [current, setCurrent] = useState(0);
   const list = useRef<FlatList<string>>(null);
+  const [trade, setTrade] = useState<{ meme: Meme; side: TradeSide } | null>(null);
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: ViewToken<string>[] }) => {
     const first = viewableItems[0];
@@ -52,14 +54,8 @@ export default function Feed() {
         const url = `${config.siteUrl}/m/${meme.id}`;
         Share.share({ message: `$${meme.ticker} on Flicko ${url}`, url }).catch(() => {});
       },
-      onBuy: (meme: Meme) => {
-        // Milestone 2: open the buy sheet.
-        console.log("[feed] buy", meme.ticker);
-      },
-      onSell: (meme: Meme) => {
-        // Milestone 2: open the sheet in sell mode.
-        console.log("[feed] sell", meme.ticker);
-      },
+      onBuy: (meme: Meme) => setTrade({ meme, side: "buy" }),
+      onSell: (meme: Meme) => setTrade({ meme, side: "sell" }),
     }),
     [],
   );
@@ -138,6 +134,18 @@ export default function Feed() {
         onTab={pickTab}
         onSearch={() => router.navigate("/markets")}
       />
+      {trade && (
+        <BuySheet
+          key={`${trade.meme.id}-${trade.side}`}
+          meme={trade.meme}
+          side={trade.side}
+          onClose={() => setTrade(null)}
+          onApprove={(order) => {
+            // Milestone 3: build and sign the trade through MWA.
+            console.log("[feed] order", JSON.stringify(order));
+          }}
+        />
+      )}
     </View>
   );
 }
