@@ -19,11 +19,11 @@ import { priceCompact } from "@/lib/format";
 import { detail as D, geist } from "@/theme";
 
 import {
+  LiveTradesTitle,
   TradeRow,
   TradeSheet,
-  TradesCardBottom,
-  TradesCardTop,
-  barPct,
+  TradesFooter,
+  TradesHeader,
   isLarge,
 } from "./trade-row";
 
@@ -32,9 +32,11 @@ import {
  * press-and-drag crosshair, then the latest trades. Launching: the launch sale's
  * progress over time instead of candles, then the latest buys.
  */
-const CHART_H = 200;
-const VOL_H = 50;
-const GUTTER = 50;
+const CHART_H = 150;
+const VOL_H = 40;
+const AXIS_H = 20;
+const GUTTER = 56;
+const CHART_GRID = "#17161D";
 const LIVE_ROWS = 8;
 
 const TF_LABEL: Record<Timeframe, string> = {
@@ -100,55 +102,112 @@ function PriceRow({ meme }: { meme: MemeView }) {
   );
 }
 
+/** Chart prices: subscript zeros under 0.001 (0.0000064 → "0.0₅64"), else 4 significant digits. */
+export const chartPrice = (n: number) =>
+  n > 0 && n < 0.001 ? priceCompact(n) : String(Number(n.toPrecision(4)));
+
+/* "O 0.00198  H 0.00204  L 0.00195  C 0.00201", close coloured by direction. */
+function Legend({
+  candle,
+  tf,
+  hovering,
+}: {
+  candle: CandleView | undefined;
+  tf: Timeframe;
+  hovering: boolean;
+}) {
+  if (!candle) return <View style={styles.legend} />;
+  const up = candle.c >= candle.o;
+  const pair = (k: string, v: number, color: string = D.text) => (
+    <Text style={styles.legendItem}>
+      <Text style={{ color: D.muted }}>{k} </Text>
+      <Text style={{ color }}>{chartPrice(v)}</Text>
+    </Text>
+  );
+  return (
+    <View style={styles.legend}>
+      {pair("O", candle.o)}
+      {pair("H", candle.h)}
+      {pair("L", candle.l)}
+      {pair("C", candle.c, up ? D.gain : D.loss)}
+      {hovering && (
+        <Text style={[styles.legendItem, { color: D.muted }]}>
+          {timeLabel(candle.t, tf)}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// Below this many candles the chart draws a close-price line instead.
+const MIN_CANDLES = 15;
+
 export function PriceChart({
   candles,
   width,
   tf,
+  onHover,
 }: {
   candles: CandleView[];
   width: number;
   tf: Timeframe;
+  onHover: (index: number | null) => void;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const plotW = width - GUTTER;
   const n = candles.length;
+  const asLine = n < MIN_CANDLES;
   const slot = plotW / Math.max(n, 1);
   const body = Math.max(2, Math.min(5, slot * 0.7));
 
-  let lo = Math.min(...candles.map((c) => c.l));
-  let hi = Math.max(...candles.map((c) => c.h));
+  let lo = Math.min(...candles.map((c) => (asLine ? c.c : c.l)));
+  let hi = Math.max(...candles.map((c) => (asLine ? c.c : c.h)));
   if (hi === lo) {
-    lo *= 0.98;
-    hi *= 1.02;
+    // one flat price must not stretch the scale: 10% above and below
+    lo *= 0.9;
+    hi *= 1.1;
   }
   const pad = (hi - lo) * 0.08;
   lo -= pad;
   hi += pad;
   const y = (v: number) => (1 - (v - lo) / (hi - lo)) * CHART_H;
-  const x = (i: number) => i * slot + slot / 2;
+  const x = (i: number) =>
+    asLine && n > 1 ? (i / (n - 1)) * plotW : i * slot + slot / 2;
   const maxV = Math.max(...candles.map((c) => c.v), 0);
   const last = candles[n - 1];
   const grid = [5 / 6, 1 / 2, 1 / 6].map((f) => lo + (hi - lo) * f);
+  const volTop = CHART_H + 6;
+  const fullH = volTop + VOL_H;
+  const line = candles
+    .map((c, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(c.c)}`)
+    .join("");
 
   const pick = (px: number) =>
-    Math.max(0, Math.min(n - 1, Math.floor(px / slot)));
+    asLine && n > 1
+      ? Math.max(0, Math.min(n - 1, Math.round((px / plotW) * (n - 1))))
+      : Math.max(0, Math.min(n - 1, Math.floor(px / slot)));
+  const set = (i: number | null) => {
+    setHover(i);
+    onHover(i);
+  };
   // Press and hold, then drag: the hold lets vertical scrolling win otherwise.
   const pan = Gesture.Pan()
     .runOnJS(true)
     .activateAfterLongPress(120)
-    .onStart((e) => setHover(pick(e.x)))
-    .onUpdate((e) => setHover(pick(e.x)))
-    .onFinalize(() => setHover(null));
+    .onStart((e) => set(pick(e.x)))
+    .onUpdate((e) => set(pick(e.x)))
+    .onFinalize(() => set(null));
 
   const shown = hover !== null ? candles[hover] : null;
+  const ticks = n > 2 ? [0, Math.floor((n - 1) / 2), n - 1] : [0, n - 1];
 
   return (
     <GestureDetector gesture={pan}>
       <View
-        style={{ width, height: CHART_H + 8 + VOL_H }}
+        style={{ width, height: fullH + AXIS_H }}
         accessibilityLabel="Price chart"
       >
-        <Svg width={width} height={CHART_H + 8 + VOL_H}>
+        <Svg width={width} height={fullH}>
           {grid.map((v) => (
             <Line
               key={v}
@@ -156,51 +215,62 @@ export function PriceChart({
               x2={plotW}
               y1={y(v)}
               y2={y(v)}
-              stroke={D.grid}
+              stroke={CHART_GRID}
               strokeWidth={1}
             />
           ))}
-          {candles.map((c, i) => {
-            const quiet = c.trades === 0;
-            const up = c.c >= c.o;
-            const color = quiet ? D.line : up ? D.gain : D.loss;
-            const top = y(Math.max(c.o, c.c));
-            const h = Math.max(1, Math.abs(y(c.o) - y(c.c)));
-            return (
-              <Rect
-                key={`b${c.t}`}
-                x={x(i) - body / 2}
-                y={top}
-                width={body}
-                height={h}
-                fill={color}
-              />
-            );
-          })}
-          {candles.map((c, i) =>
-            c.trades === 0 ? null : (
-              <Line
-                key={`w${c.t}`}
-                x1={x(i)}
-                x2={x(i)}
-                y1={y(c.h)}
-                y2={y(c.l)}
-                stroke={c.c >= c.o ? D.gain : D.loss}
-                strokeWidth={1}
-              />
-            ),
+          {asLine ? (
+            <Path
+              d={line}
+              stroke={D.gain}
+              strokeWidth={2}
+              fill="none"
+              strokeLinejoin="round"
+            />
+          ) : (
+            candles.map((c, i) => {
+              const up = c.c >= c.o;
+              const color = c.trades === 0 ? D.line : up ? D.gain : D.loss;
+              return (
+                <Rect
+                  key={`b${c.t}`}
+                  x={x(i) - body / 2}
+                  y={y(Math.max(c.o, c.c))}
+                  width={body}
+                  height={Math.max(1, Math.abs(y(c.o) - y(c.c)))}
+                  fill={color}
+                />
+              );
+            })
           )}
+          {!asLine &&
+            candles.map((c, i) =>
+              c.trades === 0 ? null : (
+                <Line
+                  key={`w${c.t}`}
+                  x1={x(i)}
+                  x2={x(i)}
+                  y1={y(c.h)}
+                  y2={y(c.l)}
+                  stroke={c.c >= c.o ? D.gain : D.loss}
+                  strokeWidth={1}
+                />
+              ),
+            )}
           {maxV > 0 &&
             candles.map((c, i) =>
               c.v === 0 ? null : (
                 <Rect
                   key={`v${c.t}`}
                   x={x(i) - body / 2}
-                  y={CHART_H + 8 + VOL_H - (c.v / maxV) * VOL_H}
+                  y={fullH - (c.v / maxV) * VOL_H}
                   width={body}
                   height={(c.v / maxV) * VOL_H}
-                  fill={c.c >= c.o ? D.gain : D.loss}
-                  fillOpacity={0.45}
+                  fill={
+                    c.c >= c.o
+                      ? "rgba(200,255,77,0.18)"
+                      : "rgba(255,107,122,0.18)"
+                  }
                 />
               ),
             )}
@@ -210,7 +280,7 @@ export function PriceChart({
               x2={plotW}
               y1={y(last.c)}
               y2={y(last.c)}
-              stroke={D.chipOn}
+              stroke={last.c >= last.o ? D.gain : D.loss}
               strokeWidth={1}
               strokeDasharray="3 3"
             />
@@ -221,17 +291,19 @@ export function PriceChart({
                 x1={x(hover)}
                 x2={x(hover)}
                 y1={0}
-                y2={CHART_H + 8 + VOL_H}
-                stroke={D.secondary}
+                y2={fullH}
+                stroke={D.muted}
                 strokeWidth={1}
+                strokeDasharray="4 3"
               />
               <Line
                 x1={0}
                 x2={plotW}
                 y1={y(shown.c)}
                 y2={y(shown.c)}
-                stroke={D.secondary}
+                stroke={D.muted}
                 strokeWidth={1}
+                strokeDasharray="4 3"
               />
             </>
           )}
@@ -242,7 +314,7 @@ export function PriceChart({
             style={[styles.axis, { top: y(v) - 7, left: plotW + 6 }]}
             numberOfLines={1}
           >
-            {priceCompact(v)}
+            {chartPrice(v)}
           </Text>
         ))}
         {last && (
@@ -250,21 +322,36 @@ export function PriceChart({
             style={[styles.lastPill, { top: y(last.c) - 9, left: plotW + 2 }]}
           >
             <Text style={styles.lastText} numberOfLines={1}>
-              {priceCompact(last.c)}
+              {chartPrice(last.c)}
             </Text>
           </View>
         )}
-        {shown && (
-          <View style={styles.readout} pointerEvents="none">
-            <Text style={styles.readoutText}>
-              O {priceCompact(shown.o)} H {priceCompact(shown.h)} L{" "}
-              {priceCompact(shown.l)} C {priceCompact(shown.c)}
-            </Text>
-            <Text style={[styles.readoutText, { color: D.muted }]}>
-              {timeLabel(shown.t, tf)}
+        {shown && hover !== null && (
+          <View
+            style={[styles.crossPill, { top: y(shown.c) - 9, left: plotW + 2 }]}
+          >
+            <Text style={styles.crossText} numberOfLines={1}>
+              {chartPrice(shown.c)}
             </Text>
           </View>
         )}
+        {ticks.map((i, k) => (
+          <Text
+            key={`${i}-${k}`}
+            style={[
+              styles.timeTick,
+              { top: fullH + 4 },
+              k === 0
+                ? { left: 0 }
+                : k === ticks.length - 1
+                  ? { right: GUTTER }
+                  : { left: x(i) - 30, width: 60, textAlign: "center" },
+            ]}
+            numberOfLines={1}
+          >
+            {timeLabel(candles[i].t, tf)}
+          </Text>
+        ))}
       </View>
     </GestureDetector>
   );
@@ -355,6 +442,7 @@ export function ChartTab({
   const launching = meme.phase === "launching";
   const [tf, setTf] = useState<Timeframe>("15m");
   const candles = useCandles(meme.mint, tf, !launching);
+  const [hover, setHover] = useState<number | null>(null);
   const sold = useSoldOverTime(meme.mint, launching);
   const trades = useTrades(meme.mint, true);
   const [touching, setTouching] = useState(false);
@@ -367,16 +455,10 @@ export function ChartTab({
   // live.rows only changes identity when the visible set changes
   const rows = useMemo(() => live.rows.slice(0, LIVE_ROWS), [live.rows]);
   const largeSkr = trades.data?.pages[0]?.largeSkr ?? null;
-  const ctx = useMemo(
-    () => ({
-      maxSkr: Math.max(0, ...rows.map((t) => t.skr)),
-      largeSkr,
-      liquiditySkr: meme.liquiditySkr,
-      creator: meme.creator.wallet,
-      wallet,
-    }),
-    [rows, largeSkr, meme.liquiditySkr, meme.creator.wallet, wallet],
-  );
+  const shownCandle =
+    hover !== null
+      ? candles.data?.[hover]
+      : candles.data?.[candles.data.length - 1];
   const chartW = width - 32;
 
   return (
@@ -414,8 +496,15 @@ export function ChartTab({
               );
             })}
           </View>
+          <Legend candle={shownCandle} tf={tf} hovering={hover !== null} />
           {candles.data && candles.data.length > 0 ? (
-            <PriceChart candles={candles.data} width={chartW} tf={tf} />
+            <PriceChart
+              key={tf}
+              candles={candles.data}
+              width={chartW}
+              tf={tf}
+              onHover={setHover}
+            />
           ) : (
             <ChartPlaceholder
               text={
@@ -435,25 +524,21 @@ export function ChartTab({
         onTouchCancel={() => setTouching(false)}
       >
         <View>
-          <TradesCardTop
-            symbol={meme.symbol}
-            launching={launching}
-            onSeeAll={onSeeAll}
-          />
+          <LiveTradesTitle onSeeAll={onSeeAll} />
+          <TradesHeader symbol={meme.symbol} launching={launching} />
           {rows.map((t) => (
             <TradeRow
               key={t.id}
               trade={t}
               symbol={meme.symbol}
-              bar={barPct(t, ctx.maxSkr)}
-              large={isLarge(t, ctx)}
+              large={isLarge(t, largeSkr)}
               mine={!!wallet && t.wallet === wallet}
               creator={t.wallet === meme.creator.wallet}
               flash={t.id === live.fresh}
               onPress={setSheet}
             />
           ))}
-          <TradesCardBottom
+          <TradesFooter
             state={
               trades.isLoading
                 ? "loading"
@@ -497,7 +582,7 @@ const styles = StyleSheet.create({
   note: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
   chips: { flexDirection: "row", justifyContent: "space-between" },
   chip: {
-    height: 32,
+    height: 30,
     minWidth: 46,
     paddingHorizontal: 10,
     borderRadius: 16,
@@ -505,7 +590,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chipOn: { backgroundColor: D.chipOn },
-  chipText: { fontFamily: geist.medium, fontSize: 13, color: D.secondary },
+  chipText: { fontFamily: geist.medium, fontSize: 13, color: D.muted },
   chipTextOn: { color: D.bg },
   axis: {
     position: "absolute",
@@ -528,26 +613,40 @@ const styles = StyleSheet.create({
     color: D.bg,
     fontVariant: ["tabular-nums"],
   },
-  readout: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: D.line,
-    backgroundColor: D.bg,
-    gap: 2,
+  legend: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 10,
+    minHeight: 16,
   },
-  readoutText: {
+  legendItem: {
+    fontFamily: geist.regular,
+    fontSize: 12,
+    fontVariant: ["tabular-nums"],
+  },
+  crossPill: {
+    position: "absolute",
+    height: 18,
+    paddingHorizontal: 5,
+    borderRadius: 4,
+    backgroundColor: D.line,
+    justifyContent: "center",
+  },
+  crossText: {
     fontFamily: geist.medium,
-    fontSize: 11,
+    fontSize: 10,
     color: D.text,
     fontVariant: ["tabular-nums"],
   },
+  timeTick: {
+    position: "absolute",
+    fontFamily: geist.regular,
+    fontSize: 10,
+    color: D.muted,
+    fontVariant: ["tabular-nums"],
+  },
   placeholder: {
-    height: CHART_H + 8 + VOL_H,
+    height: CHART_H + 6 + VOL_H + AXIS_H,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: D.radius,

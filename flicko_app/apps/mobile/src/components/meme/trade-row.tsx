@@ -13,7 +13,6 @@ import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
   withTiming,
 } from "react-native-reanimated";
 
@@ -33,34 +32,18 @@ import { detail as D, geist } from "@/theme";
 import { Identicon } from "./identicon";
 
 /*
- * The live trades list (Chart tab and Trades tab share it): an outlined card made of a
- * top piece (title + column header), 36px rows, and a bottom piece, so the Trades tab
- * can virtualise rows as separate list cells. Each row has a size bar anchored to the
- * right, scaled to the biggest visible trade.
+ * The trades table (Chart tab "Live trades" and the Trades tab share it): no container,
+ * 1px #1F1D26 lines between rows and between columns (none on the outer edges).
+ * Columns: Side · SKR · $TICKER · Trader · Age. Only the side word is coloured.
+ * Header and rows are separate pieces so the Trades tab can virtualise rows.
  */
-export const ROW_HEIGHT = 36;
-const BAR = { buy: "rgba(200,255,77,", sell: "rgba(255,107,122," };
+export const ROW_HEIGHT = 34;
+const LINE = D.grid;
+const HIGHLIGHT = "#17161D";
 
-/* ---- size and emphasis ---- */
-
-export interface TradeContext {
-  /** biggest SKR amount among the rows shown */
-  maxSkr: number;
-  /** the meme's 95th-percentile trade size, SKR */
-  largeSkr: number | null;
-  /** pool liquidity, SKR (1% of it counts as large) */
-  liquiditySkr: number;
-  creator: string;
-  wallet: string | undefined;
-}
-
-export const isLarge = (t: TradeView, ctx: TradeContext) =>
-  (t.wallet === ctx.creator && t.side === "sell") ||
-  (ctx.largeSkr !== null && t.skr >= ctx.largeSkr) ||
-  (ctx.liquiditySkr > 0 && t.skr >= ctx.liquiditySkr * 0.01);
-
-export const barPct = (t: TradeView, maxSkr: number) =>
-  maxSkr <= 0 ? 6 : Math.min(100, Math.max(6, (t.skr / maxSkr) * 100));
+/* Top 5% by size for this meme (the server's 95th percentile). */
+export const isLarge = (t: TradeView, largeSkr: number | null) =>
+  largeSkr !== null && t.skr >= largeSkr;
 
 /* ---- age that ticks: every second under a minute, then every minute ---- */
 
@@ -79,91 +62,92 @@ const useAge = (at: number) => {
   return label;
 };
 
-/* ---- card pieces ---- */
+/* ---- section title (Chart tab) and column header ---- */
 
-function PulseDot() {
-  const o = useSharedValue(1);
-  useEffect(() => {
-    o.value = withRepeat(withTiming(0.35, { duration: 700 }), -1, true);
-  }, [o]);
-  const style = useAnimatedStyle(() => ({ opacity: o.value }));
-  return <Animated.View style={[styles.dot, style]} />;
-}
-
-export function TradesCardTop({
-  symbol,
-  launching,
-  onSeeAll,
-}: {
-  symbol: string;
-  launching: boolean;
-  onSeeAll?: () => void;
-}) {
+export function LiveTradesTitle({ onSeeAll }: { onSeeAll: () => void }) {
   return (
-    <View style={styles.top}>
-      <View style={styles.head}>
-        <View style={styles.headLeft}>
-          <Text style={styles.headTitle}>Live trades</Text>
-          <PulseDot />
-        </View>
-        {onSeeAll && (
-          <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={10}>
-            <Text style={styles.seeAll}>See all</Text>
-          </Pressable>
-        )}
+    <View style={styles.title}>
+      <View style={styles.titleLeft}>
+        <Text style={styles.titleText}>Live trades</Text>
+        <View style={styles.dot} />
       </View>
-      <View style={styles.columns}>
-        <View style={styles.markerSpace} />
-        <Text style={[styles.colText, styles.skrCol]}>SKR</Text>
-        <Text style={[styles.colText, styles.tokCol]} numberOfLines={1}>
-          ${symbol}
-        </Text>
-        <Text style={[styles.colText, styles.traderCol]}>
-          {launching ? "Buyer" : "Trader"}
-        </Text>
-        <Text style={[styles.colText, styles.ageCol]}>Age</Text>
-      </View>
+      <Pressable accessibilityRole="button" onPress={onSeeAll} hitSlop={10}>
+        <Text style={styles.seeAll}>See all</Text>
+      </Pressable>
     </View>
   );
 }
 
-/* Closes the card; shows loading blocks or the empty line when there are no rows. */
-export function TradesCardBottom({
+export function TradesHeader({
+  symbol,
+  launching,
+}: {
+  symbol: string;
+  launching: boolean;
+}) {
+  return (
+    <View style={[styles.row, styles.headerRow]}>
+      <Text style={[styles.headText, styles.sideCol, styles.cellLine]}>
+        Side
+      </Text>
+      <Text
+        style={[styles.headText, styles.skrCol, styles.cellLine, styles.right]}
+      >
+        SKR
+      </Text>
+      <Text
+        style={[styles.headText, styles.tokCol, styles.cellLine, styles.right]}
+        numberOfLines={1}
+      >
+        ${symbol}
+      </Text>
+      <Text style={[styles.headText, styles.traderCol, styles.cellLine]}>
+        {launching ? "Buyer" : "Trader"}
+      </Text>
+      <Text style={[styles.headText, styles.ageCol, styles.right]}>Age</Text>
+    </View>
+  );
+}
+
+/* Loading rows, or the one-line empty state. */
+export function TradesFooter({
   state,
 }: {
   state: "rows" | "loading" | "empty";
 }) {
+  if (state === "empty") {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>No trades here yet</Text>
+      </View>
+    );
+  }
+  if (state !== "loading") return null;
   return (
-    <View style={styles.bottom}>
-      {state === "loading" &&
-        Array.from({ length: 6 }, (_, i) => (
-          <View key={i} style={styles.row}>
-            <View style={[styles.marker, { backgroundColor: D.grid }]} />
-            <View style={[styles.skrCol, styles.boneWrap]}>
-              <View style={[styles.bone, { width: 40 }]} />
+    <View>
+      {Array.from({ length: 6 }, (_, i) => (
+        <View key={i} style={styles.row}>
+          {[
+            styles.sideCol,
+            styles.skrCol,
+            styles.tokCol,
+            styles.traderCol,
+            styles.ageCol,
+          ].map((col, j) => (
+            <View
+              key={j}
+              style={[
+                styles.cell,
+                col,
+                j < 4 && styles.cellLine,
+                j > 0 && j < 3 && styles.end,
+              ]}
+            >
+              <View style={[styles.bone, { width: j === 3 ? 80 : 24 }]} />
             </View>
-            <View style={[styles.tokCol, styles.boneWrap]}>
-              <View style={[styles.bone, { width: 36 }]} />
-            </View>
-            <View style={[styles.traderCol, { flexDirection: "row", gap: 6 }]}>
-              <View
-                style={[
-                  styles.bone,
-                  { width: 16, height: 16, borderRadius: 8 },
-                ]}
-              />
-              <View style={[styles.bone, { width: 70 }]} />
-            </View>
-            <View style={[styles.ageCol, styles.boneWrap]}>
-              <View style={[styles.bone, { width: 20 }]} />
-            </View>
-          </View>
-        ))}
-      {state === "empty" && (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>No trades yet</Text>
+          ))}
         </View>
-      )}
+      ))}
     </View>
   );
 }
@@ -195,7 +179,6 @@ const dropIn = () => {
 export const TradeRow = memo(function TradeRow({
   trade,
   symbol,
-  bar,
   large,
   mine,
   creator,
@@ -204,8 +187,6 @@ export const TradeRow = memo(function TradeRow({
 }: {
   trade: TradeView;
   symbol: string;
-  /** size bar width, percent */
-  bar: number;
   large: boolean;
   mine: boolean;
   creator: boolean;
@@ -221,19 +202,14 @@ export const TradeRow = memo(function TradeRow({
     backgroundColor: interpolateColor(
       glow.value,
       [0, 1],
-      ["rgba(31,29,38,0)", D.grid],
+      ["rgba(23,22,29,0)", HIGHLIGHT],
     ),
   }));
 
   const buy = trade.side === "buy";
-  const tone = buy ? D.gain : D.loss;
   const who = mine ? "you" : trade.trader.replace(/^@/, "");
   return (
-    <Animated.View
-      entering={flash ? dropIn : undefined}
-      layout={slide}
-      style={styles.side}
-    >
+    <Animated.View entering={flash ? dropIn : undefined} layout={slide}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${buy ? "Buy" : "Sell"}, ${skrLive(trade.skr)} SKR, ${tokensSpoken(trade.tokens)} $${symbol}, by ${who}, ${ageSpoken(trade.at)}`}
@@ -241,24 +217,24 @@ export const TradeRow = memo(function TradeRow({
         onLongPress={() => onPress(trade)}
       >
         <Animated.View style={[styles.row, bg]}>
-          <View
-            style={[
-              styles.sizeBar,
-              {
-                width: `${bar}%`,
-                backgroundColor: `${buy ? BAR.buy : BAR.sell}${large ? 0.14 : buy ? 0.07 : 0.08})`,
-              },
-            ]}
-          />
-          <View
-            style={[styles.marker, { backgroundColor: mine ? D.accent : tone }]}
-          />
           <Text
             style={[
-              styles.num,
+              styles.text,
+              styles.sideCol,
+              styles.cellLine,
+              styles.sideText,
+              { color: buy ? D.gain : D.loss },
+            ]}
+          >
+            {buy ? "Buy" : "Sell"}
+          </Text>
+          <Text
+            style={[
+              styles.text,
               styles.skrCol,
+              styles.cellLine,
+              styles.right,
               styles.skr,
-              { color: tone },
               large && styles.large,
             ]}
             numberOfLines={1}
@@ -266,13 +242,25 @@ export const TradeRow = memo(function TradeRow({
             {skrLive(trade.skr)}
           </Text>
           <Text
-            style={[styles.num, styles.tokCol, styles.tokens]}
+            style={[
+              styles.text,
+              styles.tokCol,
+              styles.cellLine,
+              styles.right,
+              styles.tokens,
+            ]}
             numberOfLines={1}
           >
             {tokensLive(trade.tokens)}
           </Text>
-          <View style={[styles.traderCol, styles.trader]}>
-            <Identicon address={trade.wallet} />
+          <View style={[styles.traderCol, styles.cellLine, styles.trader]}>
+            {mine ? (
+              <View style={[styles.avatar, { backgroundColor: D.accent }]} />
+            ) : trade.traderIsAddress ? (
+              <View style={[styles.avatar, { backgroundColor: D.line }]} />
+            ) : (
+              <Identicon address={trade.wallet} />
+            )}
             <Text
               style={
                 mine
@@ -285,13 +273,15 @@ export const TradeRow = memo(function TradeRow({
             >
               {mine ? "You" : trade.trader}
             </Text>
-            {creator && (
+            {creator && !mine && (
               <View style={styles.tag}>
                 <Text style={styles.tagText}>Creator</Text>
               </View>
             )}
           </View>
-          <Text style={[styles.num, styles.ageCol, styles.age]}>{age}</Text>
+          <Text style={[styles.text, styles.ageCol, styles.right, styles.age]}>
+            {age}
+          </Text>
         </Animated.View>
       </Pressable>
     </Animated.View>
@@ -389,66 +379,61 @@ export function TradeSheet({
 }
 
 const styles = StyleSheet.create({
-  top: {
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: D.line,
-    borderTopLeftRadius: D.radius,
-    borderTopRightRadius: D.radius,
-  },
-  head: {
-    height: 40,
-    paddingHorizontal: 12,
+  title: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: D.line,
+    marginBottom: 8,
   },
-  headLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
-  headTitle: { fontFamily: geist.semibold, fontSize: 14, color: D.text },
+  titleLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  titleText: { fontFamily: geist.semibold, fontSize: 15, color: D.text },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: D.gain },
   seeAll: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
-  columns: {
-    height: 28,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  colText: { fontFamily: geist.regular, fontSize: 11, color: D.muted },
-  side: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: D.line },
-  bottom: {
-    minHeight: 8,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: D.line,
-    borderBottomLeftRadius: D.radius,
-    borderBottomRightRadius: D.radius,
-  },
   row: {
     height: ROW_HEIGHT,
-    paddingHorizontal: 12,
     flexDirection: "row",
-    alignItems: "center",
-    overflow: "hidden",
+    alignItems: "stretch",
+    borderBottomWidth: 1,
+    borderBottomColor: LINE,
   },
-  sizeBar: { position: "absolute", right: 0, top: 0, bottom: 0 },
-  marker: { width: 3, height: 16, borderRadius: 2 },
-  markerSpace: { width: 3 },
-  skrCol: { width: 72, marginLeft: 8, textAlign: "right" },
-  tokCol: { width: 64, marginLeft: 12, textAlign: "right" },
-  traderCol: { flex: 1, marginLeft: 12 },
-  ageCol: { width: 36, textAlign: "right" },
-  num: { fontVariant: ["tabular-nums"] },
-  skr: { fontFamily: geist.medium, fontSize: 13 },
+  headerRow: { height: 28, borderTopWidth: 1, borderTopColor: LINE },
+  headText: {
+    fontFamily: geist.regular,
+    fontSize: 12,
+    color: D.muted,
+    paddingHorizontal: 8,
+    textAlignVertical: "center",
+    lineHeight: 27,
+  },
+  cell: { paddingHorizontal: 8, justifyContent: "center" },
+  end: { alignItems: "flex-end" },
+  // a line on the right of every column but the last
+  cellLine: { borderRightWidth: 1, borderRightColor: LINE },
+  // outer edges have no padding
+  sideCol: { width: 44, paddingLeft: 0 },
+  skrCol: { width: 64 },
+  tokCol: { width: 64 },
+  traderCol: { flex: 1 },
+  ageCol: { width: 40, paddingRight: 0 },
+  text: {
+    fontSize: 13,
+    paddingHorizontal: 8,
+    textAlignVertical: "center",
+    lineHeight: ROW_HEIGHT - 1,
+    fontVariant: ["tabular-nums"],
+  },
+  right: { textAlign: "right" },
+  sideText: { fontFamily: geist.medium },
+  skr: { fontFamily: geist.medium, color: D.text },
   large: { fontFamily: geist.semibold },
-  tokens: { fontFamily: geist.regular, fontSize: 13, color: D.secondary },
+  tokens: { fontFamily: geist.regular, color: D.secondary },
   trader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingRight: 8,
+    paddingHorizontal: 8,
   },
+  avatar: { width: 16, height: 16, borderRadius: 8 },
   handle: {
     flexShrink: 1,
     fontFamily: geist.regular,
@@ -468,17 +453,23 @@ const styles = StyleSheet.create({
     color: D.text,
   },
   tag: {
-    height: 18,
-    paddingHorizontal: 6,
-    borderRadius: 9,
-    backgroundColor: D.line,
+    height: 16,
+    paddingHorizontal: 5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: D.pending,
     justifyContent: "center",
   },
   tagText: { fontFamily: geist.semibold, fontSize: 10, color: D.secondary },
   age: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
-  boneWrap: { alignItems: "flex-end" },
-  bone: { height: 10, borderRadius: 3, backgroundColor: D.grid },
-  empty: { height: 48, alignItems: "center", justifyContent: "center" },
+  bone: { height: 10, borderRadius: 3, backgroundColor: LINE },
+  empty: {
+    height: 56,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: LINE,
+  },
   emptyText: { fontFamily: geist.regular, fontSize: 13, color: D.muted },
   dim: {
     position: "absolute",

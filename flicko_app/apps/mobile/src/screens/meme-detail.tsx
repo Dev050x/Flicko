@@ -41,10 +41,9 @@ import { ChartTab } from "@/components/meme/chart-tab";
 import {
   TradeRow,
   TradeSheet,
-  TradesCardBottom,
-  TradesCardTop,
+  TradesFooter,
+  TradesHeader,
   ROW_HEIGHT,
-  barPct,
   isLarge,
 } from "@/components/meme/trade-row";
 import { useToast } from "@/components/ui/toast";
@@ -185,17 +184,6 @@ export default function MemeDetail() {
   }, [tradesQ.data]);
   const live = useLiveTrades(tradeSource, scrolledDown || touching, filter);
   const largeSkr = tradesQ.data?.pages[0]?.largeSkr ?? null;
-  // The size bars' max only changes when the shown rows do.
-  const tradeCtx = useMemo(
-    () => ({
-      maxSkr: Math.max(0, ...live.rows.map((t) => t.skr)),
-      largeSkr,
-      liquiditySkr: meme?.liquiditySkr ?? 0,
-      creator: meme?.creator.wallet ?? "",
-      wallet,
-    }),
-    [live.rows, largeSkr, meme?.liquiditySkr, meme?.creator.wallet, wallet],
-  );
 
   const items = useMemo<PageItem[]>(
     () =>
@@ -382,7 +370,7 @@ export default function MemeDetail() {
   const barHeight = launching ? BUTTON + 26 : BUTTON;
   const tabMinHeight =
     height - insets.top - 56 - tabsH.current - barHeight - insets.bottom;
-  const renderKey = `${tab}|${filter}|${live.fresh}|${tradeCtx.maxSkr}|${refreshing}|${safety.dataUpdatedAt}|${detail.dataUpdatedAt}`;
+  const renderKey = `${tab}|${filter}|${live.fresh}|${largeSkr}|${refreshing}|${safety.dataUpdatedAt}|${detail.dataUpdatedAt}`;
 
   const topContent = (
     <View onLayout={(e) => (tabsY.current = e.nativeEvent.layout.height)}>
@@ -604,7 +592,7 @@ export default function MemeDetail() {
       case "cardTop":
         return (
           <View style={styles.cardSide}>
-            <TradesCardTop symbol={meme.symbol} launching={tradesLaunching} />
+            <TradesHeader symbol={meme.symbol} launching={tradesLaunching} />
           </View>
         );
       case "trade":
@@ -613,8 +601,7 @@ export default function MemeDetail() {
             <TradeRow
               trade={item.trade}
               symbol={meme.symbol}
-              bar={barPct(item.trade, tradeCtx.maxSkr)}
-              large={isLarge(item.trade, tradeCtx)}
+              large={isLarge(item.trade, largeSkr)}
               mine={!!wallet && item.trade.wallet === wallet}
               creator={item.trade.wallet === meme.creator.wallet}
               flash={item.trade.id === live.fresh}
@@ -631,12 +618,12 @@ export default function MemeDetail() {
               {
                 minHeight: Math.max(
                   0,
-                  tabMinHeight - 128 - live.rows.length * ROW_HEIGHT,
+                  tabMinHeight - 88 - live.rows.length * ROW_HEIGHT,
                 ),
               },
             ]}
           >
-            <TradesCardBottom
+            <TradesFooter
               state={
                 tradesQ.isLoading
                   ? "loading"
@@ -1020,10 +1007,12 @@ const styles = StyleSheet.create({
     height: 32,
     paddingHorizontal: 14,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: D.line,
     alignItems: "center",
     justifyContent: "center",
   },
-  filterChipOn: { backgroundColor: D.chipOn },
+  filterChipOn: { backgroundColor: D.chipOn, borderColor: D.chipOn },
   filterText: { fontFamily: geist.medium, fontSize: 13, color: D.secondary },
   filterTextOn: { color: D.bg },
   cardSide: { paddingHorizontal: PAD },
