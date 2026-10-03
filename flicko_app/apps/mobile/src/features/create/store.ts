@@ -203,14 +203,11 @@ export const captionOf = (
       ? { top: "", bottom: "" }
       : (s.suggestions[s.choice] ?? { top: "", bottom: "" });
 
-const titleCase = (word: string) =>
-  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-
-/** "LASER EYES ON" → "Laser Eyes On", at most 32 characters of whole words. */
+/** The caption's words as written, at most 32 characters of whole words. */
 export const suggestName = ({ top, bottom }: Caption) => {
   let name = "";
   for (const word of `${top} ${bottom}`.split(/\s+/).filter(Boolean)) {
-    const next = name ? `${name} ${titleCase(word)}` : titleCase(word);
+    const next = name ? `${name} ${word}` : word;
     if (next.length > 32) break;
     name = next;
   }

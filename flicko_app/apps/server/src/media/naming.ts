@@ -3,11 +3,9 @@ export const MAX_SYMBOL_BYTES = 10;
 
 const byteLength = (text: string) => Buffer.byteLength(text, "utf8");
 
-const titleCase = (word: string) =>
-  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-
+/* The caption's words as written (no case change), up to MAX_NAME_BYTES. */
 export const suggestName = (top: string, bottom: string) => {
-  const words = `${top} ${bottom}`.split(/\s+/).filter(Boolean).map(titleCase);
+  const words = `${top} ${bottom}`.split(/\s+/).filter(Boolean);
   let name = "";
   for (const word of words) {
     const next = name ? `${name} ${word}` : word;

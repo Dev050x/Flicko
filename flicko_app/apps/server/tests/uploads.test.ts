@@ -342,7 +342,7 @@ describe("POST /uploads/:id/finalize", () => {
     expect(status).toBe(200);
     expect(body).toMatchObject({
       uploadId: id,
-      name: "Gm Ser Wen Moon",
+      name: "GM SER WEN MOON",
       symbol: "GSWM",
     });
     expect(body.imageHash).toMatch(/^[0-9a-f]{64}$/);
@@ -360,7 +360,7 @@ describe("POST /uploads/:id/finalize", () => {
       new TextDecoder().decode(await blobs.get(`memes/${body.imageHash}.json`)),
     );
     expect(metadata).toMatchObject({
-      name: "Gm Ser Wen Moon",
+      name: "GM SER WEN MOON",
       symbol: "GSWM",
       image: body.imageUrl,
       properties: { category: "image" },
@@ -377,7 +377,7 @@ describe("POST /uploads/:id/finalize", () => {
       metadataUri: body.uri,
       captionTop: "GM SER",
       captionBottom: "WEN MOON",
-      name: "Gm Ser Wen Moon",
+      name: "GM SER WEN MOON",
       symbol: "GSWM",
     });
   });
@@ -423,9 +423,9 @@ describe("POST /uploads/:id/finalize", () => {
 });
 
 describe("naming", () => {
-  test("names fit in 32 bytes at a word boundary", () => {
+  test("names keep the caption casing and fit in 32 bytes at a word boundary", () => {
     expect(suggestName("when the dip keeps", "dipping forever and ever")).toBe(
-      "When The Dip Keeps Dipping",
+      "when the dip keeps dipping",
     );
     expect(suggestName("", "")).toBe("Flicko Meme");
     expect(
