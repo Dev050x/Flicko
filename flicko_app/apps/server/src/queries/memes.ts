@@ -20,6 +20,13 @@ export interface MemeCard {
   tradeCount: number;
   launchProgressBps: number;
   createdAt: string;
+  /** base units (6 decimals) */
+  totalSupply: string;
+  /** base units sold in launch (out of totalSupply × 4/5) */
+  tokensSold: string;
+  /** SKR base units per whole token */
+  startPrice: string;
+  graduatedAt: string | null;
 }
 
 export interface MemeDetail extends MemeCard {
@@ -151,6 +158,10 @@ export const toCard = (row: CardRow): MemeCard => ({
   tradeCount: row.tradeCount,
   launchProgressBps: progressBps(row.phase, row.tokensSold, row.totalSupply),
   createdAt: row.createdAt.toISOString(),
+  totalSupply: row.totalSupply,
+  tokensSold: row.tokensSold,
+  startPrice: row.startPrice,
+  graduatedAt: row.graduatedAt?.toISOString() ?? null,
 });
 
 export const listFeed = async (
