@@ -307,7 +307,7 @@ export const useLaunch = (onCancelled: () => void) => {
           setProblem({ kind: "text", text: "Your session expired. Sign in again to launch." });
         } else {
           if (!(err instanceof LaunchFailed || err instanceof NotSubmittedError)) {
-            console.warn("[launch] failed", err);
+            console.warn("[launch] failed", err, (err as Error)?.stack);
           }
           setProblem({ kind: "failed" });
         }

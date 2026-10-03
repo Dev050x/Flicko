@@ -1,6 +1,7 @@
 import {
   configPda,
   CREATE_MEME_SIGNATURES,
+  decodeConfigAccount,
   createMemeAccountSizes,
   getReadonlyProgram,
 } from "@flicko/sdk";
@@ -34,15 +35,23 @@ export const useLaunchConfig = () =>
     queryKey: ["launch-config", config.programId],
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<LaunchConfig> => {
-      const account = await program.account.config.fetch(configPda(programId));
-      return {
-        creationFee: BigInt(account.creationFee.toString()),
-        creatorFeeBps: account.creatorFeeBps,
-        minSupply: BigInt(account.minSupply.toString()),
-        maxSupply: BigInt(account.maxSupply.toString()),
-        minStartPrice: BigInt(account.minStartPrice.toString()),
-        maxStartPrice: BigInt(account.maxStartPrice.toString()),
-      };
+      // Decoded by hand: Anchor's coder fails on the phone's JS engine.
+      try {
+        const info = await connection.getAccountInfo(configPda(programId));
+        if (!info) throw new Error(`no Config account for program ${config.programId}`);
+        const account = decodeConfigAccount(info.data);
+        return {
+          creationFee: account.creationFee,
+          creatorFeeBps: account.creatorFeeBps,
+          minSupply: account.minSupply,
+          maxSupply: account.maxSupply,
+          minStartPrice: account.minStartPrice,
+          maxStartPrice: account.maxStartPrice,
+        };
+      } catch (err) {
+        console.warn("[launch] config fetch failed", err, (err as Error)?.stack);
+        throw err;
+      }
     },
   });
 
