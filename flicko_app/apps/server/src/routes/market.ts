@@ -3,6 +3,7 @@ import { z } from "zod";
 import { nextOffset, pageQuery, parseOr400 } from "../http/validate";
 import { optionalAuth, viewerOf } from "../middleware/auth";
 import {
+  countPumping,
   listMarket,
   listReels,
   MARKET_SORTS,
@@ -32,6 +33,9 @@ export const marketRouter = (deps: ReadDeps) =>
         items,
         nextOffset: nextOffset(query.offset, query.limit, items.length),
       });
+    })
+    .get("/market/pumping-count", async (_req, res) => {
+      res.json({ count: await countPumping(deps.db) });
     })
     .get("/reels", optionalAuth(deps.sessions), async (req, res) => {
       const { limit, offset } = parseOr400(reelsQuery, req.query);

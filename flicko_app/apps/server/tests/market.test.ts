@@ -270,3 +270,42 @@ describe("GET /reels", () => {
     expect((await get("/reels?limit=21")).status).toBe(400);
   });
 });
+
+describe("GET /market/pumping-count", () => {
+  test("counts visible memes up more than 50% in the last hour", async () => {
+    // X is up 25% on the hour, Z down 10%, Y flat: nothing pumping yet.
+    expect((await get("/market/pumping-count")).body).toEqual({ count: 0 });
+
+    const db = await migratedDb();
+    const P = key();
+    const Q = key();
+    await db.insert(memes).values([
+      meme(P, ago(120), { price: "1600" }),
+      meme(Q, ago(120), { price: "1500", hidden: true }),
+    ]);
+    await db
+      .insert(trades)
+      .values([
+        trade(P, 10, ago(90), { priceAfter: "1000" }),
+        trade(Q, 11, ago(90), { priceAfter: "900" }),
+      ]);
+    const app = await serve(
+      createApp({
+        corsOrigin: "*",
+        health: {
+          ping: async () => {},
+          cluster: "devnet",
+          programId: "p",
+          skrMint: "s",
+        },
+        read: { db },
+      }),
+    );
+    try {
+      const res = await fetch(`${app.url}/market/pumping-count`);
+      expect(await res.json()).toEqual({ count: 1 });
+    } finally {
+      app.close();
+    }
+  });
+});

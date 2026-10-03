@@ -356,3 +356,16 @@ export const listReels = async (
     };
   });
 };
+
+/*
+ * "Pumping": visible memes up more than 50% over the last hour (the camera's 🔥 pill).
+ */
+export const PUMPING_BPS = 5000;
+
+export const countPumping = async (db: Db): Promise<number> => {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(memes)
+    .where(and(visible(), sql`${changeOf("h1")} > ${PUMPING_BPS}`));
+  return row?.count ?? 0;
+};
