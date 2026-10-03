@@ -1,68 +1,120 @@
+import { memePrice, type MemeState } from "@flicko/sdk";
 import { create } from "zustand";
 
-import { MOCK_MEMES } from "./mock";
+import { config } from "@/config";
+
 import type { FeedTab, Meme } from "./types";
 
 /*
  * Feed state: memes by id (pages subscribe to their own meme, so a like re-renders one
- * page), the tab, and that tab's order. Likes and follows are optimistic; the order is
- * taken when a tab is picked, so following someone doesn't reshuffle the list under you.
+ * page), the tab, and the ids shown. Server pages are merged in with `ingest`; likes
+ * and follows are optimistic and kept here (the server has no likes or follows yet),
+ * so a refetch doesn't undo them.
  */
-interface FeedState {
+interface Local {
+  liked: Record<string, boolean>;
+  following: Record<string, boolean>;
+}
+
+interface FeedState extends Local {
   memes: Record<string, Meme>;
   tab: FeedTab;
   ids: string[];
   setTab: (tab: FeedTab) => void;
+  /**
+   * Merge the tab's loaded memes (server order). Memes already shown keep their place
+   * so the page under your finger doesn't move; `replace` (pull to refresh) re-sorts.
+   */
+  ingest: (memes: Meme[], replace?: boolean) => void;
+  /** update a meme's progress and price from its on-chain state after a trade */
+  patchFromChain: (id: string, state: MemeState) => void;
   toggleLike: (id: string) => void;
-  toggleFollow: (handle: string) => void;
+  toggleFollow: (wallet: string) => void;
 }
 
-const byId = (memes: Meme[]) => Object.fromEntries(memes.map((m) => [m.id, m]));
-
-const idsFor = (tab: FeedTab, memes: Record<string, Meme>) =>
-  Object.values(memes)
-    .filter((m) =>
-      tab === "following"
-        ? m.creator.isFollowing
-        : tab === "launching"
-          ? m.status === "launching"
-          : true,
-    )
-    .map((m) => m.id);
+const withLocal = (m: Meme, local: Local): Meme => {
+  const liked = local.liked[m.id] ?? m.likedByMe;
+  return {
+    ...m,
+    likedByMe: liked,
+    likeCount: m.likeCount + (liked && !m.likedByMe ? 1 : !liked && m.likedByMe ? -1 : 0),
+    creator: {
+      ...m.creator,
+      isFollowing: local.following[m.creator.wallet] ?? m.creator.isFollowing,
+    },
+  };
+};
 
 export const useFeedStore = create<FeedState>((set) => ({
-  memes: byId(MOCK_MEMES),
+  memes: {},
   tab: "forYou",
-  ids: MOCK_MEMES.map((m) => m.id),
-  setTab: (tab) => set((s) => ({ tab, ids: idsFor(tab, s.memes) })),
-  toggleLike: (id) =>
+  ids: [],
+  liked: {},
+  following: {},
+  setTab: (tab) => set({ tab, ids: [] }),
+  ingest: (list, replace = false) =>
+    set((s) => {
+      const memes = { ...s.memes };
+      for (const m of list) memes[m.id] = withLocal(m, s);
+      const shown =
+        s.tab === "following"
+          ? list.filter((m) => memes[m.id].creator.isFollowing)
+          : s.tab === "launching"
+            ? list.filter((m) => m.status === "launching")
+            : list;
+      // Keep memes already on screen (e.g. one you just unfollowed) where they are.
+      const kept = replace ? [] : s.ids.filter((id) => memes[id]);
+      const ids = [...new Set([...kept, ...shown.map((m) => m.id)])];
+      return { memes, ids };
+    }),
+  patchFromChain: (id, state) =>
     set((s) => {
       const m = s.memes[id];
       if (!m) return s;
-      // TODO(milestone 3): POST the like; roll back on failure.
+      const trading = state.phase === "graduated";
+      const whole = (units: bigint) => Number(units / 1_000_000n);
+      const price = Number(memePrice(state)) / 10 ** config.skrDecimals;
       return {
         memes: {
           ...s.memes,
           [id]: {
             ...m,
-            likedByMe: !m.likedByMe,
-            likeCount: m.likeCount + (m.likedByMe ? -1 : 1),
+            status: trading ? "trading" : "launching",
+            supplySold: trading ? m.supplyTotal : whole(state.tokensSold),
+            price,
+            changeSinceLaunchPct:
+              trading && m.launchPrice > 0
+                ? ((price - m.launchPrice) / m.launchPrice) * 100
+                : m.changeSinceLaunchPct,
           },
         },
       };
     }),
-  toggleFollow: (handle) =>
+  toggleLike: (id) =>
     set((s) => {
-      // TODO(milestone 3): POST the follow; roll back on failure.
+      const m = s.memes[id];
+      if (!m) return s;
+      // TODO: POST the like once the server has likes; roll back on failure.
+      const liked = !m.likedByMe;
+      return {
+        liked: { ...s.liked, [id]: liked },
+        memes: {
+          ...s.memes,
+          [id]: { ...m, likedByMe: liked, likeCount: Math.max(0, m.likeCount + (liked ? 1 : -1)) },
+        },
+      };
+    }),
+  toggleFollow: (wallet) =>
+    set((s) => {
+      // TODO: POST the follow once the server has follows; roll back on failure.
+      const current = Object.values(s.memes).find((m) => m.creator.wallet === wallet);
+      const next = !(current?.creator.isFollowing ?? false);
       const memes = { ...s.memes };
       for (const m of Object.values(memes)) {
-        if (m.creator.handle === handle) {
-          memes[m.id] = {
-            ...m,
-            creator: { ...m.creator, isFollowing: !m.creator.isFollowing },
-          };
+        if (m.creator.wallet === wallet) {
+          memes[m.id] = { ...m, creator: { ...m.creator, isFollowing: next } };
         }
       }
-      return { memes };
+      return { memes, following: { ...s.following, [wallet]: next } };
     }),
 }));

@@ -9,6 +9,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { usePriceHistory } from "@/features/feed/api";
 import { ago, duration, pct, skr } from "@/features/feed/format";
 import { useFeedStore } from "@/features/feed/store";
 import type { Meme } from "@/features/feed/types";
@@ -36,6 +37,8 @@ export function StatusCard({
   const change = meme.changeSinceLaunchPct ?? 0;
   const soldPct = meme.supplyTotal > 0 ? Math.floor((meme.supplySold / meme.supplyTotal) * 100) : 0;
   const { creator } = meme;
+  const history = usePriceHistory(meme.id, !launching && active);
+  const points = history.data ?? meme.priceHistory;
 
   return (
     <View style={styles.card}>
@@ -49,7 +52,7 @@ export function StatusCard({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${creator.isFollowing ? "Unfollow" : "Follow"} @${creator.handle}`}
-          onPress={() => toggleFollow(creator.handle)}
+          onPress={() => toggleFollow(creator.wallet)}
           hitSlop={10}
           style={[styles.follow, creator.isFollowing && styles.following]}
         >
@@ -72,7 +75,7 @@ export function StatusCard({
         </View>
         <View style={[styles.side, { alignItems: "flex-end" }]}>
           <Text style={styles.price} numberOfLines={1}>
-            {skr(launching ? meme.launchPrice : (meme.poolPrice ?? meme.launchPrice))}
+            {skr(meme.price)}
           </Text>
           {launching ? (
             <Text style={styles.small}>price now</Text>
@@ -97,14 +100,16 @@ export function StatusCard({
       </View>
       {launching ? (
         <SupplyBar sold={meme.supplySold} total={meme.supplyTotal} height={4} />
-      ) : meme.priceHistory ? (
-        <SparklineRow values={meme.priceHistory} />
-      ) : null}
+      ) : points && points.length > 1 ? (
+        <SparklineRow values={points} />
+      ) : (
+        <View style={styles.sparkline} />
+      )}
 
       {launching ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Buy $${meme.ticker} at ${skr(meme.launchPrice)}`}
+          accessibilityLabel={`Buy $${meme.ticker} at ${skr(meme.price)}`}
           onPress={onBuy}
           style={({ pressed }) => [styles.cta, styles.buy, pressed && styles.pressed]}
         >

@@ -1,9 +1,12 @@
 import type { ImageSource } from "expo-image";
 
 /*
- * A meme in the feed. Prices are SKR per token; supply counts are whole tokens.
+ * A meme in the feed. Prices are SKR per whole token; supply counts are whole tokens.
+ * `supplyTotal` / `supplySold` count the launch sale (4/5 of the meme's supply); the
+ * rest seeds the pool.
  */
 export interface Creator {
+  wallet: string;
   handle: string;
   avatarUrl: ImageSource | string;
   isFollowing: boolean;
@@ -12,6 +15,7 @@ export interface Creator {
 export type MemeStatus = "launching" | "trading";
 
 export interface Meme {
+  /** the mint address */
   id: string;
   imageUrl: ImageSource | string;
   creator: Creator;
@@ -22,10 +26,10 @@ export interface Meme {
   status: MemeStatus;
   supplyTotal: number;
   supplySold: number;
-  /** SKR */
+  /** SKR, the curve's starting price */
   launchPrice: number;
-  /** SKR, trading only */
-  poolPrice?: number;
+  /** SKR, the current curve or pool price */
+  price: number;
   /** trading only */
   changeSinceLaunchPct?: number;
   /** trading only, oldest first, for the sparkline */
