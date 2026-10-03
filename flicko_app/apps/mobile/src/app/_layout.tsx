@@ -89,9 +89,32 @@ export default function RootLayout() {
             <Stack.Protected guard={(signedIn && onboardingDone) || isGuest}>
               <Stack.Screen name="(main)" />
               <Stack.Screen name="me" options={{ animation: "slide_from_left" }} />
+            </Stack.Protected>
+            {/*
+              The create flow stays open when a guest connects mid-launch (before they
+              have picked a username); "Snap another" then leads into onboarding.
+            */}
+            <Stack.Protected guard={signedIn || isGuest}>
               <Stack.Screen
                 name="create/preview"
                 options={{ animation: "slide_from_bottom" }}
+              />
+              <Stack.Screen name="create/edit" />
+              <Stack.Screen
+                name="create/caption"
+                options={{ animation: "slide_from_right" }}
+              />
+              <Stack.Screen
+                name="create/launch"
+                options={{ animation: "slide_from_right" }}
+              />
+              <Stack.Screen
+                name="create/live"
+                options={{ animation: "fade", gestureEnabled: false }}
+              />
+              <Stack.Screen
+                name="meme/[mint]"
+                options={{ animation: "slide_from_right" }}
               />
             </Stack.Protected>
           </Stack>
