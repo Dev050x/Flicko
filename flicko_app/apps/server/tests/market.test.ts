@@ -134,7 +134,7 @@ beforeAll(async () => {
     trade(N, 6, ago(5), { skrAmount: "99000000000", priceAfter: "5000" }),
   ]);
   await db.insert(positions).values([
-    { wallet: holder, mint: X, balance: "2000000" },
+    { wallet: holder, mint: X, balance: "2000000", costBasisSkr: "2000" },
     { wallet: t2, mint: X, balance: "5" },
     { wallet: t1, mint: Z, balance: "0" },
   ]);
@@ -361,5 +361,80 @@ describe("/me/watchlist", () => {
 
     expect(await send("DELETE", `/me/watchlist/${X}`)).toBe(204);
     expect((await get("/me/watchlist", `Bearer ${token}`)).body.mints).toEqual([Z]);
+  });
+});
+
+describe("GET /memes/:mint overview", () => {
+  test("adds market stats, activity, rank and creator share", async () => {
+    const { status, body } = await get(`/memes/${X}`);
+    expect(status).toBe(200);
+    expect(body.meme.mint).toBe(X);
+    expect(body.overview).toMatchObject({
+      market: {
+        price: "1500",
+        liquidity: "1000",
+        holders: 2,
+        change: { m5: 2500, h1: 2500, h6: 5000, h24: 5000 },
+        txns: { h24: 2 },
+        buys24h: 1,
+        sells24h: 1,
+        buyers24h: 1,
+        sellers24h: 1,
+      },
+      trendingRank: 1,
+      creatorBalance: "0",
+      creatorHoldsBps: 0,
+      creatorMemes: 5,
+      reactions: { rocket: 0, fire: 0, poop: 0 },
+      myReactions: [],
+      position: null,
+    });
+    // Y has no trades today, so it isn't ranked; hidden memes still have a page.
+    expect((await get(`/memes/${Y}`)).body.overview.trendingRank).toBeNull();
+    expect((await get(`/memes/${H}`)).status).toBe(200);
+  });
+
+  test("includes the signed-in viewer's position", async () => {
+    const { body } = await get(`/memes/${X}`, `Bearer ${token}`);
+    expect(body.overview.position).toEqual({
+      balance: "2000000",
+      avgBuyPrice: "1000",
+      value: "3000",
+      costBasis: "2000",
+      pnl: "1000",
+      pnlBps: 5000,
+    });
+  });
+});
+
+describe("reactions", () => {
+  const send = async (method: string, path: string, body?: unknown, auth = `Bearer ${token}`) =>
+    (
+      await fetch(`${url}${path}`, {
+        method,
+        headers: { authorization: auth, "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+    ).status;
+
+  test("one of each kind per wallet, undoable", async () => {
+    expect(await send("POST", `/memes/${Z}/react`, { kind: "rocket" }, "")).toBe(401);
+    expect(await send("POST", `/memes/${Z}/react`, { kind: "rocket" })).toBe(204);
+    expect(await send("POST", `/memes/${Z}/react`, { kind: "rocket" })).toBe(204);
+    expect(await send("POST", `/memes/${Z}/react`, { kind: "fire" })).toBe(204);
+    expect(await send("POST", `/memes/${Z}/react`, { kind: "heart" })).toBe(400);
+    expect(await send("POST", `/memes/${key()}/react`, { kind: "fire" })).toBe(404);
+
+    const mine = (await get(`/memes/${Z}`, `Bearer ${token}`)).body.overview;
+    expect(mine.reactions).toEqual({ rocket: 1, fire: 1, poop: 0 });
+    expect([...mine.myReactions].sort()).toEqual(["fire", "rocket"]);
+    expect((await get(`/memes/${Z}`)).body.overview.myReactions).toEqual([]);
+
+    expect(await send("DELETE", `/memes/${Z}/react/fire`)).toBe(204);
+    expect((await get(`/memes/${Z}`)).body.overview.reactions).toEqual({
+      rocket: 1,
+      fire: 0,
+      poop: 0,
+    });
   });
 });

@@ -52,6 +52,9 @@ export interface MarketRow {
   buys24h: number;
   sells24h: number;
   makers24h: number;
+  /** distinct wallets that bought / sold in the last 24h */
+  buyers24h: number;
+  sellers24h: number;
   sparkline: string[];
 }
 
@@ -74,6 +77,8 @@ export interface MarketQuery {
   q?: string;
   /** only these mints (the watchlist) */
   mints?: string[];
+  /** include hidden and image-less memes (a meme's own page) */
+  includeHidden?: boolean;
   limit: number;
   offset: number;
 }
@@ -117,6 +122,12 @@ const statsSub = (db: Db) =>
       txH24: sql<number>`count(*)`.as("tx_h24"),
       buys: sql<number>`count(*) filter (where ${trades.isBuy})`.as("buys"),
       makers: sql<number>`count(distinct ${trades.trader})`.as("makers"),
+      buyers:
+        sql<number>`count(distinct ${trades.trader}) filter (where ${trades.isBuy})`.as("buyers"),
+      sellers:
+        sql<number>`count(distinct ${trades.trader}) filter (where not ${trades.isBuy})`.as(
+          "sellers",
+        ),
       buyersH1:
         sql<number>`count(distinct ${trades.trader}) filter (where ${trades.isBuy} and ${trades.blockTime} > ${since("h1")})`.as(
           "buyers_h1",
@@ -210,6 +221,8 @@ const baseQuery = (db: Db) => {
       txH24: sql<number>`${txns.h24}::int`,
       buys24h: sql<number>`coalesce(${stats.buys}, 0)::int`,
       makers24h: sql<number>`coalesce(${stats.makers}, 0)::int`,
+      buyers24h: sql<number>`coalesce(${stats.buyers}, 0)::int`,
+      sellers24h: sql<number>`coalesce(${stats.sellers}, 0)::int`,
     })
     .from(memes)
     .leftJoin(users, eq(users.wallet, memes.creator))
@@ -277,6 +290,8 @@ const toMarketRow = (row: BaseRow, sparkline: string[]): MarketRow => ({
   buys24h: row.buys24h,
   sells24h: row.txH24 - row.buys24h,
   makers24h: row.makers24h,
+  buyers24h: row.buyers24h,
+  sellers24h: row.sellers24h,
   sparkline: sparkline.length ? sparkline : [row.price],
 });
 
@@ -301,7 +316,7 @@ export const listMarket = async (
   const tiebreak =
     q.sort === "trending" ? [desc(volume.h24), desc(memes.createdAt)] : [];
 
-  const filters: SQL[] = [visible()];
+  const filters: SQL[] = q.includeHidden ? [] : [visible()];
   if (q.phase !== "all") filters.push(eq(memes.phase, q.phase));
   if (q.mints) {
     if (q.mints.length === 0) return [];
@@ -319,7 +334,7 @@ export const listMarket = async (
   }
 
   const rows = await query
-    .where(and(...filters))
+    .where(filters.length ? and(...filters) : undefined)
     .orderBy(direction(primary), ...tiebreak, asc(memes.mint))
     .limit(q.limit)
     .offset(q.offset);
@@ -418,4 +433,16 @@ export const marketStats = async (db: Db): Promise<MarketStats> => {
     trades24h: traded?.count ?? 0,
     launchesToday: launched?.count ?? 0,
   };
+};
+
+/* A meme's place on the Trending list (1-based), or null outside the top `limit`. */
+export const trendingRank = async (db: Db, mint: string, limit = 20) => {
+  const { query, trending, volume } = baseQuery(db);
+  const rows = await query
+    .where(visible())
+    .orderBy(desc(trending), desc(volume.h24), desc(memes.createdAt), asc(memes.mint))
+    .limit(limit);
+  // memes with no trades today don't count as trending
+  const index = rows.filter((row) => row.txH24 > 0).findIndex((row) => row.mint === mint);
+  return index < 0 ? null : index + 1;
 };
