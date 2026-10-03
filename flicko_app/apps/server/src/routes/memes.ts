@@ -44,9 +44,7 @@ const candleQuery = z.object({
   tf: z.enum(CHART_TFS).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
 });
-const holdersQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
+const holdersQuery = pageQuery(100, 50);
 
 const tradesQuery = pageQuery(100, 50).extend({
   side: z.enum(["buy", "sell"]).optional(),
@@ -111,10 +109,10 @@ export const memesRouter = (deps: ReadDeps) => {
       const mint = await knownMint(deps.db, req.params);
       res.json({ points: await soldOverTime(deps.db, mint) });
     })
-    .get("/memes/:mint/holders", async (req, res) => {
-      const { limit } = parseOr400(holdersQuery, req.query);
+    .get("/memes/:mint/holders", optionalAuth(deps.sessions), async (req, res) => {
+      const { limit, offset } = parseOr400(holdersQuery, req.query);
       const mint = await knownMint(deps.db, req.params);
-      res.json(await listHolders(deps.db, mint, limit));
+      res.json(await listHolders(deps.db, mint, limit, offset, viewerOf(res)));
     });
 
   if (deps.sessions) {

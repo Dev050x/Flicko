@@ -536,25 +536,28 @@ describe("meme page tabs", () => {
     expect(Date.parse(body.points[0].time)).toBeLessThan(Date.parse(body.points[1].time));
   });
 
-  test("holders list the vault first, then wallets by balance", async () => {
-    const { status, body } = await get(`/memes/${Z}/holders`);
-    expect(status).toBe(200);
-    // Z is launching: the vault holds everything not yet sold (1.5e12 − 2e11).
-    expect(body.items[0]).toMatchObject({
-      rank: 1,
-      wallet: null,
-      kind: "pool",
-      balance: "1300000000000",
-      shareBps: 8666,
-    });
-    expect(body.total).toBe(0);
+  test("holders: ranked wallets, pool on its own, the viewer's row and paging", async () => {
+    // Z is launching: no pool yet, no holders.
+    const z = (await get(`/memes/${Z}/holders`)).body;
+    expect(z).toMatchObject({ total: 0, pool: null, items: [], nextOffset: null, me: null });
 
     const x = (await get(`/memes/${X}/holders`)).body;
     expect(x.total).toBe(2);
-    expect(x.items.slice(1)).toEqual([
-      { rank: 2, wallet: holder, username: null, kind: "holder", balance: "2000000", shareBps: 0, value: "3000" },
-      { rank: 3, wallet: t2, username: "whale", kind: "holder", balance: "5", shareBps: 0, value: "0" },
+    expect(x.pool).toEqual({ balance: "0", shareBps: 0, value: "0" });
+    expect(x.items).toEqual([
+      { rank: 1, wallet: holder, username: null, isCreator: false, balance: "2000000", shareBps: 0, value: "3000" },
+      { rank: 2, wallet: t2, username: "whale", isCreator: false, balance: "5", shareBps: 0, value: "0" },
     ]);
+    expect(x.me).toBeNull();
+
+    const page = (await get(`/memes/${X}/holders?limit=1&offset=1`)).body;
+    expect(page.items.map((h: { rank: number }) => h.rank)).toEqual([2]);
+    expect(page.nextOffset).toBeNull();
+    expect((await get(`/memes/${X}/holders?limit=1`)).body.nextOffset).toBe(1);
+
+    // the signed-in holder gets their own row back, with its rank
+    const mine = (await get(`/memes/${X}/holders?limit=1&offset=1`, `Bearer ${token}`)).body;
+    expect(mine.me).toMatchObject({ rank: 1, wallet: holder, balance: "2000000" });
     expect((await get(`/memes/${key()}/holders`)).status).toBe(404);
   });
 });

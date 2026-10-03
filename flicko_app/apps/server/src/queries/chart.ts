@@ -113,11 +113,11 @@ export const chartCandles = async (
 };
 
 export interface HolderRow {
+  /** 1-based among wallets (the pool isn't ranked) */
   rank: number;
-  /** null for the pool row */
-  wallet: string | null;
+  wallet: string;
   username: string | null;
-  kind: "pool" | "creator" | "holder";
+  isCreator: boolean;
   /** token base units */
   balance: string;
   /** of total supply, basis points */
@@ -127,99 +127,123 @@ export interface HolderRow {
 }
 
 export interface Holders {
+  /** wallets holding more than zero (same count as the Overview) */
   total: number;
-  /** share of supply held by the 10 largest wallets (pool excluded), bps */
+  /** share of supply held by the 10 largest wallets, pool excluded, bps */
   top10Bps: number;
   creatorBps: number;
+  /** the locked pool once graduated; null during launch (there is no pool yet) */
+  pool: { balance: string; shareBps: number; value: string } | null;
   items: HolderRow[];
+  nextOffset: number | null;
+  /** the signed-in wallet's own row, wherever it ranks */
+  me: HolderRow | null;
 }
 
 const bps = (part: bigint, whole: bigint) =>
   whole === 0n ? 0 : Number((part * 10_000n) / whole);
 
 /*
- * Holders, largest first, after one row for the program's token vault: the pool once
- * graduated, or during launch the unsold sale plus the reserved pool tokens.
+ * Holders, largest first (ties by wallet), paged. The pool is reported on its own and
+ * never counted in the ranks or the Top 10.
  */
-export const listHolders = async (db: Db, mint: string, limit: number): Promise<Holders | null> => {
+export const listHolders = async (
+  db: Db,
+  mint: string,
+  limit: number,
+  offset: number,
+  viewer?: string,
+): Promise<Holders | null> => {
   const [meme] = await db
     .select({
       creator: memes.creator,
       phase: memes.phase,
       price: memes.price,
       totalSupply: memes.totalSupply,
-      tokensSold: memes.tokensSold,
       poolTokens: memes.poolTokens,
     })
     .from(memes)
     .where(eq(memes.mint, mint));
   if (!meme) return null;
 
+  const supply = BigInt(meme.totalSupply);
+  const price = BigInt(meme.price);
+  const value = (balance: bigint) => ((balance * price) / TOKEN_UNIT).toString();
+  const toRow = (
+    rank: number,
+    row: { wallet: string; balance: string; username: string | null },
+  ): HolderRow => ({
+    rank,
+    wallet: row.wallet,
+    username: row.username,
+    isCreator: row.wallet === meme.creator,
+    balance: row.balance,
+    shareBps: bps(BigInt(row.balance), supply),
+    value: value(BigInt(row.balance)),
+  });
+
   const held = and(eq(positions.mint, mint), sql`${positions.balance} > 0`);
-  const [rows, [counts], top] = await Promise.all([
+  const [rows, [counts], top, creator] = await Promise.all([
     db
       .select({ wallet: positions.wallet, balance: positions.balance, username: users.username })
       .from(positions)
       .leftJoin(users, eq(users.wallet, positions.wallet))
       .where(held)
       .orderBy(desc(positions.balance), asc(positions.wallet))
-      .limit(limit),
-    db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(positions)
-      .where(held),
+      .limit(limit)
+      .offset(offset),
+    db.select({ n: sql<number>`count(*)::int` }).from(positions).where(held),
     db
       .select({ balance: positions.balance })
       .from(positions)
       .where(held)
       .orderBy(desc(positions.balance))
       .limit(10),
-  ]);
-
-  const supply = BigInt(meme.totalSupply);
-  const price = BigInt(meme.price);
-  const value = (balance: bigint) => ((balance * price) / TOKEN_UNIT).toString();
-  const vault =
-    meme.phase === "graduated" ? BigInt(meme.poolTokens) : supply - BigInt(meme.tokensSold);
-  const creatorBalance = BigInt(
-    (await db
+    db
       .select({ balance: positions.balance })
       .from(positions)
       .where(and(eq(positions.mint, mint), eq(positions.wallet, meme.creator)))
-      .then((r) => r[0]?.balance)) ?? "0",
-  );
+      .then((r) => BigInt(r[0]?.balance ?? "0")),
+  ]);
 
-  const items: HolderRow[] = [
-    {
-      rank: 1,
-      wallet: null,
-      username: null,
-      kind: "pool",
-      balance: vault.toString(),
-      shareBps: bps(vault, supply),
-      value: value(vault),
-    },
-    ...rows.map((row, i) => {
-      const balance = BigInt(row.balance);
-      return {
-        rank: i + 2,
-        wallet: row.wallet,
-        username: row.username,
-        kind: row.wallet === meme.creator ? ("creator" as const) : ("holder" as const),
-        balance: row.balance,
-        shareBps: bps(balance, supply),
-        value: value(balance),
-      };
-    }),
-  ];
+  let me: HolderRow | null = null;
+  if (viewer) {
+    const [mine] = await db
+      .select({ wallet: positions.wallet, balance: positions.balance, username: users.username })
+      .from(positions)
+      .leftJoin(users, eq(users.wallet, positions.wallet))
+      .where(and(held, eq(positions.wallet, viewer)));
+    if (mine) {
+      // rank = wallets ahead in the same order (bigger balance, or equal and earlier wallet)
+      const [ahead] = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(positions)
+        .where(
+          and(
+            held,
+            sql`(${positions.balance} > ${mine.balance} or (${positions.balance} = ${mine.balance} and ${positions.wallet} < ${viewer}))`,
+          ),
+        );
+      me = toRow((ahead?.n ?? 0) + 1, mine);
+    }
+  }
+
+  const poolBalance = BigInt(meme.poolTokens);
+  const total = counts?.n ?? 0;
   return {
-    total: counts?.n ?? 0,
+    total,
     top10Bps: bps(
       top.reduce((sum, r) => sum + BigInt(r.balance), 0n),
       supply,
     ),
-    creatorBps: bps(creatorBalance, supply),
-    items,
+    creatorBps: bps(creator, supply),
+    pool:
+      meme.phase === "graduated"
+        ? { balance: poolBalance.toString(), shareBps: bps(poolBalance, supply), value: value(poolBalance) }
+        : null,
+    items: rows.map((row, i) => toRow(offset + i + 1, row)),
+    nextOffset: offset + rows.length < total ? offset + rows.length : null,
+    me,
   };
 };
 
