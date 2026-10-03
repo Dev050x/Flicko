@@ -39,7 +39,7 @@ import { colors, fonts, market, mono } from "@/theme";
  * sort, with a 24h stats strip. Pull to refresh; refetches every 15s while visible.
  */
 const TABS: { id: MarketTab; label: string }[] = [
-  { id: "watchlist", label: "★ Watchlist" },
+  { id: "watchlist", label: "Watchlist" },
   { id: "trending", label: "Trending" },
   { id: "new", label: "New" },
   { id: "gainers", label: "Gainers" },
@@ -234,6 +234,9 @@ export default function Markets() {
               onPress={() => pickTab(t.id)}
               style={[styles.tab, on ? styles.tabOn : styles.tabOff]}
             >
+              {t.id === "watchlist" && (
+                <StarIcon size={18} filled={on} color={on ? colors.bg : colors.textMuted} />
+              )}
               <Text style={[styles.tabText, on ? styles.tabTextOn : styles.tabTextOff]}>
                 {t.label}
               </Text>
@@ -428,7 +431,9 @@ const styles = StyleSheet.create({
     height: 34,
     paddingHorizontal: 13,
     borderRadius: 17,
-    justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   tabOn: { backgroundColor: colors.text },
   tabOff: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
