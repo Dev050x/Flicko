@@ -12,3 +12,4 @@ export * from "./quote/quote";
 export * from "./builders/builders";
 export * from "./attestation/attestation";
 export * from "./launch/launch";
+export * from "./accounts/config";
