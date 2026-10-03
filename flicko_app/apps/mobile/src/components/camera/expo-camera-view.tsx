@@ -10,6 +10,9 @@ import type { CameraLayerRef } from "./camera-view";
 
 export { composePhoto } from "@/features/filters/apply-filter";
 
+/** No face detection in this fallback. */
+export const detectsFaces = false;
+
 /*
  * Fallback camera for builds without VisionCamera (Expo Go): expo-camera preview with
  * the filter shown as a static tint. The captured photo still gets the full matrix and

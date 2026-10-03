@@ -22,6 +22,9 @@ import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
 
 export { composePhoto } from "@/features/filters/apply-filter";
+
+/** VisionCamera builds find the eyes in the captured photo. */
+export const detectsFaces = true;
 export { useCameraPermission } from "react-native-vision-camera";
 
 /*

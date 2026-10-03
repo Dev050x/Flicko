@@ -3,8 +3,9 @@ import type { ImageSourcePropType } from "react-native";
 import type { Filter } from "./catalog";
 
 /*
- * Where a filter's overlay art goes. The live preview (React Native images) and the
- * captured photo (Skia) both draw these placements, so what you see is what you post.
+ * Where a filter's overlay art goes, always inside the capture rect (the part of the
+ * preview that is saved). The live preview (React Native images) and the captured
+ * photo (Skia) both draw these placements, so what you see is what you post.
  */
 export interface Point {
   x: number;
@@ -19,6 +20,16 @@ export interface Rect {
 export interface Eyes {
   left: Point; // smaller x in the picture
   right: Point;
+}
+
+/*
+ * A sticker's centre as a fraction of the capture rect, and its scale (1 = 28% of the
+ * rect's width). Fractions keep it in the same place on the preview and the photo.
+ */
+export interface StickerPose {
+  x: number;
+  y: number;
+  scale: number;
 }
 
 /*
@@ -41,21 +52,58 @@ export interface Placement {
 
 /*
  * laser-beam.png is 1024x256 with the beam's source dot at (28, 128); deal-with-it.png
- * is 1024x256 with the glasses centred at (480, 128).
+ * is 1024x256 with the glasses centred at (480, 128). Frames are 1080x1350 (4:5) and
+ * are fitted inside the rect, never stretched; stickers are square.
  */
 const LASER = { anchorX: 28 / 1024, anchorY: 0.5, aspect: 4, angle: -25 };
 const GLASSES = { anchorX: 480 / 1024, anchorY: 0.5, aspect: 4, scale: 1.6 };
-const STICKER = { size: 0.36, right: 0.04, bottom: 0.2 };
+const FRAME_ASPECT = 1080 / 1350;
+export const STICKER_SIZE = 0.28;
+const STICKER_INSET = 0.04;
+const FACE_LINE = 0.38;
 
 /*
- * Rough eye position for the live view and for photos without a detected face: centred,
- * 42% from the top of the preview.
+ * Rough eye position until a face is detected (the live view, and photos without one):
+ * centred, 38% down the capture rect.
  */
-export const approxEyes = (view: Rect): Eyes => {
-  const spread = view.width * 0.12;
-  const y = view.y + view.height * 0.42;
-  const x = view.x + view.width / 2;
+export const approxEyes = (rect: Rect): Eyes => {
+  const spread = rect.width * 0.12;
+  const y = rect.y + rect.height * FACE_LINE;
+  const x = rect.x + rect.width / 2;
   return { left: { x: x - spread, y }, right: { x: x + spread, y } };
+};
+
+/*
+ * Top-right of the rect. `clearBelow` (screen y) keeps the sticker under controls that
+ * overlap the rect's top, like the right rail.
+ */
+export const defaultStickerPose = (rect: Rect, clearBelow = rect.y): StickerPose => {
+  const size = rect.width * STICKER_SIZE;
+  const inset = rect.width * STICKER_INSET;
+  const top = Math.max(rect.y + inset, clearBelow);
+  return {
+    x: (rect.width - inset - size / 2) / rect.width,
+    y: Math.min(1, (top - rect.y + size / 2) / rect.height),
+    scale: 1,
+  };
+};
+
+/*
+ * The largest rect of `aspect` (width / height) that fits inside `box`, centred.
+ */
+export const containRect = (box: Rect, aspect: number): Rect => {
+  let width = box.width;
+  let height = width / aspect;
+  if (height > box.height) {
+    height = box.height;
+    width = height * aspect;
+  }
+  return {
+    x: box.x + (box.width - width) / 2,
+    y: box.y + (box.height - height) / 2,
+    width,
+    height,
+  };
 };
 
 const degrees = (radians: number) => (radians * 180) / Math.PI;
@@ -64,18 +112,20 @@ export const placementsFor = (
   filter: Filter,
   crop: Rect,
   eyes: Eyes,
+  sticker?: StickerPose,
 ): Placement[] => {
   const source = filter.overlay;
   if (!source) return [];
 
   if (filter.type === "frame") {
+    const fit = containRect(crop, FRAME_ASPECT);
     return [
       {
         source,
-        x: crop.x,
-        y: crop.y,
-        width: crop.width,
-        height: crop.height,
+        x: fit.x,
+        y: fit.y,
+        width: fit.width,
+        height: fit.height,
         anchorX: 0,
         anchorY: 0,
         steps: [],
@@ -84,16 +134,17 @@ export const placementsFor = (
   }
 
   if (filter.type === "sticker") {
-    const size = crop.width * STICKER.size;
+    const pose = sticker ?? defaultStickerPose(crop);
+    const size = crop.width * STICKER_SIZE * pose.scale;
     return [
       {
         source,
-        x: crop.x + crop.width * (1 - STICKER.right) - size,
-        y: crop.y + crop.height * (1 - STICKER.bottom) - size,
+        x: crop.x + crop.width * pose.x,
+        y: crop.y + crop.height * pose.y,
         width: size,
         height: size,
-        anchorX: 0,
-        anchorY: 0,
+        anchorX: 0.5,
+        anchorY: 0.5,
         steps: [],
       },
     ];
@@ -144,23 +195,4 @@ export const placementsFor = (
       steps: [{ rotate: roll }],
     },
   ];
-};
-
-/*
- * The part of the preview kept for an aspect ratio (width / height): full width,
- * centred vertically, unless that would be taller than the preview.
- */
-export const cropRect = (view: Rect, ratio: number): Rect => {
-  let width = view.width;
-  let height = width / ratio;
-  if (height > view.height) {
-    height = view.height;
-    width = height * ratio;
-  }
-  return {
-    x: view.x + (view.width - width) / 2,
-    y: view.y + (view.height - height) / 2,
-    width,
-    height,
-  };
 };

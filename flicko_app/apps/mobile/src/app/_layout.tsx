@@ -18,7 +18,7 @@ import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { Intro } from "@/components/intro/intro";
 import { useSession } from "@/store/session";
@@ -64,7 +64,7 @@ export default function RootLayout() {
    */
   return (
     <QueryClientProvider client={queryClient}>
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
         <StatusBar style="light" />
         {ready && (
           <Stack
@@ -102,7 +102,7 @@ export default function RootLayout() {
             onDone={() => setIntroDone(true)}
           />
         )}
-      </View>
+      </GestureHandlerRootView>
     </QueryClientProvider>
   );
 }

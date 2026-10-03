@@ -11,6 +11,14 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { CameraLayerRef } from "@/components/camera/camera-view";
 import { CategoryChips } from "@/components/camera/category-chips";
@@ -35,9 +43,11 @@ import {
 } from "@/features/filters/catalog";
 import {
   approxEyes,
-  cropRect,
+  containRect,
+  defaultStickerPose,
   placementsFor,
   type Rect,
+  type StickerPose,
 } from "@/features/filters/placement";
 import { isLocked, useUnlockedFilters } from "@/features/filters/unlocks";
 import {
@@ -73,11 +83,23 @@ const useCameraPermission = cameraModule?.useCameraPermission ?? noPermission;
 
 /*
  * Positions from design-reference/Camera.html, measured up from the tab bar: shutter
- * centre 111, category chips 21, filter label block 150.
+ * centre 111, category chips 21. The filter label sits in the 60dp above the shutter
+ * ring (carousel centre - 44 - 60), and the capture rect fills the space between the
+ * avatar row (safe area + 100) and that label.
  */
 const SHUTTER_CENTER = 111;
 const CHIPS_BOTTOM = 21;
-const LABEL_BOTTOM = 150;
+const LABEL_HEIGHT = 60;
+const CAPTURE_TOP = 100;
+// Right rail: 4 buttons of 40dp, 12dp apart, from safe area + 12; stickers start below.
+const RAIL_BOTTOM = 12 + 4 * 40 + 3 * 12 + 8;
+const NAME_VISIBLE_MS = 1500;
+const NAME_FADE_MS = 200;
+
+const FACE_HINT: Record<string, string> = {
+  "laser-eyes": "Lasers lock onto your eyes after you snap",
+  "deal-with-it": "Glasses lock onto your eyes after you snap",
+};
 
 /*
  * Live Skia filters switch off for the rest of the session once a device is too slow.
@@ -87,6 +109,7 @@ let liveFiltersOff = false;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function CameraScreen() {
+  const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const appActive = useAppActive();
   const permission = useCameraPermission();
@@ -120,8 +143,40 @@ export default function CameraScreen() {
   }, [restore]);
   useEffect(() => () => player?.remove(), [player]);
 
-  const crop = view ? cropRect(view, ASPECT_RATIO[aspect]) : null;
+  // The capture rect: what gets saved, between the avatar row and the filter label.
+  const labelTop = view ? view.height - SHUTTER_CENTER - SHUTTER / 2 - LABEL_HEIGHT : 0;
+  const crop = view
+    ? containRect(
+        {
+          x: 0,
+          y: insets.top + CAPTURE_TOP,
+          width: view.width,
+          height: labelTop - (insets.top + CAPTURE_TOP),
+        },
+        ASPECT_RATIO[aspect],
+      )
+    : null;
   const ready = !!cameraModule && permission.hasPermission;
+
+  // A sticker starts top-right (below the rail) and resets on a new filter or aspect.
+  const [stickerPose, setStickerPose] = useState<StickerPose | null>(null);
+  useEffect(() => setStickerPose(null), [filterId, aspect]);
+  const sticker =
+    stickerPose ??
+    (crop ? defaultStickerPose(crop, insets.top + RAIL_BOTTOM) : null);
+
+  // The filter name shows for 1.5s after a change, then fades; the premium chip stays.
+  const nameOpacity = useSharedValue(0);
+  useEffect(() => {
+    nameOpacity.value =
+      filter.type === "none"
+        ? 0
+        : withSequence(
+            withTiming(1, { duration: 0 }),
+            withDelay(NAME_VISIBLE_MS, withTiming(0, { duration: NAME_FADE_MS })),
+          );
+  }, [filterId, filter.type, nameOpacity]);
+  const nameStyle = useAnimatedStyle(() => ({ opacity: nameOpacity.value }));
 
   const onIndexChange = (index: number) => {
     const next = FILTERS[index];
@@ -180,12 +235,12 @@ export default function CameraScreen() {
       const photoCrop = toPhoto(crop);
       const eyes =
         (filter.type === "face" && cameraModule.detectEyes(shot.uri)) ||
-        approxEyes(toPhoto(view));
+        approxEyes(photoCrop);
       const composed = await cameraModule.composePhoto({
         photoUri: shot.uri,
         filter,
         crop: photoCrop,
-        placements: placementsFor(filter, photoCrop, eyes),
+        placements: placementsFor(filter, photoCrop, eyes, sticker ?? undefined),
       });
       router.push({
         pathname: "/create/preview",
@@ -239,8 +294,16 @@ export default function CameraScreen() {
         />
       )}
 
-      {ready && view && crop && (
-        <LiveOverlay filter={filter} view={view} crop={crop} />
+      {ready && crop && sticker && (
+        <LiveOverlay
+          filter={filter}
+          rect={crop}
+          sticker={sticker}
+          onStickerChange={setStickerPose}
+          faceHint={
+            cameraModule?.detectsFaces ? FACE_HINT[filter.id] : undefined
+          }
+        />
       )}
 
       <TopBar
@@ -253,12 +316,11 @@ export default function CameraScreen() {
       />
       <ToolRail />
 
-      {filter.type !== "none" && (
-        <View
-          pointerEvents="none"
-          style={[styles.label, { bottom: LABEL_BOTTOM }]}
-        >
-          <Text style={styles.filterName}>{filter.name}</Text>
+      {filter.type !== "none" && view && (
+        <View pointerEvents="none" style={[styles.label, { top: labelTop }]}>
+          <Animated.Text style={[styles.filterName, nameStyle]}>
+            {filter.name}
+          </Animated.Text>
           {isLocked(filter, unlocked.data) && (
             <Glass style={styles.premium}>
               <LockIcon />
@@ -357,6 +419,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
+    height: LABEL_HEIGHT,
     alignItems: "center",
     gap: 8,
   },
