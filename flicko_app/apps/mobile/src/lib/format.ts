@@ -68,3 +68,10 @@ export const priceCompact = (n: number) => {
     .join("");
   return `0.0${sub}${digits}`;
 };
+
+/** "2s", "14m", "3h", "2d" */
+export const ageTiny = (ms: number, now = Date.now()) => {
+  const s = Math.max(0, Math.floor((now - ms) / 1000));
+  if (s < 60) return `${s}s`;
+  return ageShort(ms, now);
+};

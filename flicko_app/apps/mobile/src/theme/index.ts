@@ -175,5 +175,10 @@ export const detail = {
   lime: "#C8FF4D",
   limeBorder: "rgba(200,255,77,0.35)",
   positionBorder: "rgba(229,19,122,0.45)",
+  gain: "#C8FF4D",
+  loss: "#FF6B7A",
+  grid: "#1F1D26",
+  rowLine: "#1A1920",
+  chipOn: "#F5F3F7",
   radius: 8,
 } as const;
