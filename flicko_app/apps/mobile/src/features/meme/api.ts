@@ -94,6 +94,7 @@ interface ServerOverview {
     sparkline: string[];
   };
   trendingRank: number | null;
+  priceLine: string[];
   creatorHoldsBps: number;
   creatorMemes: number;
   reactions: Record<ReactionKind, number>;
@@ -151,7 +152,7 @@ const toView = ({ meme, overview }: { meme: ServerMeme; overview: ServerOverview
       pnlSkr: skrOf(overview.position.pnl),
       pnlPct: overview.position.pnlBps / 100,
     },
-    sparkline: [...m.sparkline.map(skrOf), price],
+    sparkline: overview.priceLine.map(skrOf),
   };
 };
 

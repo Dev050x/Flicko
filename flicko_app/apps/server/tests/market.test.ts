@@ -389,6 +389,15 @@ describe("GET /memes/:mint overview", () => {
       myReactions: [],
       position: null,
     });
+    // 48 samples over 24h: 1000 until the trade 3h ago, 1200 until 3 min ago, then 1500.
+    const line = body.overview.priceLine;
+    expect(line).toHaveLength(48);
+    expect([line[0], line[46], line[47]]).toEqual(["1000", "1200", "1500"]);
+    expect(new Set(line)).toEqual(new Set(["1000", "1200", "1500"]));
+    // Z launched 2h ago at 1000 and traded down to 900 half an hour ago.
+    const z = (await get(`/memes/${Z}`)).body.overview.priceLine;
+    expect([z[0], z[47]]).toEqual(["1000", "900"]);
+
     // Y has no trades today, so it isn't ranked; hidden memes still have a page.
     expect((await get(`/memes/${Y}`)).body.overview.trendingRank).toBeNull();
     expect((await get(`/memes/${H}`)).status).toBe(200);

@@ -17,12 +17,14 @@ export function Sparkline({
   if (values.length < 2) return null;
   const min = Math.min(...values);
   const max = Math.max(...values);
+  // a flat line (no trades in the window) runs through the middle
+  const flat = max === min;
   const span = max - min || 1;
   const pad = 2;
   const points = values
     .map((v, i) => {
       const x = pad + (i / (values.length - 1)) * (width - pad * 2);
-      const y = pad + (1 - (v - min) / span) * (height - pad * 2);
+      const y = flat ? height / 2 : pad + (1 - (v - min) / span) * (height - pad * 2);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
