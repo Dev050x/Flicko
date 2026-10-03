@@ -1,6 +1,7 @@
 import type { Web3MobileWallet } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
 import bs58 from "bs58";
 import { Buffer } from "buffer";
+import { TurboModuleRegistry } from "react-native";
 
 import { chain, config } from "@/config";
 import type { SignInInput } from "./auth";
@@ -34,9 +35,16 @@ const CONNECT_TIMEOUT_MS = 60_000;
 
 /*
  * The adapter's native module throws on import where it is not linked (Expo Go, or a
- * build made before it was added), so it is loaded only when the user connects.
+ * build made before it was added), so it is loaded only when the user connects, and only
+ * after checking the native module is there.
  */
 const loadTransact = () => {
+  if (!TurboModuleRegistry.get("SolanaMobileWalletAdapter")) {
+    console.warn(
+      "[mwa] wallet adapter is not in this build; make a new development build",
+    );
+    throw new ConnectError("declined");
+  }
   try {
     return (
       require("@solana-mobile/mobile-wallet-adapter-protocol-web3js") as typeof import("@solana-mobile/mobile-wallet-adapter-protocol-web3js")
