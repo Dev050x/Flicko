@@ -193,3 +193,19 @@ export const indexerState = pgTable("indexer_state", {
     .notNull()
     .defaultNow(),
 });
+
+/*
+ * Premium camera filters a wallet unlocked by burning SKR; one burn transaction unlocks
+ * one filter.
+ */
+export const filterUnlocks = pgTable(
+  "filter_unlocks",
+  {
+    wallet: text("wallet").notNull(),
+    filterId: text("filter_id").notNull(),
+    signature: text("signature").notNull().unique(),
+    burned: amount("burned").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.wallet, t.filterId] })],
+);

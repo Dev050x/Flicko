@@ -50,6 +50,7 @@ const schema = z.object({
 export type Env = z.infer<typeof schema> & {
   programId: string;
   skrMint: string | undefined;
+  skrDecimals: number;
 };
 
 const networkConfig = (cluster: string) => {
@@ -59,7 +60,7 @@ const networkConfig = (cluster: string) => {
         join(import.meta.dir, `../../../config/${cluster}.json`),
         "utf8",
       ),
-    ) as { programId?: string; skrMint?: string };
+    ) as { programId?: string; skrMint?: string; skrDecimals?: number };
   } catch {
     return {};
   }
@@ -76,5 +77,6 @@ export const parseEnv = (source: Record<string, string | undefined>): Env => {
     programId:
       result.data.PROGRAM_ID ?? network.programId ?? PROGRAM_ID.toBase58(),
     skrMint: result.data.SKR_MINT ?? network.skrMint,
+    skrDecimals: network.skrDecimals ?? 6,
   };
 };

@@ -11,8 +11,9 @@ import { createEventDecoder } from "./indexer/events";
 import { createIndexer } from "./indexer/indexer";
 import { expoPushSender } from "./notify/expo";
 import { createNotifier } from "./notify/notifier";
+import { rpcBurnVerifier } from "./filters/burns";
 import { s3BlobStore } from "./storage/blobs";
-import { PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 const env = parseEnv(process.env);
 const database = createDb(env.DATABASE_URL);
@@ -48,6 +49,13 @@ const app = createApp({
     },
   },
   read: { db: database.db, sessions },
+  filters: {
+    db: database.db,
+    sessions,
+    burns: rpcBurnVerifier(new Connection(env.RPC_URL, "confirmed")),
+    skrMint: required("SKR_MINT", env.skrMint),
+    skrDecimals: env.skrDecimals,
+  },
   uploads: {
     db: database.db,
     sessions,

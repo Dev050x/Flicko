@@ -56,6 +56,7 @@ describe("schema migrations", () => {
     expect(rows.rows.map((r) => r.table_name)).toEqual([
       "candles",
       "creator_claims",
+      "filter_unlocks",
       "indexer_state",
       "memes",
       "positions",

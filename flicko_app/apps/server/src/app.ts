@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { errorHandler, notFound } from "./middleware/errors";
 import { authRouter, type AuthDeps } from "./routes/auth";
 import { feedRouter, type ReadDeps } from "./routes/feed";
+import { filtersRouter, type FilterDeps } from "./routes/filters";
 import { healthRouter, type HealthDeps } from "./routes/health";
 import { meRouter } from "./routes/me";
 import { marketRouter } from "./routes/market";
@@ -17,6 +18,7 @@ export interface AppDeps {
   auth?: AuthDeps;
   read?: ReadDeps;
   uploads?: UploadDeps;
+  filters?: FilterDeps;
 }
 
 export const createApp = (deps: AppDeps) => {
@@ -36,6 +38,10 @@ export const createApp = (deps: AppDeps) => {
 
   if (deps.uploads) {
     app.use(uploadsRouter(deps.uploads));
+  }
+
+  if (deps.filters) {
+    app.use(filtersRouter(deps.filters));
   }
 
   if (deps.read) {
