@@ -1,11 +1,12 @@
 import * as Haptics from "expo-haptics";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { colors, radius, ref, size, type } from "@/theme";
 
 /*
- * Primary action: solid accent pill, 56dp. One per screen.
+ * Primary action: solid accent pill, 56dp. One per screen. Pressed state is kept in
+ * component state because NativeWind drops Pressable's style function on native.
  */
 export function Button({
   label,
@@ -18,17 +19,20 @@ export function Button({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         onPress();
       }}
-      style={({ pressed }) => ({
+      style={{
         height: size.buttonHeight,
         borderRadius: radius.pill,
         backgroundColor: pressed ? colors.accentPressed : colors.accent,
@@ -37,7 +41,7 @@ export function Button({
         alignItems: "center",
         justifyContent: "center",
         gap: 10,
-      })}
+      }}
     >
       {icon}
       <Text style={[type.button, { color: colors.text }]}>{label}</Text>
@@ -55,17 +59,20 @@ export function TextButton({
   label: string;
   onPress: () => void;
 }) {
+  const [pressed, setPressed] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       onPress={onPress}
-      style={({ pressed }) => ({
+      style={{
         height: size.secondaryHeight,
         alignItems: "center",
         justifyContent: "center",
         opacity: pressed ? 0.6 : 1,
-      })}
+      }}
     >
       <Text
         style={{

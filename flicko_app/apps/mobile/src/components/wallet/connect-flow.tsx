@@ -277,7 +277,7 @@ function WalletRow({ name, playId }: { name: string; playId: string }) {
         accessibilityLabel={`Install ${name}`}
         onPress={install}
         hitSlop={8}
-        style={({ pressed }) => [styles.install, pressed && { opacity: 0.6 }]}
+        style={styles.install}
       >
         <Text style={styles.installText}>Install</Text>
       </Pressable>
