@@ -18,6 +18,8 @@ export interface SignInInput {
 export interface User {
   wallet: string;
   username: string | null;
+  avatarId: string | null;
+  avatarUrl: string | null;
   createdAt: string;
 }
 
@@ -45,5 +47,7 @@ export const checkUsername = (name: string, token?: string) =>
     { token },
   );
 
-export const saveUsername = (username: string, token: string) =>
-  api<{ user: User }>("/me", { method: "PATCH", body: { username }, token });
+export const saveProfile = (
+  body: { username?: string; avatarId?: string | null },
+  token: string,
+) => api<{ user: User }>("/me", { method: "PATCH", body, token });

@@ -35,6 +35,13 @@
       "expo-image",
       "expo-secure-store",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Flicko lets you pick a photo for your profile picture.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Flicko uses your camera to turn moments into memes. Nothing is posted until you tap Post.",

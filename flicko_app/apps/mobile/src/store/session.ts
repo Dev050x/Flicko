@@ -20,13 +20,16 @@ interface SessionState {
   session: Session | null;
   isGuest: boolean;
   onboardingDone: boolean;
+  /** a photo (local file or uploaded url) or a bundled avatar id; at most one is set */
   avatarUri: string | null;
+  avatarId: string | null;
   hydrate: () => Promise<void>;
   signIn: (session: Session) => void;
   setMwaAuthToken: (authToken: string) => void;
   browseAsGuest: () => void;
   finishOnboarding: () => void;
   setAvatar: (uri: string | null) => void;
+  setAvatarId: (id: string | null) => void;
   signOut: () => void;
 }
 
@@ -35,6 +38,7 @@ const KEYS = {
   guest: "flicko.guest",
   onboarding: "flicko.onboarding",
   avatar: "flicko.avatar",
+  avatarId: "flicko.avatar-id",
 } as const;
 
 /*
@@ -82,16 +86,18 @@ export const useSession = create<SessionState>((set, get) => ({
   isGuest: false,
   onboardingDone: false,
   avatarUri: null,
+  avatarId: null,
 
   /*
    * An expired session is dropped, so the user lands on the welcome screen again.
    */
   hydrate: async () => {
-    const [session, guest, onboarding, avatar] = await Promise.all([
+    const [session, guest, onboarding, avatar, avatarId] = await Promise.all([
       read(KEYS.session),
       read(KEYS.guest),
       read(KEYS.onboarding),
       read(KEYS.avatar),
+      read(KEYS.avatarId),
     ]);
     const restored = parseSession(session);
     if (session && !restored) save(KEYS.session, null);
@@ -101,6 +107,7 @@ export const useSession = create<SessionState>((set, get) => ({
       isGuest: !restored && guest === "1",
       onboardingDone: onboarding === "1",
       avatarUri: avatar,
+      avatarId: avatar ? null : avatarId,
     });
   },
 
@@ -133,7 +140,14 @@ export const useSession = create<SessionState>((set, get) => ({
 
   setAvatar: (uri) => {
     save(KEYS.avatar, uri);
-    set({ avatarUri: uri });
+    if (uri) save(KEYS.avatarId, null);
+    set(uri ? { avatarUri: uri, avatarId: null } : { avatarUri: null });
+  },
+
+  setAvatarId: (id) => {
+    save(KEYS.avatarId, id);
+    if (id) save(KEYS.avatar, null);
+    set(id ? { avatarId: id, avatarUri: null } : { avatarId: null });
   },
 
   signOut: () => {
@@ -143,6 +157,7 @@ export const useSession = create<SessionState>((set, get) => ({
       isGuest: false,
       onboardingDone: false,
       avatarUri: null,
+      avatarId: null,
     });
   },
 }));

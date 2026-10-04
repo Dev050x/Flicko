@@ -11,8 +11,8 @@ import { useSession } from "@/store/session";
 import { colors, ref, type } from "@/theme";
 
 /*
- * In-app camera for the profile picture (front camera by default). The photo is kept on
- * the device for now; the server has no avatar field yet.
+ * In-app camera for the profile picture (front camera by default). The photo stays on the
+ * device until Continue on the profile screen uploads it.
  */
 export default function AvatarCamera() {
   const expoCamera = camera();

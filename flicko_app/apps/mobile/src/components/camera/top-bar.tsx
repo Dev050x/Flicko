@@ -5,10 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Glass } from "@/components/ui/glass";
 import { formatSkr, useSkrBalance } from "@/features/wallet/skr-balance";
 import { usePumpingCount } from "@/features/market/pumping";
+import { useMyAvatar } from "@/features/avatars/catalog";
 import { useSession } from "@/store/session";
 import { cam, colors } from "@/theme";
-
-const defaultAvatar = require("../../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 /*
  * Top left: avatar (→ profile) and the SKR balance pill (→ wallet sheet; "Connect" for
@@ -27,7 +26,7 @@ export function TopBar({
 }) {
   const insets = useSafeAreaInsets();
   const session = useSession((s) => s.session);
-  const avatarUri = useSession((s) => s.avatarUri);
+  const avatar = useMyAvatar();
   const balance = useSkrBalance(session?.wallet);
   const pumping = usePumpingCount();
 
@@ -48,14 +47,16 @@ export function TopBar({
           style={styles.avatar}
         >
           <Image
-            source={avatarUri ? { uri: avatarUri } : defaultAvatar}
+            source={avatar}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
           />
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={session ? `Wallet, ${skrLabel}` : "Connect wallet"}
+          accessibilityLabel={
+            session ? `Wallet, ${skrLabel}` : "Connect wallet"
+          }
           onPress={session ? onWallet : onConnect}
           hitSlop={8}
         >

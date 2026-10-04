@@ -344,3 +344,25 @@ export function MirrorIcon({ size = 22, color = colors.text }: IconProps) {
     </Line>
   );
 }
+
+export function GalleryIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Rect x={3.5} y={4.5} width={17} height={15} rx={2.5} />
+      <Circle cx={9} cy={10} r={1.6} />
+      <Path d="M4 17 L9.5 12.5 L13 15.5 L16 13 L20 16.5" />
+    </Line>
+  );
+}
+
+export function ShuffleIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M3 7 H7 C11 7 13 17 17 17 H21" />
+      <Path d="M3 17 H7 C9 17 10.2 14.6 11.2 12.4" />
+      <Path d="M13 9.4 C14 8 15.2 7 17 7 H21" />
+      <Path d="M18 4 L21 7 L18 10" />
+      <Path d="M18 14 L21 17 L18 20" />
+    </Line>
+  );
+}

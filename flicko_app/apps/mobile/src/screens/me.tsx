@@ -5,10 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { TextButton } from "@/components/ui/button";
 import { ChevronLeftIcon } from "@/components/ui/icons";
+import { useMyAvatar } from "@/features/avatars/catalog";
 import { useSession } from "@/store/session";
 import { colors, ref, type } from "@/theme";
-
-const defaultAvatar = require("../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 /*
  * Profile placeholder (from the camera's avatar) until created memes and creator
@@ -16,7 +15,8 @@ const defaultAvatar = require("../../assets/brand/flicko-pfp-dark-ring-1024.png"
  */
 export default function Me() {
   const insets = useSafeAreaInsets();
-  const { session, avatarUri, signOut } = useSession();
+  const { session, signOut } = useSession();
+  const avatar = useMyAvatar();
   const short = session
     ? `${session.wallet.slice(0, 4)}…${session.wallet.slice(-4)}`
     : null;
@@ -32,11 +32,7 @@ export default function Me() {
         <ChevronLeftIcon />
       </Pressable>
       <View style={styles.body}>
-        <Image
-          source={avatarUri ? { uri: avatarUri } : defaultAvatar}
-          style={styles.avatar}
-          contentFit="cover"
-        />
+        <Image source={avatar} style={styles.avatar} contentFit="cover" />
         <Text style={[type.h1, { color: colors.text }]}>Profile</Text>
         <Text style={styles.note}>
           {short ? `Signed in as ${short}` : "You're browsing as a guest."}

@@ -31,6 +31,7 @@ import {
   type MarketTab,
   type Window,
 } from "@/features/markets/api";
+import { useMyAvatar } from "@/features/avatars/catalog";
 import { useSession } from "@/store/session";
 import { colors, fonts, market, mono } from "@/theme";
 
@@ -61,13 +62,12 @@ const SORT_BY: Record<Exclude<MarketSort, "rank">, (m: MarketItem, w: Window) =>
   age: (m) => m.createdAt,
 };
 
-const defaultAvatar = require("../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 export default function Markets() {
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
   const params = useLocalSearchParams<{ sort?: string }>();
-  const avatarUri = useSession((s) => s.avatarUri);
+  const avatar = useMyAvatar();
   const signedIn = useSession((s) => s.session !== null);
 
   const [tab, setTab] = useState<MarketTab>(params.sort === "gainers" ? "gainers" : "trending");
@@ -175,7 +175,7 @@ export default function Markets() {
             style={styles.avatar}
           >
             <Image
-              source={avatarUri ? { uri: avatarUri } : defaultAvatar}
+              source={avatar}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
             />

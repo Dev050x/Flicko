@@ -102,3 +102,10 @@ export const mediaLibrary = () =>
     "ExpoMediaLibrary",
     () => require("expo-media-library") as typeof import("expo-media-library"),
   );
+
+export const imagePicker = () =>
+  optional(
+    "expo-image-picker",
+    "ExponentImagePicker",
+    () => require("expo-image-picker") as typeof import("expo-image-picker"),
+  );

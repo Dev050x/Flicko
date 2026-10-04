@@ -65,6 +65,10 @@ export function ConnectFlow({
         signature: wallet.signature,
       });
       if (!current()) return;
+      // Returning users get the avatar they saved before (photo first, then bundled one).
+      const { user } = verified;
+      if (user.avatarUrl) useSession.getState().setAvatar(user.avatarUrl);
+      else if (user.avatarId) useSession.getState().setAvatarId(user.avatarId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
         () => {},
       );

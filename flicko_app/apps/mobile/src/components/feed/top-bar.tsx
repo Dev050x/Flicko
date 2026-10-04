@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 import type { FeedTab } from "@/features/feed/types";
+import { useMyAvatar } from "@/features/avatars/catalog";
 import { useSession } from "@/store/session";
 import { feed, geist } from "@/theme";
 
@@ -19,8 +20,6 @@ const TABS: { id: FeedTab; label: string; hint: string }[] = [
   { id: "forYou", label: "For you", hint: "Picked for you" },
   { id: "launching", label: "Launching", hint: "Live launches, newest first" },
 ];
-
-const defaultAvatar = require("../../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 export const TOP_BAR_HEIGHT = 56;
 const ROUND = 40;
@@ -40,7 +39,7 @@ export function FeedTopBar({
   onSearch: () => void;
   onProfile: () => void;
 }) {
-  const avatarUri = useSession((s) => s.avatarUri);
+  const avatar = useMyAvatar();
   const [open, setOpen] = useState(false);
   const current = TABS.find((t) => t.id === tab) ?? TABS[1];
 
@@ -53,11 +52,7 @@ export function FeedTopBar({
         hitSlop={4}
         style={styles.round}
       >
-        <Image
-          source={avatarUri ? { uri: avatarUri } : defaultAvatar}
-          style={styles.avatarImage}
-          contentFit="cover"
-        />
+        <Image source={avatar} style={styles.avatarImage} contentFit="cover" />
       </Pressable>
 
       <Pressable
@@ -82,10 +77,27 @@ export function FeedTopBar({
       </Pressable>
 
       {open && (
-        <Modal transparent visible statusBarTranslucent animationType="none" onRequestClose={() => setOpen(false)}>
-          <Pressable accessibilityLabel="Close" style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
-          <View style={[styles.menuWrap, { top: top + TOP_BAR_HEIGHT - 4 }]} pointerEvents="box-none">
-            <Animated.View entering={FadeIn.duration(120)} style={styles.menu} accessibilityRole="menu">
+        <Modal
+          transparent
+          visible
+          statusBarTranslucent
+          animationType="none"
+          onRequestClose={() => setOpen(false)}
+        >
+          <Pressable
+            accessibilityLabel="Close"
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={[styles.menuWrap, { top: top + TOP_BAR_HEIGHT - 4 }]}
+            pointerEvents="box-none"
+          >
+            <Animated.View
+              entering={FadeIn.duration(120)}
+              style={styles.menu}
+              accessibilityRole="menu"
+            >
               {TABS.map(({ id, label, hint }, i) => {
                 const selected = id === tab;
                 return (
