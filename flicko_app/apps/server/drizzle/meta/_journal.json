@@ -64,6 +64,13 @@
       "when": 1791152512347,
       "tag": "0008_profile_bio",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791157541472,
+      "tag": "0009_backfill_avatars",
+      "breakpoints": true
     }
   ]
 }

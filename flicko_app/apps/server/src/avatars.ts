@@ -12,3 +12,7 @@ export const AVATAR_IDS = [
   "pup",
   "laser-pup",
 ] as const;
+
+/* A random bundled avatar, dealt to every new account so no profile starts blank. */
+export const randomAvatarId = () =>
+  AVATAR_IDS[Math.floor(Math.random() * AVATAR_IDS.length)]!;

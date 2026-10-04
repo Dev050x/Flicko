@@ -1,3 +1,4 @@
+import { randomAvatarId } from "../avatars";
 import { Router } from "express";
 import { z } from "zod";
 import type { Sessions } from "../auth/jwt";
@@ -60,7 +61,7 @@ export const authRouter = (deps: AuthDeps) =>
 
       const [user] = await deps.db
         .insert(users)
-        .values({ wallet: body.address })
+        .values({ wallet: body.address, avatarId: randomAvatarId() })
         .onConflictDoUpdate({
           target: users.wallet,
           set: { wallet: body.address },
