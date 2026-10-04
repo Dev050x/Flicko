@@ -14,6 +14,7 @@ import { marketRouter } from "./routes/market";
 import { memesRouter } from "./routes/memes";
 import { portfolioRouter } from "./routes/portfolio";
 import { uploadsRouter, type UploadDeps } from "./routes/uploads";
+import { followsRouter } from "./routes/follows";
 import { watchlistRouter } from "./routes/watchlist";
 
 export interface AppDeps {
@@ -39,6 +40,7 @@ export const createApp = (deps: AppDeps) => {
       .use(authRouter(deps.auth))
       .use(meRouter(deps.auth))
       .use(portfolioRouter(deps.auth))
+      .use(followsRouter(deps.auth))
       .use(watchlistRouter(deps.auth))
       .use(alertsRouter(deps.auth));
   }

@@ -50,6 +50,13 @@
       "when": 1791142808470,
       "tag": "0006_user_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791151923629,
+      "tag": "0007_follows",
+      "breakpoints": true
     }
   ]
 }

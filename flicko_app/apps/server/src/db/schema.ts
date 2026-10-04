@@ -226,6 +226,20 @@ export const watchlist = pgTable(
   (t) => [primaryKey({ columns: [t.wallet, t.mint] })],
 );
 
+/* Creator follows: `follower` follows `followee` (wallets; either may not have signed in yet). */
+export const follows = pgTable(
+  "follows",
+  {
+    follower: text("follower").notNull(),
+    followee: text("followee").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.follower, t.followee] }),
+    index("follows_followee_idx").on(t.followee),
+  ],
+);
+
 export const reactionKind = pgEnum("reaction_kind", ["rocket", "fire", "poop"]);
 
 /* One reaction of each kind per wallet per meme. */
