@@ -171,87 +171,111 @@ export const useTrades = (
   });
 
 export interface HolderView {
+  /** among wallets; the pool isn't ranked */
   rank: number;
-  /** "@handle", a short address, or "Pool" */
+  wallet: string;
+  /** "@handle" or a short address */
   label: string;
   isAddress: boolean;
-  kind: "pool" | "creator" | "holder";
+  isCreator: boolean;
   /** percent of supply */
   pct: number;
   tokens: number;
   valueSkr: number;
 }
 
-export interface HoldersView {
+export interface HoldersPage {
   total: number;
   top10Pct: number;
   creatorPct: number;
+  /** null during launch: the pool doesn't exist yet */
+  pool: { pct: number; tokens: number; valueSkr: number } | null;
   items: HolderView[];
+  /** the signed-in wallet's own row, wherever it ranks */
+  me: HolderView | null;
+  nextOffset: number | null;
 }
 
-interface ServerHolders {
-  total: number;
-  top10Bps: number;
-  creatorBps: number;
-  items: {
-    rank: number;
-    wallet: string | null;
-    username: string | null;
-    kind: "pool" | "creator" | "holder";
-    balance: string;
-    shareBps: number;
-    value: string;
-  }[];
+interface ServerHolder {
+  rank: number;
+  wallet: string;
+  username: string | null;
+  isCreator: boolean;
+  balance: string;
+  shareBps: number;
+  value: string;
 }
 
-export const useHolders = (mint: string, enabled: boolean) =>
-  useQuery({
-    queryKey: ["holders", mint],
+const toHolder = (h: ServerHolder): HolderView => ({
+  rank: h.rank,
+  wallet: h.wallet,
+  label: h.username ? `@${h.username}` : shortAddress(h.wallet),
+  isAddress: !h.username,
+  isCreator: h.isCreator,
+  pct: h.shareBps / 100,
+  tokens: Number(h.balance) / TOKEN,
+  valueSkr: skrOf(h.value),
+});
+
+const mockHolders = (): HoldersPage => {
+  const pool = holdersMock.items.find((h) => h.label === "Pool");
+  return {
+    total: holdersMock.total,
+    top10Pct: holdersMock.top10Pct,
+    creatorPct: holdersMock.creatorPct,
+    pool: pool
+      ? { pct: pool.pct, tokens: pool.amount, valueSkr: pool.valueSkr }
+      : null,
+    items: holdersMock.items
+      .filter((h) => h.label !== "Pool")
+      .map((h, i) => ({
+        rank: i + 1,
+        wallet: h.address,
+        label: h.label ?? h.address,
+        isAddress: !h.label,
+        isCreator: h.tag === "Creator",
+        pct: h.pct,
+        tokens: h.amount,
+        valueSkr: h.valueSkr,
+      })),
+    me: null,
+    nextOffset: null,
+  };
+};
+
+/* Holders, 50 per page, with the viewer's own row when signed in. */
+export const useHolders = (mint: string, enabled: boolean, token?: string) =>
+  useInfiniteQuery({
+    queryKey: ["holders", mint, token ? "me" : "guest"],
     enabled,
     refetchInterval: enabled ? 30_000 : false,
-    queryFn: async (): Promise<HoldersView> => {
-      if (config.useMocks) {
-        return {
-          total: holdersMock.total,
-          top10Pct: holdersMock.top10Pct,
-          creatorPct: holdersMock.creatorPct,
-          items: holdersMock.items.map((h) => ({
-            rank: h.rank,
-            label: h.label === "Pool" ? "Pool" : (h.label ?? h.address),
-            isAddress: !h.label,
-            kind:
-              h.label === "Pool"
-                ? "pool"
-                : h.tag === "Creator"
-                  ? "creator"
-                  : "holder",
-            pct: h.pct,
-            tokens: h.amount,
-            valueSkr: h.valueSkr,
-          })),
-        };
-      }
-      const res = await api<ServerHolders>(`/memes/${mint}/holders`);
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<HoldersPage> => {
+      if (config.useMocks) return mockHolders();
+      const res = await api<{
+        total: number;
+        top10Bps: number;
+        creatorBps: number;
+        pool: { balance: string; shareBps: number; value: string } | null;
+        items: ServerHolder[];
+        me: ServerHolder | null;
+        nextOffset: number | null;
+      }>(`/memes/${mint}/holders?limit=50&offset=${pageParam}`, { token });
       return {
         total: res.total,
         top10Pct: res.top10Bps / 100,
         creatorPct: res.creatorBps / 100,
-        items: res.items.map((h) => ({
-          rank: h.rank,
-          label:
-            h.kind === "pool"
-              ? "Pool"
-              : h.username
-                ? `@${h.username}`
-                : shortAddress(h.wallet ?? ""),
-          isAddress: h.kind !== "pool" && !h.username,
-          kind: h.kind,
-          pct: h.shareBps / 100,
-          tokens: Number(h.balance) / TOKEN,
-          valueSkr: skrOf(h.value),
-        })),
+        pool: res.pool && {
+          pct: res.pool.shareBps / 100,
+          tokens: Number(res.pool.balance) / TOKEN,
+          valueSkr: skrOf(res.pool.value),
+        },
+        items: res.items.map(toHolder),
+        me: res.me && toHolder(res.me),
+        nextOffset: res.nextOffset,
       };
     },
+    getNextPageParam: (last) => last.nextOffset ?? undefined,
   });
 
 export interface SoldPoint {

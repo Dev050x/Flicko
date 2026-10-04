@@ -39,6 +39,12 @@ import {
 } from "@/components/meme/overview-sections";
 import { ChartTab } from "@/components/meme/chart-tab";
 import {
+  HOLDER_ROW,
+  HolderRow,
+  HoldersFooter,
+  HoldersSummary,
+} from "@/components/meme/holders";
+import {
   TradeRow,
   TradeSheet,
   TradesFooter,
@@ -60,7 +66,9 @@ import {
 } from "@/features/meme/api";
 import { useLiveTrades } from "@/features/meme/live";
 import {
+  useHolders,
   useTrades,
+  type HolderView,
   type TradeFilter,
   type TradeView,
 } from "@/features/meme/tabs";
@@ -96,9 +104,18 @@ const TRADE_FILTERS: { id: TradeFilter; label: string }[] = [
 type PageItem =
   | {
       key: string;
-      kind: "top" | "tabs" | "content" | "filters" | "cardTop" | "cardBottom";
+      kind:
+        | "top"
+        | "tabs"
+        | "content"
+        | "filters"
+        | "cardTop"
+        | "cardBottom"
+        | "holdersTop"
+        | "holdersBottom";
     }
-  | { key: string; kind: "trade"; trade: TradeView };
+  | { key: string; kind: "trade"; trade: TradeView }
+  | { key: string; kind: "holder"; holder: HolderView };
 
 // Rows below a new trade slide down to make room.
 const rowSlide = LinearTransition.duration(160).easing(Easing.out(Easing.quad));
@@ -145,6 +162,7 @@ export default function MemeDetail() {
   const react = useReact(mint);
   const signedIn = useSession((s) => s.session !== null);
   const wallet = useSession((s) => s.session?.wallet);
+  const sessionToken = useSession((s) => s.session?.token);
   const [tab, setTab] = useState<Tab>("overview");
   const [trade, setTrade] = useState<TradeSide | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -185,6 +203,17 @@ export default function MemeDetail() {
   const live = useLiveTrades(tradeSource, scrolledDown || touching, filter);
   const largeSkr = tradesQ.data?.pages[0]?.largeSkr ?? null;
 
+  // Holders tab: pages of ranked wallets, plus the viewer's own row.
+  const holdersQ = useHolders(mint, tab === "holders", sessionToken);
+  const holdersPage = holdersQ.data?.pages[0];
+  const holderRows = useMemo(
+    () => (holdersQ.data?.pages ?? []).flatMap((p) => p.items),
+    [holdersQ.data],
+  );
+  const myHolding = holdersPage?.me ?? null;
+  const myRowLoaded =
+    !!myHolding && holderRows.some((h) => h.wallet === myHolding.wallet);
+
   const items = useMemo<PageItem[]>(
     () =>
       tab === "trades"
@@ -200,12 +229,24 @@ export default function MemeDetail() {
             })),
             { key: "cardBottom", kind: "cardBottom" },
           ]
-        : [
-            { key: "top", kind: "top" },
-            { key: "tabs", kind: "tabs" },
-            { key: `content-${tab}`, kind: "content" },
-          ],
-    [tab, live.rows],
+        : tab === "holders"
+          ? [
+              { key: "top", kind: "top" },
+              { key: "tabs", kind: "tabs" },
+              { key: "holdersTop", kind: "holdersTop" },
+              ...holderRows.map((holder) => ({
+                key: `h-${holder.wallet}`,
+                kind: "holder" as const,
+                holder,
+              })),
+              { key: "holdersBottom", kind: "holdersBottom" },
+            ]
+          : [
+              { key: "top", kind: "top" },
+              { key: "tabs", kind: "tabs" },
+              { key: `content-${tab}`, kind: "content" },
+            ],
+    [tab, live.rows, holderRows],
   );
 
   const onScroll = useCallback(
@@ -370,7 +411,7 @@ export default function MemeDetail() {
   const barHeight = launching ? BUTTON + 26 : BUTTON;
   const tabMinHeight =
     height - insets.top - 56 - tabsH.current - barHeight - insets.bottom;
-  const renderKey = `${tab}|${filter}|${live.fresh}|${largeSkr}|${refreshing}|${safety.dataUpdatedAt}|${detail.dataUpdatedAt}`;
+  const renderKey = `${tab}|${filter}|${holdersQ.dataUpdatedAt}|${live.fresh}|${largeSkr}|${refreshing}|${safety.dataUpdatedAt}|${detail.dataUpdatedAt}`;
 
   const topContent = (
     <View onLayout={(e) => (tabsY.current = e.nativeEvent.layout.height)}>
@@ -540,14 +581,7 @@ export default function MemeDetail() {
             onSeeAll={() => pickTab("trades")}
           />
         </View>
-      ) : (
-        <View style={styles.soon}>
-          <Text style={styles.muted}>
-            {TABS.find((t) => t.id === tab)?.label} is coming in the next
-            update.
-          </Text>
-        </View>
-      )}
+      ) : null}
     </View>
   );
 
@@ -609,6 +643,48 @@ export default function MemeDetail() {
             />
           </View>
         );
+      case "holdersTop":
+        return (
+          <View style={styles.cardSide}>
+            <HoldersSummary meme={meme} page={holdersPage} />
+          </View>
+        );
+      case "holder":
+        return (
+          <View style={styles.cardSide}>
+            <HolderRow
+              holder={item.holder}
+              symbol={meme.symbol}
+              topPct={holderRows[0]?.pct ?? 0}
+              launching={launching}
+              mine={!!wallet && item.holder.wallet === wallet}
+            />
+          </View>
+        );
+      case "holdersBottom":
+        return (
+          <View
+            style={[
+              styles.cardSide,
+              {
+                minHeight: Math.max(
+                  0,
+                  tabMinHeight - 200 - holderRows.length * HOLDER_ROW,
+                ),
+              },
+            ]}
+          >
+            <HoldersFooter
+              state={
+                holdersQ.isLoading
+                  ? "loading"
+                  : holderRows.length === 0
+                    ? "empty"
+                    : "rows"
+              }
+            />
+          </View>
+        );
       case "cardBottom":
         return (
           <View
@@ -666,6 +742,13 @@ export default function MemeDetail() {
           ) {
             tradesQ.fetchNextPage();
           }
+          if (
+            tab === "holders" &&
+            holdersQ.hasNextPage &&
+            !holdersQ.isFetchingNextPage
+          ) {
+            holdersQ.fetchNextPage();
+          }
         }}
         initialNumToRender={12}
         windowSize={9}
@@ -679,6 +762,20 @@ export default function MemeDetail() {
           />
         }
       />
+      {tab === "holders" && myHolding && !myRowLoaded && (
+        // your row, pinned above the buy bar when it isn't in the loaded list
+        <View
+          style={[styles.pinnedMe, { bottom: barHeight + insets.bottom + 24 }]}
+        >
+          <HolderRow
+            holder={myHolding}
+            symbol={meme.symbol}
+            topPct={holderRows[0]?.pct ?? 0}
+            launching={launching}
+            mine
+          />
+        </View>
+      )}
       {tab === "trades" && live.pending > 0 && (
         <View
           pointerEvents="box-none"
@@ -941,7 +1038,6 @@ const styles = StyleSheet.create({
     backgroundColor: D.text,
   },
   sections: { paddingHorizontal: PAD, paddingTop: 16, gap: 12 },
-  soon: { paddingVertical: 60, alignItems: "center" },
   muted: { fontFamily: geist.regular, fontSize: 14, color: D.muted },
   bar: {
     position: "absolute",
@@ -1016,6 +1112,14 @@ const styles = StyleSheet.create({
   filterText: { fontFamily: geist.medium, fontSize: 13, color: D.secondary },
   filterTextOn: { color: D.bg },
   cardSide: { paddingHorizontal: PAD },
+  pinnedMe: {
+    position: "absolute",
+    left: PAD,
+    right: PAD,
+    backgroundColor: D.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: D.rowLine,
+  },
   pillRow: { position: "absolute", left: 0, right: 0, alignItems: "center" },
   newPill: {
     height: 32,
