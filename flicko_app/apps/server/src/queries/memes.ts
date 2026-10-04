@@ -13,6 +13,9 @@ export interface MemeCard {
   imageUrl: string | null;
   creator: string;
   creatorUsername: string | null;
+  /** the creator's bundled avatar id or uploaded photo url (at most one is set) */
+  creatorAvatarId: string | null;
+  creatorAvatarUrl: string | null;
   phase: "launch" | "graduated";
   price: string;
   priceChange24hBps: number;
@@ -119,6 +122,8 @@ export const cardQuery = (db: Db) => {
       memePda: memes.memePda,
       creator: memes.creator,
       creatorUsername: users.username,
+      creatorAvatarId: users.avatarId,
+      creatorAvatarUrl: users.avatarUrl,
       name: memes.name,
       symbol: memes.symbol,
       uri: memes.uri,
@@ -158,6 +163,8 @@ export const toCard = (row: CardRow): MemeCard => ({
   imageUrl: row.imageUrl,
   creator: row.creator,
   creatorUsername: row.creatorUsername,
+  creatorAvatarId: row.creatorAvatarId,
+  creatorAvatarUrl: row.creatorAvatarUrl,
   phase: row.phase,
   price: row.price,
   priceChange24hBps: Number(row.priceChange24hBps),

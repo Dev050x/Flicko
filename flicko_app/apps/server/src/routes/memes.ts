@@ -26,7 +26,7 @@ import {
   chartCandles,
   listHolders,
   soldOverTime,
-  usernamesFor,
+  profilesFor,
 } from "../queries/chart";
 import {
   addReaction,
@@ -85,20 +85,28 @@ export const memesRouter = (deps: ReadDeps) => {
       });
     })
     .get("/memes/:mint/trades", async (req, res) => {
-      const { limit, offset, side, trader } = parseOr400(tradesQuery, req.query);
+      const { limit, offset, side, trader } = parseOr400(
+        tradesQuery,
+        req.query,
+      );
       const mint = await knownMint(deps.db, req.params);
       const [rows, largeSkr] = await Promise.all([
         listTrades(deps.db, mint, limit, offset, { side, trader }),
         largeTradeSkr(deps.db, mint),
       ]);
-      const names = await usernamesFor(
+      const profiles = await profilesFor(
         deps.db,
         rows.map((row) => row.trader),
       );
-      const items = rows.map((row) => ({
-        ...row,
-        traderUsername: names.get(row.trader) ?? null,
-      }));
+      const items = rows.map((row) => {
+        const profile = profiles.get(row.trader);
+        return {
+          ...row,
+          traderUsername: profile?.username ?? null,
+          traderAvatarId: profile?.avatarId ?? null,
+          traderAvatarUrl: profile?.avatarUrl ?? null,
+        };
+      });
       res.json({
         items,
         largeSkr,
@@ -109,11 +117,17 @@ export const memesRouter = (deps: ReadDeps) => {
       const mint = await knownMint(deps.db, req.params);
       res.json({ points: await soldOverTime(deps.db, mint) });
     })
-    .get("/memes/:mint/holders", optionalAuth(deps.sessions), async (req, res) => {
-      const { limit, offset } = parseOr400(holdersQuery, req.query);
-      const mint = await knownMint(deps.db, req.params);
-      res.json(await listHolders(deps.db, mint, limit, offset, viewerOf(res)));
-    });
+    .get(
+      "/memes/:mint/holders",
+      optionalAuth(deps.sessions),
+      async (req, res) => {
+        const { limit, offset } = parseOr400(holdersQuery, req.query);
+        const mint = await knownMint(deps.db, req.params);
+        res.json(
+          await listHolders(deps.db, mint, limit, offset, viewerOf(res)),
+        );
+      },
+    );
 
   if (deps.sessions) {
     const auth = requireAuth(deps.sessions);

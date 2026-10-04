@@ -62,6 +62,8 @@ export interface Reel extends MarketRow {
   memePda: string;
   creator: string;
   creatorUsername: string | null;
+  creatorAvatarId: string | null;
+  creatorAvatarUrl: string | null;
   captionTop: string | null;
   captionBottom: string | null;
   totalSupply: string;
@@ -196,6 +198,8 @@ const baseQuery = (db: Db) => {
       imageUrl: memes.imageUrl,
       creator: memes.creator,
       creatorUsername: users.username,
+      creatorAvatarId: users.avatarId,
+      creatorAvatarUrl: users.avatarUrl,
       captionTop: memes.captionTop,
       captionBottom: memes.captionBottom,
       phase: memes.phase,
@@ -374,6 +378,8 @@ export const listReels = async (
       memePda: row.memePda,
       creator: row.creator,
       creatorUsername: row.creatorUsername,
+      creatorAvatarId: row.creatorAvatarId,
+      creatorAvatarUrl: row.creatorAvatarUrl,
       captionTop: row.captionTop,
       captionBottom: row.captionBottom,
       totalSupply: row.totalSupply,

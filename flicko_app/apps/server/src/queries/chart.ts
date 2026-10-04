@@ -117,6 +117,8 @@ export interface HolderRow {
   rank: number;
   wallet: string;
   username: string | null;
+  avatarId: string | null;
+  avatarUrl: string | null;
   isCreator: boolean;
   /** token base units */
   balance: string;
@@ -142,6 +144,14 @@ export interface Holders {
 
 const bps = (part: bigint, whole: bigint) =>
   whole === 0n ? 0 : Number((part * 10_000n) / whole);
+
+const holderFields = {
+  wallet: positions.wallet,
+  balance: positions.balance,
+  username: users.username,
+  avatarId: users.avatarId,
+  avatarUrl: users.avatarUrl,
+};
 
 /*
  * Holders, largest first (ties by wallet), paged. The pool is reported on its own and
@@ -171,11 +181,19 @@ export const listHolders = async (
   const value = (balance: bigint) => ((balance * price) / TOKEN_UNIT).toString();
   const toRow = (
     rank: number,
-    row: { wallet: string; balance: string; username: string | null },
+    row: {
+      wallet: string;
+      balance: string;
+      username: string | null;
+      avatarId: string | null;
+      avatarUrl: string | null;
+    },
   ): HolderRow => ({
     rank,
     wallet: row.wallet,
     username: row.username,
+    avatarId: row.avatarId,
+    avatarUrl: row.avatarUrl,
     isCreator: row.wallet === meme.creator,
     balance: row.balance,
     shareBps: bps(BigInt(row.balance), supply),
@@ -185,7 +203,7 @@ export const listHolders = async (
   const held = and(eq(positions.mint, mint), sql`${positions.balance} > 0`);
   const [rows, [counts], top, creator] = await Promise.all([
     db
-      .select({ wallet: positions.wallet, balance: positions.balance, username: users.username })
+      .select(holderFields)
       .from(positions)
       .leftJoin(users, eq(users.wallet, positions.wallet))
       .where(held)
@@ -209,7 +227,7 @@ export const listHolders = async (
   let me: HolderRow | null = null;
   if (viewer) {
     const [mine] = await db
-      .select({ wallet: positions.wallet, balance: positions.balance, username: users.username })
+      .select(holderFields)
       .from(positions)
       .leftJoin(users, eq(users.wallet, positions.wallet))
       .where(and(held, eq(positions.wallet, viewer)));
@@ -247,16 +265,27 @@ export const listHolders = async (
   };
 };
 
-/* Trade rows with the trader's username, for the Trades tab and the chart's live trades. */
-export const usernamesFor = async (db: Db, wallets: string[]) => {
-  const names = new Map<string, string>();
-  if (wallets.length === 0) return names;
+/* Trader names and avatars for trade rows (the Trades tab and the chart's live trades). */
+export interface TraderProfile {
+  username: string | null;
+  avatarId: string | null;
+  avatarUrl: string | null;
+}
+
+export const profilesFor = async (db: Db, wallets: string[]) => {
+  const profiles = new Map<string, TraderProfile>();
+  if (wallets.length === 0) return profiles;
   const rows = await db
-    .select({ wallet: users.wallet, username: users.username })
+    .select({
+      wallet: users.wallet,
+      username: users.username,
+      avatarId: users.avatarId,
+      avatarUrl: users.avatarUrl,
+    })
     .from(users)
     .where(inArray(users.wallet, [...new Set(wallets)]));
-  for (const row of rows) if (row.username) names.set(row.wallet, row.username);
-  return names;
+  for (const { wallet, ...profile } of rows) profiles.set(wallet, profile);
+  return profiles;
 };
 
 

@@ -93,7 +93,7 @@ const candle = (
 
 beforeAll(async () => {
   const db = await migratedDb();
-  await db.insert(users).values({ wallet: creator, username: "maker" });
+  await db.insert(users).values({ wallet: creator, username: "maker", avatarId: "froggo" });
   await db.insert(memes).values([
     meme(A, ago(1)),
     meme(B, ago(40), {
@@ -155,7 +155,11 @@ describe("GET /feed", () => {
     expect(body.tab).toBe("new");
     expect(mints(body.items)).toEqual([A, E, C, B]);
     expect(body.nextOffset).toBeNull();
-    expect(body.items[0].creatorUsername).toBe("maker");
+    expect(body.items[0]).toMatchObject({
+      creatorUsername: "maker",
+      creatorAvatarId: "froggo",
+      creatorAvatarUrl: null,
+    });
   });
 
   test("trending ranks by 24h volume", async () => {

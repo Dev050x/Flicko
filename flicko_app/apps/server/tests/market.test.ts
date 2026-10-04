@@ -98,8 +98,8 @@ const candle = (bucketStart: Date, close: string) => ({
 beforeAll(async () => {
   const db = await migratedDb();
   await db.insert(users).values([
-    { wallet: creator, username: "maker" },
-    { wallet: t2, username: "whale" },
+    { wallet: creator, username: "maker", avatarUrl: "https://blobs.test/avatars/maker.jpg" },
+    { wallet: t2, username: "whale", avatarId: "pup" },
   ]);
   await db.insert(memes).values([
     meme(X, ago(30 * 60), {
@@ -265,6 +265,8 @@ describe("GET /reels", () => {
       captionTop: "GM SER",
       captionBottom: "WEN MOON",
       creatorUsername: "maker",
+      creatorAvatarId: null,
+      creatorAvatarUrl: "https://blobs.test/avatars/maker.jpg",
       creator,
       tradeCount: 3,
       viewer: null,
@@ -519,13 +521,15 @@ describe("meme page tabs", () => {
     expect((await get(`/memes/${Y}/trades`)).body.largeSkr).toBeNull();
   });
 
-  test("trades carry the trader's username", async () => {
+  test("trades carry the trader's username and avatar", async () => {
     const { body } = await get(`/memes/${X}/trades`);
     expect(body.items.map((t: { traderUsername: string | null }) => t.traderUsername)).toEqual([
       null,
       "whale",
       null,
     ]);
+    expect(body.items[1]).toMatchObject({ traderAvatarId: "pup", traderAvatarUrl: null });
+    expect(body.items[0]).toMatchObject({ traderAvatarId: null, traderAvatarUrl: null });
   });
 
   test("launch sale progress over time", async () => {
@@ -545,8 +549,8 @@ describe("meme page tabs", () => {
     expect(x.total).toBe(2);
     expect(x.pool).toEqual({ balance: "0", shareBps: 0, value: "0" });
     expect(x.items).toEqual([
-      { rank: 1, wallet: holder, username: null, isCreator: false, balance: "2000000", shareBps: 0, value: "3000" },
-      { rank: 2, wallet: t2, username: "whale", isCreator: false, balance: "5", shareBps: 0, value: "0" },
+      { rank: 1, wallet: holder, username: null, avatarId: null, avatarUrl: null, isCreator: false, balance: "2000000", shareBps: 0, value: "3000" },
+      { rank: 2, wallet: t2, username: "whale", avatarId: "pup", avatarUrl: null, isCreator: false, balance: "5", shareBps: 0, value: "0" },
     ]);
     expect(x.me).toBeNull();
 
