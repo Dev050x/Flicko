@@ -43,6 +43,13 @@
       "when": 1791063713071,
       "tag": "0005_market_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791142808470,
+      "tag": "0006_user_avatars",
+      "breakpoints": true
     }
   ]
 }

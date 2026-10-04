@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { errorHandler, notFound } from "./middleware/errors";
 import { alertsRouter } from "./routes/alerts";
 import { authRouter, type AuthDeps } from "./routes/auth";
+import { avatarRouter } from "./routes/avatar";
 import { createRouter, type CreateDeps } from "./routes/create";
 import { feedRouter, type ReadDeps } from "./routes/feed";
 import { filtersRouter, type FilterDeps } from "./routes/filters";
@@ -43,7 +44,7 @@ export const createApp = (deps: AppDeps) => {
   }
 
   if (deps.uploads) {
-    app.use(uploadsRouter(deps.uploads));
+    app.use(uploadsRouter(deps.uploads)).use(avatarRouter(deps.uploads));
   }
 
   if (deps.create) {

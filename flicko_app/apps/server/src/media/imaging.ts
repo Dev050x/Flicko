@@ -122,3 +122,20 @@ export const renderMeme = async (
 
 export const sha256Hex = (bytes: Uint8Array) =>
   new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+
+const AVATAR_SIZE = 512;
+
+/* Profile pictures: upright, centre-cropped to a 512px square, metadata stripped. */
+export const avatarImage = async (input: Uint8Array) => {
+  try {
+    return new Uint8Array(
+      await sharp(input)
+        .rotate()
+        .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "cover" })
+        .jpeg({ quality: 85, mozjpeg: true })
+        .toBuffer(),
+    );
+  } catch {
+    throw new HttpError(400, "not an image");
+  }
+};

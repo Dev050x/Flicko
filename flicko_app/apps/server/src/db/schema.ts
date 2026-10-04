@@ -37,6 +37,9 @@ export const users = pgTable("users", {
   wallet: text("wallet").primaryKey(),
   username: text("username").unique(),
   pushToken: text("push_token"),
+  // One of the bundled avatars (`avatarId`) or an uploaded photo (`avatarUrl`), never both.
+  avatarId: text("avatar_id"),
+  avatarUrl: text("avatar_url"),
   createdAt: createdAt(),
 });
 

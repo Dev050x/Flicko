@@ -1,6 +1,7 @@
 import { and, eq, ne } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
+import { AVATAR_IDS } from "../avatars";
 import type { Sessions } from "../auth/jwt";
 import { users } from "../db/schema";
 import type { Db } from "../db/types";
@@ -30,7 +31,16 @@ const username = z
     /^(?!.*\.\.)[a-z0-9_][a-z0-9_.]{1,18}[a-z0-9_]$/,
     "3-20 characters: a-z, 0-9, _ or .",
   );
-const usernameBody = z.object({ username });
+/* Either field may be sent alone; picking a bundled avatar replaces an uploaded photo. */
+const profileBody = z
+  .object({
+    username: username.optional(),
+    avatarId: z.enum(AVATAR_IDS).nullable().optional(),
+  })
+  .refine(
+    (body) => body.username !== undefined || body.avatarId !== undefined,
+    "nothing to update",
+  );
 
 export const meRouter = (deps: { db: Db; sessions: Sessions }) =>
   Router()
@@ -68,23 +78,28 @@ export const meRouter = (deps: { db: Db; sessions: Sessions }) =>
       res.json({ user });
     })
     .patch("/me", async (req, res) => {
-      const result = usernameBody.safeParse(req.body);
+      const result = profileBody.safeParse(req.body);
       if (!result.success) {
         throw new HttpError(400, z.prettifyError(result.error));
       }
-      const { username } = result.data;
+      const { username, avatarId } = result.data;
 
-      const [taken] = await deps.db
-        .select({ wallet: users.wallet })
-        .from(users)
-        .where(eq(users.username, username));
-      if (taken && taken.wallet !== walletOf(res)) {
-        throw new HttpError(409, "username taken");
+      if (username !== undefined) {
+        const [taken] = await deps.db
+          .select({ wallet: users.wallet })
+          .from(users)
+          .where(eq(users.username, username));
+        if (taken && taken.wallet !== walletOf(res)) {
+          throw new HttpError(409, "username taken");
+        }
       }
 
       const [user] = await deps.db
         .update(users)
-        .set({ username })
+        .set({
+          ...(username !== undefined ? { username } : {}),
+          ...(avatarId !== undefined ? { avatarId, avatarUrl: null } : {}),
+        })
         .where(eq(users.wallet, walletOf(res)))
         .returning();
       if (!user) throw new HttpError(404, "user not found");
