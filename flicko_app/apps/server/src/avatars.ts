@@ -11,6 +11,4 @@ export const AVATAR_IDS = [
   "dj-penny",
   "pup",
   "laser-pup",
-  "diamond-cat",
-  "whale",
 ] as const;

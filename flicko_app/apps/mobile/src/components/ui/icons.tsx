@@ -355,14 +355,32 @@ export function GalleryIcon({ size = 22, color = colors.text }: IconProps) {
   );
 }
 
-export function ShuffleIcon({ size = 22, color = colors.text }: IconProps) {
+export function PlusIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color} width={2.6}>
+      <Path d="M12 5 V19" />
+      <Path d="M5 12 H19" />
+    </Line>
+  );
+}
+
+export function ChevronRightIcon({
+  size = 20,
+  color = colors.text,
+}: IconProps) {
+  return (
+    <Line size={size} color={color} width={2.2}>
+      <Path d="M9 5 L16 12 L9 19" />
+    </Line>
+  );
+}
+
+export function TrashIcon({ size = 22, color = colors.text }: IconProps) {
   return (
     <Line size={size} color={color}>
-      <Path d="M3 7 H7 C11 7 13 17 17 17 H21" />
-      <Path d="M3 17 H7 C9 17 10.2 14.6 11.2 12.4" />
-      <Path d="M13 9.4 C14 8 15.2 7 17 7 H21" />
-      <Path d="M18 4 L21 7 L18 10" />
-      <Path d="M18 14 L21 17 L18 20" />
+      <Path d="M4 7 H20" />
+      <Path d="M9 7 V4.5 H15 V7" />
+      <Path d="M6.5 7 L7.5 19.5 H16.5 L17.5 7" />
     </Line>
   );
 }

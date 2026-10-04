@@ -1,30 +1,14 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useState, type ReactNode } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/ui/button";
-import {
-  CameraIcon,
-  CheckIcon,
-  GalleryIcon,
-  SealIcon,
-  ShuffleIcon,
-} from "@/components/ui/icons";
+import { AvatarSheet } from "@/components/profile/avatar-sheet";
+import { CheckIcon, PlusIcon, SealIcon } from "@/components/ui/icons";
 import { StepBar } from "@/components/ui/step-bar";
-import {
-  AVATARS,
-  avatarSource,
-  randomAvatarId,
-} from "@/features/avatars/catalog";
+import { avatarSource, randomAvatarId } from "@/features/avatars/catalog";
 import { uploadAvatar } from "@/features/avatars/upload";
 import { ApiError } from "@/lib/api";
 import { checkUsername, saveProfile } from "@/lib/auth";
@@ -40,9 +24,9 @@ const PATTERN = /^(?!.*\.\.)[a-z0-9_][a-z0-9_.]{1,18}[a-z0-9_]$/;
 const CHECK_DELAY_MS = 400;
 
 /*
- * Profile setup, step 1 of 2 (design-reference/ProfileSetup.html, left): the avatar starts
- * as a random bundled one, which can be shuffled, picked from the row, or replaced by a
- * snapped or uploaded photo. Username is prefilled from the wallet's .skr name with a
+ * Profile setup, step 1 of 2 (design-reference/ProfileSetup.html, left): every visit
+ * deals a random bundled avatar unless a photo was set; the + badge opens a sheet to
+ * snap or upload one instead. Username is prefilled from the wallet's .skr name with a
  * live availability check, and the Verified Seeker card shows when a Seeker Genesis
  * Token is found. Continue saves the name and avatar; a local photo is uploaded first.
  */
@@ -63,13 +47,21 @@ export default function Profile({ preview = false }: { preview?: boolean }) {
   const [seeker, setSeeker] = useState(preview);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [photoSheet, setPhotoSheet] = useState(false);
 
-  // Everyone starts with an avatar: a random bundled one until they pick or snap.
+  // A fresh random avatar on each visit, unless they've set a photo of their own.
   useEffect(() => {
-    if (!avatarUri && !avatarId) setAvatarId(randomAvatarId());
-  }, [avatarUri, avatarId, setAvatarId]);
+    const { avatarUri: photo, avatarId: current } = useSession.getState();
+    if (!photo) setAvatarId(randomAvatarId(current));
+  }, [setAvatarId]);
+
+  const snap = () => {
+    setPhotoSheet(false);
+    router.push("/avatar-camera");
+  };
 
   const upload = async () => {
+    setPhotoSheet(false);
     const picker = imagePicker();
     if (!picker) {
       setError("Uploading needs a new build of the app. Snap one instead.");
@@ -178,57 +170,26 @@ export default function Profile({ preview = false }: { preview?: boolean }) {
           Make it yours
         </Text>
 
-        <View style={styles.ring}>
-          <View style={styles.avatar}>
-            <Image
-              source={avatarSource(avatarUri, avatarId)}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              accessibilityLabel="Your profile picture"
-            />
-          </View>
-        </View>
-
-        <View style={styles.actions}>
-          <Action
-            label="Snap"
-            icon={<CameraIcon size={18} color={ref.textBright} />}
-            onPress={() => router.push("/avatar-camera")}
-          />
-          <Action
-            label="Upload"
-            icon={<GalleryIcon size={18} color={ref.textBright} />}
-            onPress={upload}
-          />
-          <Action
-            label="Shuffle"
-            icon={<ShuffleIcon size={18} color={ref.textBright} />}
-            onPress={() => setAvatarId(randomAvatarId(avatarId))}
-          />
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.presets}
-          contentContainerStyle={styles.presetRow}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change profile picture"
+          accessibilityHint="Take a photo or choose one from your gallery"
+          onPress={() => setPhotoSheet(true)}
+          style={styles.avatarWrap}
         >
-          {AVATARS.map((a) => {
-            const on = !avatarUri && a.id === avatarId;
-            return (
-              <Pressable
-                key={a.id}
-                accessibilityRole="button"
-                accessibilityLabel={a.name}
-                accessibilityState={{ selected: on }}
-                onPress={() => setAvatarId(a.id)}
-                style={[styles.preset, on && styles.presetOn]}
-              >
-                <Image source={a.source} style={styles.presetImage} />
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+          <View style={styles.ring}>
+            <View style={styles.avatar}>
+              <Image
+                source={avatarSource(avatarUri, avatarId)}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
+            </View>
+          </View>
+          <View style={styles.badge}>
+            <PlusIcon size={20} color={colors.bg} />
+          </View>
+        </Pressable>
 
         {error && <Text style={styles.error}>{error}</Text>}
 
@@ -278,28 +239,21 @@ export default function Profile({ preview = false }: { preview?: boolean }) {
           disabled={!preview && (status !== "available" || saving)}
         />
       </View>
-    </View>
-  );
-}
 
-function Action({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: ReactNode;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}
-    >
-      {icon}
-      <Text style={styles.actionText}>{label}</Text>
-    </Pressable>
+      {photoSheet && (
+        <AvatarSheet
+          photoUri={avatarUri}
+          avatarId={avatarId}
+          onSnap={snap}
+          onGallery={upload}
+          onClose={() => setPhotoSheet(false)}
+          onSave={(id) => {
+            if (id) setAvatarId(id);
+            setPhotoSheet(false);
+          }}
+        />
+      )}
+    </View>
   );
 }
 
@@ -353,35 +307,21 @@ const styles = StyleSheet.create({
     gap: 6,
     overflow: "hidden",
   },
-  actions: { flexDirection: "row", gap: 10, marginTop: -6 },
-  action: {
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: ref.sheet,
-    flexDirection: "row",
+  avatarWrap: { width: 140, height: 140 },
+  // + sits on the ring at 45°, cut out from the photo by a bg-coloured border.
+  badge: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 3,
+    borderColor: colors.bg,
+    backgroundColor: colors.text,
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
   },
-  actionText: {
-    fontFamily: "DMSans_500Medium",
-    fontSize: 14,
-    color: ref.textBright,
-  },
-  presets: { alignSelf: "stretch", marginHorizontal: -24, flexGrow: 0 },
-  presetRow: { paddingHorizontal: 24, gap: 10 },
-  preset: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    padding: 2,
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  presetOn: { borderColor: ref.textBright },
-  presetImage: { flex: 1, borderRadius: 22 },
   error: {
     alignSelf: "stretch",
     marginTop: -8,

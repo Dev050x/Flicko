@@ -47,16 +47,6 @@ export const AVATARS = [
     name: "Laser Pup",
     source: require("../../../assets/avatars/laser-pup.png"),
   },
-  {
-    id: "diamond-cat",
-    name: "Diamond Cat",
-    source: require("../../../assets/avatars/diamond-cat.png"),
-  },
-  {
-    id: "whale",
-    name: "Whale",
-    source: require("../../../assets/avatars/whale.png"),
-  },
 ] as const satisfies readonly {
   id: string;
   name: string;

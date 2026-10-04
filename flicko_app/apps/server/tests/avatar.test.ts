@@ -137,7 +137,7 @@ describe("photo avatars", () => {
   });
 
   test("crops to a 512px square, stores it publicly and replaces the bundled avatar", async () => {
-    await call("PATCH", "/me", { avatarId: "whale" });
+    await call("PATCH", "/me", { avatarId: "penny" });
     const { body } = await startUpload();
     const incoming = `incoming/avatars/${alice}/${body.uploadId}`;
     await blobs.put(incoming, photo, "image/jpeg");
