@@ -1,8 +1,15 @@
-import { and, asc, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
-import { candles, memes, positions, trades, users } from "../db/schema";
+import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  candles,
+  follows,
+  memes,
+  positions,
+  trades,
+  users,
+} from "../db/schema";
 import type { Db } from "../db/types";
 
-export type FeedTab = "new" | "trending" | "gainers";
+export type FeedTab = "new" | "trending" | "gainers" | "following";
 export type CandleInterval = (typeof candles.interval.enumValues)[number];
 
 export interface MemeCard {
@@ -30,6 +37,8 @@ export interface MemeCard {
   /** SKR base units per whole token */
   startPrice: string;
   graduatedAt: string | null;
+  /** whether the signed-in viewer follows the creator (only set when a viewer is known) */
+  creatorFollowed?: boolean;
 }
 
 export interface MemeDetail extends MemeCard {
@@ -183,6 +192,7 @@ export const listFeed = async (
   tab: FeedTab,
   limit: number,
   offset: number,
+  viewer?: string,
 ): Promise<MemeCard[]> => {
   const { query, volume24h } = cardQuery(db);
   const order = {
@@ -194,13 +204,54 @@ export const listFeed = async (
       asc(memes.mint),
     ],
     gainers: [desc(changeBps), desc(volume24h), asc(memes.mint)],
+    following: [desc(memes.createdAt), asc(memes.mint)],
   }[tab];
+  const visible = and(eq(memes.hidden, false), isNotNull(memes.imageUrl));
   const rows = await query
-    .where(and(eq(memes.hidden, false), isNotNull(memes.imageUrl)))
+    .where(
+      tab === "following"
+        ? and(
+            visible,
+            inArray(
+              memes.creator,
+              db
+                .select({ wallet: follows.followee })
+                .from(follows)
+                .where(eq(follows.follower, viewer ?? "")),
+            ),
+          )
+        : visible,
+    )
     .orderBy(...order)
     .limit(limit)
     .offset(offset);
-  return rows.map(toCard);
+  const cards = rows.map(toCard);
+  if (!viewer) return cards;
+  const followed = await followedAmong(
+    db,
+    viewer,
+    cards.map((card) => card.creator),
+  );
+  return cards.map((card) => ({
+    ...card,
+    creatorFollowed: followed.has(card.creator),
+  }));
+};
+
+/* The subset of `wallets` that `viewer` follows. */
+export const followedAmong = async (
+  db: Db,
+  viewer: string,
+  wallets: string[],
+) => {
+  if (!wallets.length) return new Set<string>();
+  const rows = await db
+    .select({ wallet: follows.followee })
+    .from(follows)
+    .where(
+      and(eq(follows.follower, viewer), inArray(follows.followee, wallets)),
+    );
+  return new Set(rows.map((row) => row.wallet));
 };
 
 export const memeExists = async (db: Db, mint: string) => {
@@ -312,7 +363,9 @@ export const listTrades = async (
 export const largeTradeSkr = async (db: Db, mint: string) => {
   const [row] = await db
     .select({
-      p95: sql<string | null>`trunc(percentile_cont(0.95) within group (order by ${trades.skrAmount}))::text`,
+      p95: sql<
+        string | null
+      >`trunc(percentile_cont(0.95) within group (order by ${trades.skrAmount}))::text`,
     })
     .from(trades)
     .where(eq(trades.mint, mint));
