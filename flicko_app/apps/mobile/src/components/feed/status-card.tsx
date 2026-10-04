@@ -11,7 +11,7 @@ import Animated, {
 import { usePriceHistory } from "@/features/feed/api";
 import { pct, skr, supplyCount } from "@/features/feed/format";
 import type { Meme } from "@/features/feed/types";
-import { feed, geist } from "@/theme";
+import { feed, geist, detail } from "@/theme";
 
 import { Sparkline } from "./sparkline";
 
@@ -81,7 +81,7 @@ function Trading({ meme, active }: { meme: Meme; active: boolean }) {
           <Text style={styles.poolPrice} numberOfLines={1} adjustsFontSizeToFit>
             {skr(meme.price)}
           </Text>
-          <Text style={[styles.change, { color: change >= 0 ? feed.lime : feed.textSecondary }]}>
+          <Text style={[styles.change, { color: change >= 0 ? feed.lime : detail.loss }]}>
             {pct(change)} since launch
           </Text>
         </View>
@@ -120,15 +120,15 @@ const styles = StyleSheet.create({
   status: { flexDirection: "row", alignItems: "center", gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: feed.lime },
   statusText: { fontFamily: geist.medium, fontSize: 13, lineHeight: 18 },
-  price: { fontFamily: geist.mono, fontSize: 15, lineHeight: 20, color: feed.text },
+  price: { fontFamily: geist.regular, fontSize: 15, lineHeight: 20, color: feed.text, fontVariant: ["tabular-nums"] },
   chart: { height: 32 },
   track: { height: 8, borderRadius: 4, backgroundColor: feed.border, overflow: "hidden" },
   fill: { height: "100%", borderRadius: 4, backgroundColor: feed.accent },
   sold: { fontFamily: geist.regular, fontSize: 13, lineHeight: 18, color: feed.textSecondary },
-  soldNumbers: { fontFamily: geist.mono, color: feed.text },
+  soldNumbers: { fontFamily: geist.regular, color: feed.text, fontVariant: ["tabular-nums"] },
   left: { fontFamily: geist.medium, fontSize: 13, lineHeight: 18, color: feed.pinkText },
   earns: { fontFamily: geist.regular, fontSize: 12, lineHeight: 16, color: feed.textSecondary },
-  poolPrice: { fontFamily: geist.monoMedium, fontSize: 24, lineHeight: 30, color: feed.text },
-  change: { fontFamily: geist.mono, fontSize: 13, lineHeight: 17 },
+  poolPrice: { fontFamily: geist.medium, fontSize: 24, lineHeight: 30, color: feed.text, fontVariant: ["tabular-nums"] },
+  change: { fontFamily: geist.regular, fontSize: 13, lineHeight: 17, fontVariant: ["tabular-nums"] },
   spark: { width: 130, height: 44 },
 });

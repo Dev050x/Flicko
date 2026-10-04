@@ -12,10 +12,10 @@ import Animated, {
 import { compactCount } from "@/features/feed/format";
 import { feed, geist } from "@/theme";
 
-import { CommentIcon, LikeIcon, RemixIcon, ShareIcon } from "./icons";
+import { LikeIcon, RemixIcon, ShareIcon } from "./icons";
 
 /*
- * Like, Comments, Remix, Share (flicko-feed-icons, size 30) with a soft drop shadow
+ * Like, Remix, Share (flicko-feed-icons, size 30) with a soft drop shadow
  * and a label under each. Liking fills the heart pink, pops it 1 → 1.25 → 1 and gives
  * a light haptic.
  */
@@ -56,17 +56,13 @@ function RailButton({
 export const ActionRail = memo(function ActionRail({
   liked,
   likeCount,
-  commentCount,
   onLike,
-  onComments,
   onRemix,
   onShare,
 }: {
   liked: boolean;
   likeCount: number;
-  commentCount: number;
   onLike: () => void;
-  onComments: () => void;
   onRemix: () => void;
   onShare: () => void;
 }) {
@@ -89,12 +85,6 @@ export const ActionRail = memo(function ActionRail({
             <LikeIcon size={ICON} filled={liked} color={liked ? feed.liked : feed.text} />
           </Animated.View>
         }
-      />
-      <RailButton
-        label="Comments"
-        text={compactCount(commentCount)}
-        onPress={onComments}
-        icon={<View style={shadow}><CommentIcon size={ICON} /></View>}
       />
       <RailButton
         label="Remix"

@@ -20,7 +20,6 @@ import { StatusCard } from "./status-card";
  * The photo covers the whole page above the tab bar; its caption is baked into it.
  */
 export interface FeedPageActions {
-  onComments: (meme: Meme) => void;
   onRemix: (meme: Meme) => void;
   onShare: (meme: Meme) => void;
   onBuy: (meme: Meme) => void;
@@ -79,9 +78,7 @@ export const FeedPage = memo(function FeedPage({
               <ActionRail
                 liked={meme.likedByMe}
                 likeCount={meme.likeCount}
-                commentCount={meme.commentCount}
                 onLike={() => toggleLike(meme.id)}
-                onComments={() => actions.onComments(meme)}
                 onRemix={() => actions.onRemix(meme)}
                 onShare={() => actions.onShare(meme)}
               />
@@ -213,5 +210,5 @@ const styles = StyleSheet.create({
   half: { flex: 1 },
   ctaText: { fontFamily: geist.semibold, fontSize: 16, color: feed.text },
   ctaDot: { fontFamily: geist.regular },
-  ctaPrice: { fontFamily: geist.mono, fontSize: 15 },
+  ctaPrice: { fontFamily: geist.medium, fontSize: 15, fontVariant: ["tabular-nums"] },
 });

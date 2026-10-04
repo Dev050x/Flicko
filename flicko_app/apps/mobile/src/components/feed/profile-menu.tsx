@@ -89,7 +89,12 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: feed.raised },
   name: { fontFamily: geist.semibold, fontSize: 15, color: feed.text },
-  balance: { fontFamily: geist.mono, fontSize: 13, color: feed.textSecondary },
+  balance: {
+    fontFamily: geist.regular,
+    fontSize: 13,
+    color: feed.textSecondary,
+    fontVariant: ["tabular-nums"],
+  },
   divider: { height: 1, backgroundColor: feed.border, marginHorizontal: 12, marginBottom: 4 },
   item: { height: 48, justifyContent: "center", paddingHorizontal: 16 },
   itemText: { fontFamily: geist.medium, fontSize: 15, color: feed.text },

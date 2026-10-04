@@ -1,3 +1,5 @@
+import { priceCompact } from "@/lib/format";
+
 /* Number and time formats for the feed. */
 
 /** 312, 4.8k, 21.3k, 1.2M */
@@ -12,14 +14,15 @@ const trim = (n: number) => (n >= 100 ? Math.round(n).toString() : n.toFixed(1).
 /** 1,000 */
 export const grouped = (n: number) => n.toLocaleString("en-US");
 
-/** "0.42 SKR" (two decimals, more for tiny prices) */
-export const skr = (n: number) => `${price(n)} SKR`;
+/** a per-token price, same format as the meme page: "0.42 SKR", "0.0₅64 SKR" */
+export const skr = (n: number) => `${priceCompact(n)} SKR`;
 
 export const price = (n: number) =>
   n !== 0 && Math.abs(n) < 0.01 ? n.toPrecision(2) : n.toFixed(2);
 
-/** "+338%" */
-export const pct = (n: number) => `${n >= 0 ? "+" : "−"}${grouped(Math.round(Math.abs(n)))}%`;
+/** "+338%" up, "▼ 12%" down: a drop never relies on colour alone */
+export const pct = (n: number) =>
+  `${n >= 0 ? "+" : "▼ "}${grouped(Math.round(Math.abs(n)))}%`;
 
 /** "2h ago", "25 min ago", "3d ago" */
 export const ago = (ms: number, now = Date.now()) => {

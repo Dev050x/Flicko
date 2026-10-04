@@ -68,8 +68,6 @@ export default function Feed() {
 
   const actions = useMemo<FeedPageActions>(
     () => ({
-      // TODO: a comments sheet once the server stores comments.
-      onComments: () => show("Comments are coming soon"),
       onRemix: (meme: Meme) => {
         // TODO: the camera doesn't take a template yet; it ignores `template` for now.
         router.navigate({ pathname: "/camera", params: { template: meme.id } });

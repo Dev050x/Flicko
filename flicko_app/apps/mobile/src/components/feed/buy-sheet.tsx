@@ -312,7 +312,7 @@ export function BuySheet({
             <View style={styles.divider} />
 
             <View style={styles.summary}>
-              <SummaryRow label={side === "sell" ? "Average price" : "Price each"} value={`${price(priceEach)} SKR`} />
+              <SummaryRow label={side === "sell" ? "Average price" : "Price each"} value={skr(priceEach)} />
               <SummaryRow label="Network fee" value={`≈ ${fee < 0.001 ? fee : fee.toFixed(4)} SOL`} />
               <SummaryRow
                 label="Your SKR balance"
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: 3, backgroundColor: feed.accent },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   soldLabel: { fontFamily: geist.regular, fontSize: 14, color: feed.textSecondary },
-  mono: { fontFamily: geist.mono, color: feed.text },
+  mono: { fontFamily: geist.regular, color: feed.text, fontVariant: ["tabular-nums"] },
   leftText: { fontFamily: geist.medium, fontSize: 14, color: feed.pinkText },
   label: {
     marginTop: 22,
@@ -433,7 +433,8 @@ const styles = StyleSheet.create({
   quantity: {
     flex: 1,
     textAlign: "center",
-    fontFamily: geist.monoMedium,
+    fontFamily: geist.medium,
+    fontVariant: ["tabular-nums"],
     fontSize: 44,
     lineHeight: 52,
     color: feed.text,
@@ -455,9 +456,9 @@ const styles = StyleSheet.create({
   divider: { marginTop: 18, height: 1, backgroundColor: feed.border },
   summary: { marginTop: 14, gap: 8 },
   rowLabel: { fontFamily: geist.regular, fontSize: 14, color: feed.textSecondary },
-  rowValue: { fontFamily: geist.mono, fontSize: 14, color: feed.text },
+  rowValue: { fontFamily: geist.regular, fontSize: 14, color: feed.text, fontVariant: ["tabular-nums"] },
   totalLabel: { fontFamily: geist.semibold, fontSize: 15, color: feed.text },
-  total: { fontFamily: geist.monoMedium, fontSize: 22, color: feed.text },
+  total: { fontFamily: geist.medium, fontSize: 22, color: feed.text, fontVariant: ["tabular-nums"] },
   approve: { marginTop: 18 },
 
   approveText: { fontFamily: geist.semibold, fontSize: 17, color: feed.text },
