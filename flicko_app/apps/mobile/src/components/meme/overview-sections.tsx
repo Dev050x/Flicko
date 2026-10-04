@@ -29,7 +29,6 @@ import { changeStyle } from "@/theme/priceChange";
  * The meme page's sections below the tabs. Containers are outlined (no fill, 8px
  * corners); numbers are Geist with tabular figures, addresses Geist Mono.
  */
-const defaultAvatar = require("../../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 /** A creator holding this share of supply or more fails the safety check. */
 export const CREATOR_LIMIT_PCT = 5;
@@ -448,7 +447,7 @@ export function DetailsCard({
       <Row label="Pool address">{address(meme.memePda)}</Row>
       <Row label="Creator">
         <View style={styles.inline}>
-          <Image source={defaultAvatar} style={styles.creatorAvatar} />
+          <Image source={meme.creator.avatar} style={styles.creatorAvatar} />
           <Text style={styles.rowValue}>
             {meme.creator.handle
               ? `@${meme.creator.handle}`

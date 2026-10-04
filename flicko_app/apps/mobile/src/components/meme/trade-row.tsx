@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { memo, useEffect, useState } from "react";
 import {
   Linking,
@@ -254,7 +255,9 @@ export const TradeRow = memo(function TradeRow({
             {tokensLive(trade.tokens)}
           </Text>
           <View style={[styles.traderCol, styles.cellLine, styles.trader]}>
-            {mine ? (
+            {trade.avatar ? (
+              <Image source={trade.avatar} style={styles.avatar} />
+            ) : mine ? (
               <View style={[styles.avatar, { backgroundColor: D.accent }]} />
             ) : trade.traderIsAddress ? (
               <View style={[styles.avatar, { backgroundColor: D.line }]} />

@@ -1,6 +1,9 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
+import type { ImageSource } from "expo-image";
+
 import { config } from "@/config";
+import { profileAvatar } from "@/features/avatars/catalog";
 import { skrOf } from "@/features/markets/api";
 import { api } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
@@ -83,6 +86,8 @@ export interface TradeView {
   trader: string;
   /** true when `trader` is a shortened address (shown in mono) */
   traderIsAddress: boolean;
+  /** the trader's avatar, or null when they haven't set one */
+  avatar?: ImageSource | null;
   wallet: string;
   at: number;
 }
@@ -91,6 +96,8 @@ interface ServerTrade {
   signature: string;
   trader: string;
   traderUsername: string | null;
+  traderAvatarId: string | null;
+  traderAvatarUrl: string | null;
   isBuy: boolean;
   skrAmount: string;
   tokenAmount: string;
@@ -160,6 +167,7 @@ export const useTrades = (
             ? `@${t.traderUsername}`
             : shortAddress(t.trader),
           traderIsAddress: !t.traderUsername,
+          avatar: profileAvatar(t.traderAvatarUrl, t.traderAvatarId),
           wallet: t.trader,
           at: Date.parse(t.blockTime),
         })),
@@ -177,6 +185,8 @@ export interface HolderView {
   /** "@handle" or a short address */
   label: string;
   isAddress: boolean;
+  /** null when they haven't set one */
+  avatar: ImageSource | null;
   isCreator: boolean;
   /** percent of supply */
   pct: number;
@@ -200,6 +210,8 @@ interface ServerHolder {
   rank: number;
   wallet: string;
   username: string | null;
+  avatarId: string | null;
+  avatarUrl: string | null;
   isCreator: boolean;
   balance: string;
   shareBps: number;
@@ -211,6 +223,7 @@ const toHolder = (h: ServerHolder): HolderView => ({
   wallet: h.wallet,
   label: h.username ? `@${h.username}` : shortAddress(h.wallet),
   isAddress: !h.username,
+  avatar: profileAvatar(h.avatarUrl, h.avatarId),
   isCreator: h.isCreator,
   pct: h.shareBps / 100,
   tokens: Number(h.balance) / TOKEN,
@@ -233,6 +246,7 @@ const mockHolders = (): HoldersPage => {
         wallet: h.address,
         label: h.label ?? h.address,
         isAddress: !h.label,
+        avatar: null,
         isCreator: h.tag === "Creator",
         pct: h.pct,
         tokens: h.amount,

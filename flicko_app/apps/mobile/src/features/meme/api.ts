@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ImageSource } from "expo-image";
 
 import { config } from "@/config";
+import { avatarSource } from "@/features/avatars/catalog";
 import { skrOf, type MarketRow, type Window } from "@/features/markets/api";
 import { api } from "@/lib/api";
 import { connection } from "@/lib/solana";
@@ -29,7 +30,7 @@ export interface MemeView {
   symbol: string;
   name: string;
   image: ImageSource | number | null;
-  creator: { wallet: string; handle: string | null };
+  creator: { wallet: string; handle: string | null; avatar: ImageSource };
   creatorMemes: number;
   createdAt: number;
   phase: "pool" | "launching";
@@ -83,6 +84,8 @@ interface ServerMeme {
   imageUrl: string | null;
   creator: string;
   creatorUsername: string | null;
+  creatorAvatarId: string | null;
+  creatorAvatarUrl: string | null;
   phase: "launch" | "graduated";
   price: string;
   createdAt: string;
@@ -138,7 +141,11 @@ const toView = ({
     symbol: meme.symbol,
     name: meme.name,
     image: meme.imageUrl ? { uri: meme.imageUrl } : null,
-    creator: { wallet: meme.creator, handle: meme.creatorUsername },
+    creator: {
+      wallet: meme.creator,
+      handle: meme.creatorUsername,
+      avatar: avatarSource(meme.creatorAvatarUrl, meme.creatorAvatarId),
+    },
     creatorMemes: overview.creatorMemes,
     createdAt: Date.parse(meme.createdAt),
     phase: graduated ? "pool" : "launching",
@@ -203,7 +210,11 @@ const mockView = (): MemeView => {
     symbol: d.symbol,
     name: d.name,
     image: require("../../../assets/mocks/detail-squad.jpg"),
-    creator: { wallet: d.creator.wallet, handle: d.creator.handle },
+    creator: {
+      wallet: d.creator.wallet,
+      handle: d.creator.handle,
+      avatar: avatarSource(null, null),
+    },
     creatorMemes: d.creator.memes,
     createdAt: Date.parse(d.createdAt),
     phase: d.phase === "pool" ? "pool" : "launching",

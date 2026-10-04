@@ -123,7 +123,6 @@ const rowSlide = LinearTransition.duration(160).easing(Easing.out(Easing.quad));
 
 const PAD = 16;
 const BUTTON = 54;
-const defaultAvatar = require("../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 /* The feed's buy sheet takes a feed Meme; build one from the page's data. */
 const asFeedMeme = (m: MemeView): Meme => ({
@@ -132,7 +131,7 @@ const asFeedMeme = (m: MemeView): Meme => ({
   creator: {
     wallet: m.creator.wallet,
     handle: m.creator.handle ?? shortAddress(m.creator.wallet),
-    avatarUrl: defaultAvatar,
+    avatarUrl: m.creator.avatar,
     isFollowing: false,
   },
   ticker: m.symbol,

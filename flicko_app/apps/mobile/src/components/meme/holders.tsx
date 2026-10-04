@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { memo } from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
 
@@ -5,6 +6,8 @@ import type { MemeView } from "@/features/meme/api";
 import type { HoldersPage, HolderView } from "@/features/meme/tabs";
 import { compact, grouped, tokensLive } from "@/lib/format";
 import { detail as D, geist } from "@/theme";
+
+import { Identicon } from "./identicon";
 
 /*
  * Holders tab. Summary grid, a concentration bar (pool · top 10 · everyone else, adding
@@ -163,6 +166,11 @@ export const HolderRow = memo(function HolderRow({
       <Text style={[styles.rank, styles.rankCol, NUM]}>{holder.rank}</Text>
       <View style={[styles.nameCol, { gap: 6 }]}>
         <View style={styles.nameLine}>
+          {holder.avatar ? (
+            <Image source={holder.avatar} style={styles.holderAvatar} />
+          ) : (
+            <Identicon address={holder.wallet} size={18} />
+          )}
           <Text
             style={
               mine
@@ -298,6 +306,7 @@ const styles = StyleSheet.create({
   },
   rank: { fontFamily: geist.regular, fontSize: 12, color: D.muted },
   nameLine: { flexDirection: "row", alignItems: "center", gap: 6 },
+  holderAvatar: { width: 18, height: 18, borderRadius: 9 },
   handle: {
     flexShrink: 1,
     fontFamily: geist.medium,

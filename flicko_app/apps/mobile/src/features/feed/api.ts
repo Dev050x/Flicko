@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { config } from "@/config";
+import { avatarSource } from "@/features/avatars/catalog";
 import { api } from "@/lib/api";
 
 import type { FeedTab, Meme } from "./types";
@@ -17,6 +18,8 @@ interface MemeCard {
   imageUrl: string | null;
   creator: string;
   creatorUsername: string | null;
+  creatorAvatarId: string | null;
+  creatorAvatarUrl: string | null;
   phase: "launch" | "graduated";
   /** SKR base units per whole token */
   price: string;
@@ -37,7 +40,6 @@ interface FeedPage {
 
 const PAGE = 20;
 const TOKEN_DECIMALS = 6;
-const defaultAvatar = require("../../../assets/brand/flicko-pfp-dark-ring-1024.png");
 
 const skrOf = (baseUnits: string) => Number(baseUnits) / 10 ** config.skrDecimals;
 const tokensOf = (baseUnits: bigint) => Number(baseUnits / 10n ** BigInt(TOKEN_DECIMALS));
@@ -55,7 +57,7 @@ export const toMeme = (card: MemeCard): Meme => {
     creator: {
       wallet: card.creator,
       handle: card.creatorUsername ?? shortWallet(card.creator),
-      avatarUrl: defaultAvatar,
+      avatarUrl: avatarSource(card.creatorAvatarUrl, card.creatorAvatarId),
       isFollowing: false,
     },
     ticker: card.symbol,

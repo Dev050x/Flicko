@@ -84,6 +84,13 @@ export const avatarSource = (
   id: string | null | undefined,
 ): ImageSource => (uri ? { uri } : (avatarById(id)?.source ?? brandAvatar));
 
+/* Someone else's avatar from the server's id/url pair, or null when they have none. */
+export const profileAvatar = (
+  url: string | null | undefined,
+  id: string | null | undefined,
+): ImageSource | null =>
+  url ? { uri: url } : (avatarById(id)?.source ?? null);
+
 /* Your own avatar; guests and anyone who hasn't picked one see the Flicko mark. */
 export const useMyAvatar = () => {
   const uri = useSession((s) => s.avatarUri);
