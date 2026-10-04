@@ -1,5 +1,5 @@
-import { and, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
-import { memes, positions, users } from "../db/schema";
+import { and, eq, gt, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { memes, positions, priceAlerts, users } from "../db/schema";
 import type { Db } from "../db/types";
 import type { FlickoEvent } from "../indexer/events";
 import type { PushMessage, PushSender } from "./expo";
@@ -20,6 +20,9 @@ const skr = (amount: string) => {
   const whole = Number(BigInt(amount) / 10_000n) / 100;
   return whole.toLocaleString("en-US", { maximumFractionDigits: 2 });
 };
+
+/** a price (SKR base units per token) in whole SKR, up to 4 significant digits */
+const skrPrice = (amount: string) => String(Number((Number(amount) / 1e6).toPrecision(4)));
 
 const gainLabel = (bps: number) =>
   bps >= 10_000 ? `${bps / 10_000 + 1}x` : `${bps / 100}%`;
@@ -43,6 +46,7 @@ export const createNotifier = (deps: NotifierDeps) => {
       .select({
         mint: memes.mint,
         name: memes.name,
+        symbol: memes.symbol,
         creator: memes.creator,
         price: memes.price,
       })
@@ -137,6 +141,44 @@ export const createNotifier = (deps: NotifierDeps) => {
     });
   };
 
+  /*
+   * Price alerts crossed by the meme's current price: each fires once, then is marked
+   * triggered so it never fires again.
+   */
+  const alerts = async (memePda: string): Promise<PushMessage[]> => {
+    const meme = await memeByPda(memePda);
+    if (!meme) return [];
+    const fired = await deps.db
+      .update(priceAlerts)
+      .set({ triggeredAt: new Date(now()) })
+      .where(
+        and(
+          eq(priceAlerts.mint, meme.mint),
+          isNull(priceAlerts.triggeredAt),
+          or(
+            and(eq(priceAlerts.direction, "above"), sql`${priceAlerts.price} <= ${meme.price}`),
+            and(eq(priceAlerts.direction, "below"), sql`${priceAlerts.price} >= ${meme.price}`),
+          ),
+        ),
+      )
+      .returning();
+    if (fired.length === 0) return [];
+    const tokens = await tokensOf([...new Set(fired.map((a) => a.wallet))]);
+    return fired.flatMap((alert) => {
+      const to = tokens.get(alert.wallet);
+      if (!to) return [];
+      const target = skrPrice(alert.price);
+      return [
+        {
+          to,
+          title: `🔔 $${meme.symbol} is ${alert.direction} ${target} SKR`,
+          body: `${meme.name} is now ${skrPrice(meme.price)} SKR. Your alert at ${target} SKR fired.`,
+          data: { kind: "alert", mint: meme.mint },
+        },
+      ];
+    });
+  };
+
   const notify = async (events: FlickoEvent[], blockTime: number | null) => {
     if (events.length === 0) return 0;
     if (blockTime !== null && now() - blockTime * 1000 > MAX_EVENT_AGE_MS) {
@@ -152,7 +194,10 @@ export const createNotifier = (deps: NotifierDeps) => {
         priced.add(event.meme);
       }
     }
-    for (const memePda of priced) messages.push(...(await gains(memePda)));
+    for (const memePda of priced) {
+      messages.push(...(await gains(memePda)));
+      messages.push(...(await alerts(memePda)));
+    }
     if (messages.length === 0) return 0;
 
     const { invalidTokens } = await deps.sender.send(messages);

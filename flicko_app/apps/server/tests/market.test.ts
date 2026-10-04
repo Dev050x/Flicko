@@ -561,3 +561,36 @@ describe("meme page tabs", () => {
     expect((await get(`/memes/${key()}/holders`)).status).toBe(404);
   });
 });
+
+describe("/me/alerts", () => {
+  const send = async (method: string, path: string, body?: unknown, auth = `Bearer ${token}`) => {
+    const res = await fetch(`${url}${path}`, {
+      method,
+      headers: { authorization: auth, "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    return { status: res.status, body: (await res.json().catch(() => ({}))) as any };
+  };
+
+  test("create, list per meme, cap and delete", async () => {
+    expect((await send("POST", "/me/alerts", { mint: X, price: "2000", direction: "above" }, "")).status).toBe(401);
+    const made = await send("POST", "/me/alerts", { mint: X, price: "2000", direction: "above" });
+    expect(made.status).toBe(201);
+    expect(made.body.alert).toMatchObject({ mint: X, price: "2000", direction: "above", triggeredAt: null });
+    expect((await send("POST", "/me/alerts", { mint: X, price: "0", direction: "above" })).status).toBe(400);
+    expect((await send("POST", "/me/alerts", { mint: X, price: "2", direction: "sideways" })).status).toBe(400);
+    expect((await send("POST", "/me/alerts", { mint: key(), price: "2", direction: "below" })).status).toBe(404);
+
+    for (let i = 0; i < 9; i++) {
+      expect((await send("POST", "/me/alerts", { mint: X, price: String(3000 + i), direction: "above" })).status).toBe(201);
+    }
+    expect((await send("POST", "/me/alerts", { mint: X, price: "9999", direction: "above" })).status).toBe(409);
+
+    const list = (await get(`/me/alerts?mint=${X}`, `Bearer ${token}`)).body.items;
+    expect(list).toHaveLength(10);
+    expect((await get(`/me/alerts?mint=${Z}`, `Bearer ${token}`)).body.items).toEqual([]);
+
+    expect((await send("DELETE", `/me/alerts/${made.body.alert.id}`)).status).toBe(204);
+    expect((await get(`/me/alerts?mint=${X}`, `Bearer ${token}`)).body.items).toHaveLength(9);
+  });
+});

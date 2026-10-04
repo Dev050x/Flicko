@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Keypair } from "@solana/web3.js";
 import { eq } from "drizzle-orm";
-import { memes, positions, users } from "../src/db/schema";
+import { memes, positions, priceAlerts, users } from "../src/db/schema";
 import type { FlickoEvent } from "../src/indexer/events";
 import { expoPushSender, type PushMessage } from "../src/notify/expo";
 import { createNotifier } from "../src/notify/notifier";
@@ -171,6 +171,41 @@ describe("notifier", () => {
     await notifier().notify([trade()], nowSeconds());
     const [h1] = await db.select().from(users).where(eq(users.wallet, H1));
     expect(h1!.pushToken).toBeNull();
+  });
+});
+
+describe("price alerts", () => {
+  test("fire once when the price crosses them, in either direction", async () => {
+    await db.insert(priceAlerts).values([
+      { wallet: C, mint: MINT, price: "1500", direction: "above" }, // crossed at 1600
+      { wallet: C, mint: MINT, price: "2000", direction: "above" }, // not yet
+      { wallet: H1, mint: MINT, price: "1700", direction: "below" }, // crossed at 1600
+      { wallet: H2, mint: MINT, price: "1700", direction: "below" }, // crossed, but no token
+    ]);
+    const n = notifier();
+    await n.notify([trade({ isBuy: false })], nowSeconds());
+    const alertsSent = sent.flat().filter((m) => m.data?.kind === "alert");
+    expect(alertsSent).toContainEqual({
+      to: C_TOKEN,
+      title: "🔔 $DSER is above 0.0015 SKR",
+      body: "Doge Ser is now 0.0016 SKR. Your alert at 0.0015 SKR fired.",
+      data: { kind: "alert", mint: MINT },
+    });
+    expect(alertsSent.map((m) => m.to).sort()).toEqual([C_TOKEN, H1_TOKEN].sort());
+
+    const rows = await db.select().from(priceAlerts);
+    const fired = rows.filter((r) => r.triggeredAt !== null).map((r) => r.price);
+    expect(fired.sort()).toEqual(["1500", "1700", "1700"]);
+
+    // already fired: nothing again; the 2000 one fires once the price gets there
+    sent = [];
+    await n.notify([trade({ isBuy: false })], nowSeconds());
+    expect(sent.flat().filter((m) => m.data?.kind === "alert")).toEqual([]);
+    await setPrice("2100");
+    await n.notify([trade({ isBuy: false })], nowSeconds());
+    expect(sent.flat().filter((m) => m.data?.kind === "alert").map((m) => m.title)).toEqual([
+      "🔔 $DSER is above 0.002 SKR",
+    ]);
   });
 });
 

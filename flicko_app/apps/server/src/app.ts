@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { errorHandler, notFound } from "./middleware/errors";
+import { alertsRouter } from "./routes/alerts";
 import { authRouter, type AuthDeps } from "./routes/auth";
 import { createRouter, type CreateDeps } from "./routes/create";
 import { feedRouter, type ReadDeps } from "./routes/feed";
@@ -37,7 +38,8 @@ export const createApp = (deps: AppDeps) => {
       .use(authRouter(deps.auth))
       .use(meRouter(deps.auth))
       .use(portfolioRouter(deps.auth))
-      .use(watchlistRouter(deps.auth));
+      .use(watchlistRouter(deps.auth))
+      .use(alertsRouter(deps.auth));
   }
 
   if (deps.uploads) {
