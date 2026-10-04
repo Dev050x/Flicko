@@ -37,6 +37,7 @@ import {
   safetyRows,
   safetySummary,
 } from "@/components/meme/overview-sections";
+import { AlertSheet } from "@/components/meme/alert-sheet";
 import { ChartTab } from "@/components/meme/chart-tab";
 import {
   HOLDER_ROW,
@@ -180,6 +181,7 @@ export default function MemeDetail() {
   const [touching, setTouching] = useState(false);
   const [filter, setFilter] = useState<TradeFilter>("all");
   const [sheet, setSheet] = useState<TradeView | null>(null);
+  const [alertOpen, setAlertOpen] = useState(false);
   const safetyY = useRef(0);
   const { toast, show } = useToast(insets.top + 64);
 
@@ -874,6 +876,13 @@ export default function MemeDetail() {
           >
             {[
               { label: "Share", run: share },
+              {
+                label: "Price alert",
+                run: () =>
+                  signedIn || config.useMocks
+                    ? setAlertOpen(true)
+                    : setConnecting(true),
+              },
               { label: "Copy token address", run: () => copy(meme.mint) },
               { label: "View on explorer", run: () => explore(meme.mint) },
             ].map((item) => (
@@ -915,6 +924,19 @@ export default function MemeDetail() {
         <ConnectFlow
           onClose={() => setConnecting(false)}
           onBrowse={() => setConnecting(false)}
+        />
+      )}
+      {alertOpen && (
+        <AlertSheet
+          mint={meme.mint}
+          symbol={meme.symbol}
+          priceSkr={meme.priceSkr}
+          bottomInset={insets.bottom}
+          onClose={() => setAlertOpen(false)}
+          onSaved={(message) => {
+            setAlertOpen(false);
+            show(message);
+          }}
         />
       )}
       {sheet && meme && (
