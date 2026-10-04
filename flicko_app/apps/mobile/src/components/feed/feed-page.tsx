@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -84,12 +85,21 @@ export const FeedPage = memo(function FeedPage({
               />
             </View>
             <View style={styles.creator}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`@${meme.creator.handle}'s profile`}
+                onPress={() =>
+                  router.push({ pathname: "/u/[handle]", params: { handle: meme.creator.wallet } })
+                }
+                style={styles.creatorLink}
+              >
               <View style={styles.avatarRing}>
                 <Image source={meme.creator.avatarUrl} style={styles.avatar} contentFit="cover" />
               </View>
               <Text style={styles.handle} numberOfLines={1}>
                 @{meme.creator.handle}
               </Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`${meme.creator.isFollowing ? "Unfollow" : "Follow"} @${meme.creator.handle}`}
@@ -157,6 +167,7 @@ const styles = StyleSheet.create({
   info: { position: "absolute", left: 16, right: 16, bottom: 16, gap: 12 },
   rail: { position: "absolute", right: -10, bottom: 8, gap: 18, alignItems: "center" },
   details: { gap: 12 },
+  creatorLink: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   creator: { flexDirection: "row", alignItems: "center", gap: 10, paddingRight: 80 },
   avatarRing: {
     width: 32,

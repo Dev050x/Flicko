@@ -1,6 +1,7 @@
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { memo } from "react";
-import { StyleSheet, Text, View, type TextStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type TextStyle } from "react-native";
 
 import type { MemeView } from "@/features/meme/api";
 import type { HoldersPage, HolderView } from "@/features/meme/tabs";
@@ -158,9 +159,12 @@ export const HolderRow = memo(function HolderRow({
 }) {
   const rel = topPct > 0 ? Math.min(1, holder.pct / topPct) : 0;
   return (
-    <View
+    <Pressable
+      onPress={() =>
+        router.push(mine ? "/me" : { pathname: "/u/[handle]", params: { handle: holder.wallet } })
+      }
       style={[styles.row, mine && { backgroundColor: ME_TINT }]}
-      accessible
+      accessibilityRole="button"
       accessibilityLabel={`Rank ${holder.rank}, ${mine ? "you" : holder.label}${holder.isCreator ? ", creator" : ""}, ${sharePct(holder.pct)} of supply`}
     >
       <Text style={[styles.rank, styles.rankCol, NUM]}>{holder.rank}</Text>
@@ -206,7 +210,7 @@ export const HolderRow = memo(function HolderRow({
           </Text>
         )}
       </View>
-    </View>
+    </Pressable>
   );
 });
 

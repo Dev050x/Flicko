@@ -106,6 +106,8 @@ export default function RootLayout() {
             <Stack.Protected guard={(signedIn && onboardingDone) || isGuest}>
               <Stack.Screen name="(main)" />
               <Stack.Screen name="me" options={{ animation: "slide_from_left" }} />
+              <Stack.Screen name="edit-profile" options={{ animation: "slide_from_right" }} />
+              <Stack.Screen name="settings" options={{ animation: "slide_from_right" }} />
             </Stack.Protected>
             {/*
               The create flow stays open when a guest connects mid-launch (before they
@@ -131,6 +133,10 @@ export default function RootLayout() {
               />
               <Stack.Screen
                 name="meme/[mint]"
+                options={{ animation: "slide_from_right" }}
+              />
+              <Stack.Screen
+                name="u/[handle]"
                 options={{ animation: "slide_from_right" }}
               />
             </Stack.Protected>

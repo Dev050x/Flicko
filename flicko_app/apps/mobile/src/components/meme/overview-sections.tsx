@@ -1,4 +1,5 @@
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import type { ReactNode } from "react";
 import {
   Pressable,
@@ -446,14 +447,24 @@ export function DetailsCard({
       <Row label="Token address">{address(meme.mint)}</Row>
       <Row label="Pool address">{address(meme.memePda)}</Row>
       <Row label="Creator">
-        <View style={styles.inline}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            router.push({
+              pathname: "/u/[handle]",
+              params: { handle: meme.creator.wallet },
+            })
+          }
+          hitSlop={8}
+          style={styles.inline}
+        >
           <Image source={meme.creator.avatar} style={styles.creatorAvatar} />
           <Text style={styles.rowValue}>
             {meme.creator.handle
               ? `@${meme.creator.handle}`
               : shortAddress(meme.creator.wallet)}
           </Text>
-        </View>
+        </Pressable>
       </Row>
     </Card>
   );

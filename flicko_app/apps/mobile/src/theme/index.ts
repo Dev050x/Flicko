@@ -182,3 +182,18 @@ export const detail = {
   chipOn: "#F5F3F7",
   radius: 8,
 } as const;
+
+/*
+ * Profile screens (flicko-profile-kit): flat cards on the app background, hairlines in
+ * `colors.border`, numbers in DM Mono 500.
+ */
+export const profile = {
+  card: "#17141F",
+  line: "#2C2738",
+  muted: "#8E86A0",
+  dim: "#6F6880",
+  bio: "#E4DDF2",
+  seeker: "#221B2E",
+  copy: "#A49DB5",
+  tile: "rgba(14,11,20,0.62)",
+} as const;

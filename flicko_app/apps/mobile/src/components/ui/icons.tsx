@@ -90,12 +90,12 @@ export function RefreshIcon({ size = 30, color = ref.textBright }: IconProps) {
   );
 }
 
-export function SealIcon({ size = 18 }: IconProps) {
+export function SealIcon({ size = 18, color = ref.check }: IconProps) {
   return (
     <Svg viewBox="0 0 24 24" width={size} height={size}>
       <Path
         d="M12 2 L14.6 4.4 L18 4 L18.6 7.4 L21.6 9.2 L20 12 L21.6 14.8 L18.6 16.6 L18 20 L14.6 19.6 L12 22 L9.4 19.6 L6 20 L5.4 16.6 L2.4 14.8 L4 12 L2.4 9.2 L5.4 7.4 L6 4 L9.4 4.4 Z"
-        fill={ref.check}
+        fill={color}
       />
       <Path
         d="M8 12.2 L10.8 15 L16 9.6"
@@ -381,6 +381,43 @@ export function TrashIcon({ size = 22, color = colors.text }: IconProps) {
       <Path d="M4 7 H20" />
       <Path d="M9 7 V4.5 H15 V7" />
       <Path d="M6.5 7 L7.5 19.5 H16.5 L17.5 7" />
+    </Line>
+  );
+}
+
+export function SettingsIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Circle cx={12} cy={12} r={3} />
+      <Path d="M12 3 V5.5 M12 18.5 V21 M3 12 H5.5 M18.5 12 H21 M5.6 5.6 L7.4 7.4 M16.6 16.6 L18.4 18.4 M5.6 18.4 L7.4 16.6 M16.6 7.4 L18.4 5.6" />
+    </Line>
+  );
+}
+
+export function CopyIcon({ size = 13, color = "#A49DB5" }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Rect x={8} y={8} width={12} height={12} rx={2} />
+      <Path d="M16 8 V6 A2 2 0 0 0 14 4 H6 A2 2 0 0 0 4 6 V14 A2 2 0 0 0 6 16 H8" />
+    </Line>
+  );
+}
+
+export function MoreIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Svg viewBox="0 0 24 24" width={size} height={size}>
+      <Circle cx={5} cy={12} r={1.8} fill={color} />
+      <Circle cx={12} cy={12} r={1.8} fill={color} />
+      <Circle cx={19} cy={12} r={1.8} fill={color} />
+    </Svg>
+  );
+}
+
+export function SendIcon({ size = 22, color = colors.text }: IconProps) {
+  return (
+    <Line size={size} color={color}>
+      <Path d="M14 4.5 L20.5 11 L14 17.5" />
+      <Path d="M20.5 11 H11 A6.5 6.5 0 0 0 4.5 17.5 V19.5" />
     </Line>
   );
 }

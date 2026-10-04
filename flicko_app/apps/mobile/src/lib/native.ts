@@ -109,3 +109,10 @@ export const imagePicker = () =>
     "ExponentImagePicker",
     () => require("expo-image-picker") as typeof import("expo-image-picker"),
   );
+
+export const clipboard = () =>
+  optional(
+    "expo-clipboard",
+    "ExpoClipboard",
+    () => require("expo-clipboard") as typeof import("expo-clipboard"),
+  );

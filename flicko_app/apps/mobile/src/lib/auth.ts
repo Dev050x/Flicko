@@ -20,6 +20,8 @@ export interface User {
   username: string | null;
   avatarId: string | null;
   avatarUrl: string | null;
+  displayName: string | null;
+  bio: string | null;
   createdAt: string;
 }
 
@@ -48,6 +50,11 @@ export const checkUsername = (name: string, token?: string) =>
   );
 
 export const saveProfile = (
-  body: { username?: string; avatarId?: string | null },
+  body: {
+    username?: string;
+    avatarId?: string | null;
+    displayName?: string;
+    bio?: string;
+  },
   token: string,
 ) => api<{ user: User }>("/me", { method: "PATCH", body, token });
