@@ -2,8 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { BN } from "@anchor-lang/core";
 import { Connection, Keypair, type TransactionInstruction } from "@solana/web3.js";
 import { decodeMemeAccount } from "../src/accounts/meme";
-import { buyInstruction, sellInstruction } from "../src/builders/builders";
-import { buyInstructionRaw, sellInstructionRaw } from "../src/builders/trade";
+import {
+  buyInstruction,
+  claimCreatorFeesInstruction,
+  sellInstruction,
+} from "../src/builders/builders";
+import {
+  buyInstructionRaw,
+  claimCreatorFeesInstructionRaw,
+  sellInstructionRaw,
+} from "../src/builders/trade";
 import { getReadonlyProgram } from "../src/core/program";
 import { launchParams } from "../src/math/math";
 import { skrInForTokens } from "../src/quote/inverse";
@@ -41,6 +49,14 @@ describe("raw trade instructions", () => {
     same(
       sellInstructionRaw({ ...params, ...amounts }, program.programId),
       await sellInstruction(program, { ...params, ...amounts }),
+    );
+  });
+
+  test("claim matches Anchor's builder", async () => {
+    const claim = { creator: params.trader, mint: params.mint, skrMint: params.skrMint };
+    same(
+      claimCreatorFeesInstructionRaw(claim, program.programId),
+      await claimCreatorFeesInstruction(program, claim),
     );
   });
 
