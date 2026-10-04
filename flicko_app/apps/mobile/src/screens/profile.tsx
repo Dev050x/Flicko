@@ -183,6 +183,13 @@ export default function Profile({ preview = false }: { preview?: boolean }) {
                 source={avatarSource(avatarUri, avatarId)}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
+                onError={() => {
+                  // A saved photo that won't load (deleted, or not public): deal a preset.
+                  if (avatarUri?.startsWith("http")) {
+                    setAvatar(null);
+                    setAvatarId(randomAvatarId(avatarId));
+                  }
+                }}
               />
             </View>
           </View>
