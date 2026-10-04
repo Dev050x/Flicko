@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Keyboard,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -20,6 +18,7 @@ import {
   type AlertDirection,
 } from "@/features/alerts/api";
 import { priceCompact } from "@/lib/format";
+import { useKeyboardHeight } from "@/lib/keyboard";
 import { registerPush } from "@/lib/push";
 import { useSession } from "@/store/session";
 import { detail as D, geist } from "@/theme";
@@ -206,27 +205,6 @@ export function AlertSheet({
       </View>
     </Modal>
   );
-}
-
-/* Keyboard height while it's open. Android only has the "did" events. */
-function useKeyboardHeight() {
-  const [height, setHeight] = useState(0);
-  useEffect(() => {
-    const ios = Platform.OS === "ios";
-    const show = Keyboard.addListener(
-      ios ? "keyboardWillShow" : "keyboardDidShow",
-      (e) => setHeight(e.endCoordinates.height),
-    );
-    const hide = Keyboard.addListener(
-      ios ? "keyboardWillHide" : "keyboardDidHide",
-      () => setHeight(0),
-    );
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
-  return height;
 }
 
 const styles = StyleSheet.create({

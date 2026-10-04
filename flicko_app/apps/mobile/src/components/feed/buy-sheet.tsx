@@ -3,10 +3,12 @@ import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   Modal,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -30,6 +32,7 @@ import {
   quoteTrade,
   skrNumber,
   TOKEN_UNIT,
+  tokensForSkr,
   TradeProblem,
   useMemeState,
   useTokenAccountRent,
@@ -39,6 +42,7 @@ import {
 } from "@/features/feed/trade";
 import type { Meme } from "@/features/feed/types";
 import { formatSkr, useSkrBalance } from "@/features/wallet/skr-balance";
+import { useKeyboardHeight } from "@/lib/keyboard";
 import { useSession } from "@/store/session";
 import { feed, geist } from "@/theme";
 
@@ -54,7 +58,9 @@ import { PillButton } from "./pill-button";
  */
 export type { TradeSide };
 
-const CHIPS = [1, 10, 50] as const;
+// Share of your SKR (buy) or of your $TICKER (sell); 100 is Max.
+const CHIPS = [1, 10, 50, 100] as const;
+type Chip = (typeof CHIPS)[number];
 const DEFAULT_QUANTITY = 10;
 const CLOSE_DISTANCE = 120;
 const CLOSE_VELOCITY = 900;
@@ -110,6 +116,10 @@ export function BuySheet({
           : 1;
 
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
+  const [chip, setChip] = useState<Chip | null>(null);
+  // While typing the field shows the raw digits; otherwise the grouped amount.
+  const [draft, setDraft] = useState<string | null>(null);
+  const keyboard = useKeyboardHeight();
   // Keep the amount in range as the limits load or move.
   const shown = max < 1 ? 0 : clamp(quantity, max);
   const quote = chain && fees && shown > 0 ? quoteTrade(chain, fees, side, shown) : null;
@@ -129,11 +139,29 @@ export function BuySheet({
           ? `No $${meme.ticker} to sell`
           : null;
 
-  const set = (n: number) => {
+  const set = (n: number, from: Chip | null = null) => {
     const next = clamp(n, max);
     if (next !== shown) Haptics.selectionAsync().catch(() => {});
     setQuantity(next);
+    setChip(from);
     setProblem(null);
+  };
+
+  /* Tokens for a chip: that share of your SKR's worth (buy) or of what you hold (sell). */
+  const chipAmount = (pct: Chip) => {
+    if (!wallet) return 0;
+    if (side === "sell") return Math.floor((held * pct) / 100);
+    if (!chain || !fees || balance.data == null) return 0;
+    return Math.min(max, tokensForSkr(chain, fees, (skrUnits * BigInt(pct)) / 100n));
+  };
+
+  const type = (text: string) => {
+    const digits = text.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "");
+    const n = Number(digits);
+    // Past the limit the field snaps to it, like Max.
+    setDraft(n > max && max >= 1 ? String(max) : digits);
+    if (n >= 1) set(n);
+    setChip(null);
   };
 
   // Slide in, follow the finger down, close past a distance or a flick.
@@ -217,7 +245,14 @@ export function BuySheet({
         </Animated.View>
 
         <GestureDetector gesture={pan}>
-          <Animated.View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }, sheetStyle]}>
+          <Animated.View
+            style={[
+              styles.sheet,
+              // Sit on top of the keyboard while typing an amount.
+              { paddingBottom: 20 + (keyboard > 0 ? keyboard : insets.bottom) },
+              sheetStyle,
+            ]}
+          >
             <View style={styles.handle} />
 
             <View style={styles.header}>
@@ -235,7 +270,7 @@ export function BuySheet({
               </Pressable>
             </View>
 
-            {launching ? (
+            {keyboard > 0 ? null : launching ? (
               <View style={styles.supply}>
                 <View style={styles.track}>
                   <View style={[styles.fill, { width: `${total > 0 ? Math.min(1, sold / total) * 100 : 0}%` }]} />
@@ -269,19 +304,35 @@ export function BuySheet({
                 accessibilityRole="button"
                 accessibilityLabel="One less"
                 disabled={busy || shown <= 1}
-                onPress={() => set(shown - 1)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  set(shown - 1);
+                }}
                 style={[styles.step, (busy || shown <= 1) && styles.disabled]}
               >
                 <MinusIcon size={22} />
               </Pressable>
-              <Text style={styles.quantity} numberOfLines={1} adjustsFontSizeToFit accessibilityLiveRegion="polite">
-                {grouped(shown)}
-              </Text>
+              <TextInput
+                value={draft ?? grouped(shown)}
+                onFocus={() => setDraft(shown > 0 ? String(shown) : "")}
+                onBlur={() => setDraft(null)}
+                onChangeText={type}
+                editable={!busy && max >= 1}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                selectTextOnFocus
+                maxLength={13}
+                style={styles.quantity}
+                accessibilityLabel={`How many $${meme.ticker}`}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="One more"
                 disabled={busy || shown >= max}
-                onPress={() => set(shown + 1)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  set(shown + 1);
+                }}
                 style={[styles.step, (busy || shown >= max) && styles.disabled]}
               >
                 <PlusIcon size={22} />
@@ -289,20 +340,25 @@ export function BuySheet({
             </View>
 
             <View style={styles.chips}>
-              {[...CHIPS, "max" as const].map((chip) => {
-                const value = chip === "max" ? max : chip;
-                const selected = shown > 0 && (chip === "max" ? shown === max : shown === chip);
+              {CHIPS.map((pct) => {
+                const value = chipAmount(pct);
+                const selected = chip === pct && shown > 0;
+                const off = busy || value < 1;
                 return (
                   <Pressable
-                    key={chip}
+                    key={pct}
                     accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    disabled={busy || max < 1}
-                    onPress={() => set(value)}
-                    style={[styles.chip, selected && styles.chipOn]}
+                    accessibilityLabel={`${pct === 100 ? "Max" : `${pct}%`} of your ${side === "buy" ? "SKR" : `$${meme.ticker}`}`}
+                    accessibilityState={{ selected, disabled: off }}
+                    disabled={off}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      set(value, pct);
+                    }}
+                    style={[styles.chip, selected && styles.chipOn, off && styles.disabled]}
                   >
                     <Text style={[styles.chipText, selected && styles.chipTextOn]}>
-                      {chip === "max" ? "Max" : chip}
+                      {pct === 100 ? "Max" : `${pct}%`}
                     </Text>
                   </Pressable>
                 );
@@ -340,7 +396,9 @@ export function BuySheet({
               <Text style={styles.approveText}>{label}</Text>
             </PillButton>
 
-            <Text style={[styles.footnote, problem && { color: feed.pinkText }]}>{problem ?? footnote}</Text>
+            {(keyboard === 0 || problem) && (
+              <Text style={[styles.footnote, problem && { color: feed.pinkText }]}>{problem ?? footnote}</Text>
+            )}
           </Animated.View>
         </GestureDetector>
       </GestureHandlerRootView>
@@ -438,6 +496,7 @@ const styles = StyleSheet.create({
     fontSize: 44,
     lineHeight: 52,
     color: feed.text,
+    padding: 0,
   },
   chips: { marginTop: 14, flexDirection: "row", gap: 8 },
   chip: {

@@ -134,6 +134,16 @@ export const buyLimit = (state: MemeAccountDecoded, fees: FeeConfig, skrUnits: b
   }
 };
 
+/* Whole tokens that `skrUnits` buys right now (launch buys stop at what's left). */
+export const tokensForSkr = (state: MemeAccountDecoded, fees: FeeConfig, skrUnits: bigint) => {
+  if (skrUnits <= 0n) return 0;
+  try {
+    return Number(quoteBuy(state, fees, skrUnits).tokensOut / TOKEN_UNIT);
+  } catch {
+    return 0;
+  }
+};
+
 /** SKR per whole token, as a number */
 export const spotPriceSkr = (state: MemeAccountDecoded) => skrNumber(memePrice(state));
 
