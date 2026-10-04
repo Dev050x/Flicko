@@ -2,14 +2,16 @@ import { memePrice, type MemeState } from "@flicko/sdk";
 import { create } from "zustand";
 
 import { config } from "@/config";
+import { api } from "@/lib/api";
+import { useSession } from "@/store/session";
 
 import type { FeedTab, Meme } from "./types";
 
 /*
  * Feed state: memes by id (pages subscribe to their own meme, so a like re-renders one
  * page), the tab, and the ids shown. Server pages are merged in with `ingest`; likes
- * and follows are optimistic and kept here (the server has no likes or follows yet),
- * so a refetch doesn't undo them.
+ * are optimistic and kept here (the server has no likes yet) and follows are sent to the
+ * server right away, so a refetch doesn't undo them.
  */
 interface Local {
   liked: Record<string, boolean>;
@@ -104,17 +106,28 @@ export const useFeedStore = create<FeedState>((set) => ({
         },
       };
     }),
-  toggleFollow: (wallet) =>
-    set((s) => {
-      // TODO: POST the follow once the server has follows; roll back on failure.
-      const current = Object.values(s.memes).find((m) => m.creator.wallet === wallet);
-      const next = !(current?.creator.isFollowing ?? false);
-      const memes = { ...s.memes };
-      for (const m of Object.values(memes)) {
-        if (m.creator.wallet === wallet) {
-          memes[m.id] = { ...m, creator: { ...m.creator, isFollowing: next } };
+  toggleFollow: (wallet) => {
+    const token = useSession.getState().session?.token;
+    if (!token) return;
+    const apply = (next: boolean) =>
+      set((s) => {
+        const memes = { ...s.memes };
+        for (const m of Object.values(memes)) {
+          if (m.creator.wallet === wallet) {
+            memes[m.id] = { ...m, creator: { ...m.creator, isFollowing: next } };
+          }
         }
-      }
-      return { memes, following: { ...s.following, [wallet]: next } };
-    }),
+        return { memes, following: { ...s.following, [wallet]: next } };
+      });
+    const current = Object.values(useFeedStore.getState().memes).find(
+      (m) => m.creator.wallet === wallet,
+    );
+    const next = !(current?.creator.isFollowing ?? false);
+    apply(next);
+    // Optimistic; put the button back if the server says no.
+    api(`/users/${wallet}/follow`, { method: next ? "PUT" : "DELETE", token }).catch((err) => {
+      console.warn("[feed] follow failed", err);
+      apply(!next);
+    });
+  },
 }));

@@ -3,13 +3,14 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { config } from "@/config";
 import { avatarSource } from "@/features/avatars/catalog";
 import { api } from "@/lib/api";
+import { useSession } from "@/store/session";
 
 import type { FeedTab, Meme } from "./types";
 
 /*
  * Feed data from the server (`GET /feed`, cards in base units as strings), mapped to
- * the feed's Meme shape. Likes, comments and follows aren't on the server yet; the
- * store keeps them locally.
+ * the feed's Meme shape. Follows come from the server; likes and comments aren't on it
+ * yet, so the store keeps those locally.
  */
 interface MemeCard {
   mint: string;
@@ -31,6 +32,8 @@ interface MemeCard {
   tokensSold: string;
   startPrice: string;
   graduatedAt: string | null;
+  /** whether the signed-in viewer follows the creator (absent for guests) */
+  creatorFollowed?: boolean;
 }
 
 interface FeedPage {
@@ -58,7 +61,7 @@ export const toMeme = (card: MemeCard): Meme => {
       wallet: card.creator,
       handle: card.creatorUsername ?? shortWallet(card.creator),
       avatarUrl: avatarSource(card.creatorAvatarUrl, card.creatorAvatarId),
-      isFollowing: false,
+      isFollowing: card.creatorFollowed ?? false,
     },
     ticker: card.symbol,
     createdAt,
@@ -81,22 +84,28 @@ export const toMeme = (card: MemeCard): Meme => {
   };
 };
 
-/* Following uses the trending order and keeps the creators you follow. */
-const serverTab = (tab: FeedTab) => (tab === "launching" ? "new" : "trending");
+/* For you uses the trending order, Launching the newest; Following is the server's own tab. */
+const serverTab = (tab: FeedTab) =>
+  tab === "following" ? "following" : tab === "launching" ? "new" : "trending";
 
-export const useFeedPages = (tab: FeedTab) =>
-  useInfiniteQuery({
-    queryKey: ["feed", serverTab(tab)],
+export const useFeedPages = (tab: FeedTab) => {
+  const token = useSession((s) => s.session?.token);
+  return useInfiniteQuery({
+    queryKey: ["feed", serverTab(tab), token ?? null],
+    // Following is per account, so guests have nothing to load.
+    enabled: tab !== "following" || !!token,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const page = await api<FeedPage>(
         `/feed?tab=${serverTab(tab)}&limit=${PAGE}&offset=${pageParam}`,
+        { token },
       );
       return { ...page, items: page.items.map(toMeme) };
     },
     getNextPageParam: (last) => last.nextOffset ?? undefined,
     staleTime: 30_000,
   });
+};
 
 interface TradeRow {
   priceAfter: string;
