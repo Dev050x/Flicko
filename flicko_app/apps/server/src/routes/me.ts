@@ -31,14 +31,29 @@ const username = z
     /^(?!.*\.\.)[a-z0-9_][a-z0-9_.]{1,18}[a-z0-9_]$/,
     "3-20 characters: a-z, 0-9, _ or .",
   );
-/* Either field may be sent alone; picking a bundled avatar replaces an uploaded photo. */
+/*
+ * Any field may be sent alone; picking a bundled avatar replaces an uploaded photo.
+ * An empty bio or display name clears it.
+ */
 const profileBody = z
   .object({
     username: username.optional(),
     avatarId: z.enum(AVATAR_IDS).nullable().optional(),
+    displayName: z
+      .string()
+      .trim()
+      .max(30)
+      .transform((value) => value || null)
+      .optional(),
+    bio: z
+      .string()
+      .trim()
+      .max(160)
+      .transform((value) => value || null)
+      .optional(),
   })
   .refine(
-    (body) => body.username !== undefined || body.avatarId !== undefined,
+    (body) => Object.values(body).some((value) => value !== undefined),
     "nothing to update",
   );
 
@@ -82,7 +97,7 @@ export const meRouter = (deps: { db: Db; sessions: Sessions }) =>
       if (!result.success) {
         throw new HttpError(400, z.prettifyError(result.error));
       }
-      const { username, avatarId } = result.data;
+      const { username, avatarId, displayName, bio } = result.data;
 
       if (username !== undefined) {
         const [taken] = await deps.db
@@ -99,6 +114,8 @@ export const meRouter = (deps: { db: Db; sessions: Sessions }) =>
         .set({
           ...(username !== undefined ? { username } : {}),
           ...(avatarId !== undefined ? { avatarId, avatarUrl: null } : {}),
+          ...(displayName !== undefined ? { displayName } : {}),
+          ...(bio !== undefined ? { bio } : {}),
         })
         .where(eq(users.wallet, walletOf(res)))
         .returning();

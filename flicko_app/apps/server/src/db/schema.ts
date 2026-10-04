@@ -40,6 +40,8 @@ export const users = pgTable("users", {
   // One of the bundled avatars (`avatarId`) or an uploaded photo (`avatarUrl`), never both.
   avatarId: text("avatar_id"),
   avatarUrl: text("avatar_url"),
+  displayName: text("display_name"),
+  bio: text("bio"),
   createdAt: createdAt(),
 });
 

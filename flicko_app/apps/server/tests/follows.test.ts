@@ -94,8 +94,8 @@ describe("follow", () => {
     );
   });
 
-  test("rejects a bad wallet", async () => {
-    expect((await call("PUT", "/users/nope/follow", alice)).status).toBe(400);
+  test("404 for an unknown user", async () => {
+    expect((await call("PUT", "/users/nope/follow", alice)).status).toBe(404);
   });
 
   test("follow is idempotent and shows in the list and counts", async () => {
@@ -107,25 +107,33 @@ describe("follow", () => {
       wallets: [bob],
     });
     const profile = await call("GET", `/users/${bob}`, alice);
-    expect(profile.body).toEqual({
+    expect(profile.body).toMatchObject({
       wallet: bob,
       username: "bob",
       avatarId: "pup",
-      avatarUrl: null,
-      followers: 2,
-      following: 0,
+      counts: { memes: 1, followers: 2, following: 0 },
       isFollowing: true,
     });
-    // public, no isFollowing without a session
-    const anon = await call("GET", `/users/${bob}`, null);
+    // public, no isFollowing without a session; a username works as the id
+    const anon = await call("GET", "/users/bob", null);
     expect(anon.status).toBe(200);
-    expect(anon.body.followers).toBe(2);
+    expect(anon.body.counts.followers).toBe(2);
     expect("isFollowing" in anon.body).toBe(false);
+  });
+
+  test("follow by username", async () => {
+    expect((await call("PUT", "/users/bob/follow", carol)).status).toBe(204);
+    expect((await call("PUT", "/users/nobody_here/follow", carol)).status).toBe(
+      404,
+    );
   });
 
   test("profile of an unknown wallet has zero counts", async () => {
     const { body } = await call("GET", `/users/${key()}`, null);
-    expect(body).toMatchObject({ username: null, followers: 0, following: 0 });
+    expect(body).toMatchObject({
+      username: null,
+      counts: { memes: 0, followers: 0, following: 0 },
+    });
   });
 });
 
@@ -164,6 +172,8 @@ describe("unfollow", () => {
     expect((await call("GET", "/me/following", alice)).body.wallets).toEqual(
       [],
     );
-    expect((await call("GET", `/users/${bob}`, null)).body.followers).toBe(1);
+    expect(
+      (await call("GET", `/users/${bob}`, null)).body.counts.followers,
+    ).toBe(1);
   });
 });
