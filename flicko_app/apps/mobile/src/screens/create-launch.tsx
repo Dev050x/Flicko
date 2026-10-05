@@ -2,6 +2,7 @@ import { MEME_DECIMALS } from "@flicko/sdk";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   KeyboardAvoidingView,
@@ -11,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,8 +24,13 @@ import { useToast } from "@/components/ui/toast";
 import { ConnectFlow } from "@/components/wallet/connect-flow";
 import { config } from "@/config";
 import { useLaunchConfig, useNetworkFee } from "@/features/create/chain";
-import { compact, formatUnits, groupDigits, parseUnits } from "@/features/create/format";
-import { LaunchSummary, Row } from "@/features/create/launch-summary";
+import {
+  compact,
+  formatUnits,
+  groupDigits,
+  parseUnits,
+} from "@/features/create/format";
+import { LaunchSummary } from "@/features/create/launch-summary";
 import { sceneAspect } from "@/features/create/scene";
 import {
   PRICE_TIERS,
@@ -36,7 +43,8 @@ import { fitIn, useScene } from "@/features/create/use-scene";
 import { filterById } from "@/features/filters/catalog";
 import { isLocked, useUnlockedFilters } from "@/features/filters/unlocks";
 import { useSession } from "@/store/session";
-import { colors, ref } from "@/theme";
+import { api } from "@/lib/api";
+import { geist } from "@/theme";
 
 /*
  * 4 · Launch (design-reference/CreateFlow.html): name and $symbol (prefilled from the
@@ -45,11 +53,12 @@ import { colors, ref } from "@/theme";
  */
 const MIN_SUPPLY = 1e6;
 const MAX_SUPPLY = 1e10;
-const THUMB = { width: 64, height: 80 };
+const THUMB = { width: 76, height: 96 };
+const LINE = "#2A2833";
 
 const STEP_LABEL: Record<Exclude<LaunchStep, "idle">, string> = {
-  preparing: "Preparing…",
-  wallet: "Confirm in wallet…",
+  preparing: "Launching…",
+  wallet: "Launching…",
   launching: "Launching…",
 };
 
@@ -76,7 +85,9 @@ export default function CreateLaunch() {
   const networkFee = useNetworkFee(name, symbol);
   const unlocked = useUnlockedFilters();
   const { toast, show } = useToast(insets.top + 56);
-  const { step, problem, launch, clearProblem } = useLaunch(() => show("Launch cancelled"));
+  const { step, problem, launch, clearProblem } = useLaunch(() =>
+    show("Launch cancelled"),
+  );
   const [customText, setCustomText] = useState(
     supplyMode === "custom" ? groupDigits(String(supply)) : "",
   );
@@ -84,7 +95,30 @@ export default function CreateLaunch() {
   const [connecting, setConnecting] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = step !== "idle";
+  const { width } = useWindowDimensions();
+  const [focus, setFocus] = useState<string | null>(null);
+  const [ticker, setTicker] = useState<
+    "idle" | "checking" | "available" | "taken"
+  >("idle");
 
+  // Is the ticker still free? Checked 300ms after the last keystroke.
+  useEffect(() => {
+    if (!symbol) {
+      setTicker("idle");
+      return;
+    }
+    setTicker("checking");
+    let live = true;
+    const timer = setTimeout(() => {
+      api<{ available: boolean }>(`/symbols/${symbol}`)
+        .then((r) => live && setTicker(r.available ? "available" : "taken"))
+        .catch(() => live && setTicker("available"));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [symbol]);
 
   // Back is blocked while the wallet is open or the launch is landing.
   useFocusEffect(
@@ -100,9 +134,16 @@ export default function CreateLaunch() {
   // The range the program accepts, inside the design's 1M-10B.
   const cfg = launchConfig.data;
   const unit = 10 ** MEME_DECIMALS;
-  const minSupply = Math.max(MIN_SUPPLY, cfg ? Number(cfg.minSupply) / unit : 0);
-  const maxSupply = Math.min(MAX_SUPPLY, cfg ? Number(cfg.maxSupply) / unit : MAX_SUPPLY);
-  const supplyOk = supply >= minSupply && supply <= maxSupply && Number.isInteger(supply);
+  const minSupply = Math.max(
+    MIN_SUPPLY,
+    cfg ? Number(cfg.minSupply) / unit : 0,
+  );
+  const maxSupply = Math.min(
+    MAX_SUPPLY,
+    cfg ? Number(cfg.maxSupply) / unit : MAX_SUPPLY,
+  );
+  const supplyOk =
+    supply >= minSupply && supply <= maxSupply && Number.isInteger(supply);
   const supplyRaw = supplyOk ? BigInt(supply) * BigInt(unit) : null;
   const startPrice = parseUnits(PRICE_TIERS[price].skr, config.skrDecimals);
 
@@ -130,7 +171,13 @@ export default function CreateLaunch() {
   const nameOk = name.trim().length > 0 && nameBytes(name.trim()) <= 32;
   const symbolOk = /^[A-Z0-9]{1,10}$/.test(symbol);
   const ready =
-    !!scene && nameOk && symbolOk && supplyOk && total !== null && networkFee.data !== undefined;
+    !!scene &&
+    nameOk &&
+    symbolOk &&
+    ticker === "available" &&
+    supplyOk &&
+    total !== null &&
+    networkFee.data !== undefined;
 
   const start = () => {
     if (!ready || busy) return;
@@ -161,18 +208,21 @@ export default function CreateLaunch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, session]);
 
-  const label = busy
-    ? STEP_LABEL[step as Exclude<LaunchStep, "idle">]
-    : total === null
-      ? "Launch"
-      : total === 0n
-        ? "Launch"
-        : `Launch for ${formatUnits(total, config.skrDecimals)} SKR`;
+  const label = busy ? "Launching…" : symbol ? `Launch $${symbol}` : "Launch";
 
+  // The whole photo, never cropped, fitted inside a small frame.
   const thumb = scene ? fitIn(sceneAspect(scene), THUMB) : THUMB;
+  const input = (key: string, bad = false) => [
+    styles.input,
+    focus === key && styles.inputFocus,
+    bad && styles.inputBad,
+  ];
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={[styles.screen, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      behavior="padding"
+      style={[styles.screen, { paddingTop: insets.top }]}
+    >
       <View style={styles.top}>
         <Pressable
           accessibilityRole="button"
@@ -185,53 +235,108 @@ export default function CreateLaunch() {
           <ChevronLeftIcon />
         </Pressable>
         <Text style={styles.title} accessibilityRole="header">
-          Launch
+          Launch meme
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.header}>
           <View style={styles.thumb}>
             {scene && (
-              <SceneCanvas scene={scene} assets={assets} width={thumb.width} height={thumb.height} />
+              <SceneCanvas
+                scene={scene}
+                assets={assets}
+                width={thumb.width}
+                height={thumb.height}
+              />
             )}
           </View>
-          <View style={{ flex: 1, gap: 8 }}>
-            <TextInput
-              value={name}
-              onChangeText={(text) => setName(text.slice(0, 32))}
-              placeholder="Name"
-              placeholderTextColor={colors.textFaint}
-              maxLength={32}
-              editable={!busy}
-              accessibilityLabel="Name"
-              style={[styles.field, styles.name, !nameOk && name.length > 0 && styles.fieldBad]}
-            />
-            <View style={[styles.field, styles.symbolField]}>
-              <Text style={styles.dollar}>$</Text>
+          <View style={{ flex: 1, gap: 10 }}>
+            <View>
+              <Label left="Name" right={`${name.length}/32`} />
               <TextInput
-                value={symbol}
-                onChangeText={(text) =>
-                  setSymbol(text.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))
-                }
-                placeholder="SYMBOL"
-                placeholderTextColor={colors.textFaint}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={10}
+                value={name}
+                onChangeText={(text) => setName(text.slice(0, 32))}
+                onFocus={() => setFocus("name")}
+                onBlur={() => setFocus(null)}
+                placeholder="Name your meme"
+                placeholderTextColor="#6F6B7C"
+                maxLength={32}
                 editable={!busy}
-                accessibilityLabel="Symbol"
-                style={styles.symbol}
+                accessibilityLabel="Name"
+                style={[
+                  ...input("name", !nameOk && name.length > 0),
+                  styles.name,
+                ]}
               />
+            </View>
+            <View>
+              <Label
+                left="Ticker"
+                right={
+                  ticker === "available"
+                    ? "Available"
+                    : ticker === "taken"
+                      ? "Taken"
+                      : ticker === "checking"
+                        ? "Checking…"
+                        : ""
+                }
+                rightColor={
+                  ticker === "available"
+                    ? "#C8FF4D"
+                    : ticker === "taken"
+                      ? "#FF6B7A"
+                      : "#9C98A8"
+                }
+              />
+              <View
+                style={[
+                  ...input("symbol", ticker === "taken"),
+                  styles.symbolField,
+                ]}
+              >
+                <Text style={styles.dollar}>$</Text>
+                <TextInput
+                  value={symbol}
+                  onChangeText={(text) =>
+                    setSymbol(
+                      text
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]/g, "")
+                        .slice(0, 10),
+                    )
+                  }
+                  onFocus={() => setFocus("symbol")}
+                  onBlur={() => setFocus(null)}
+                  placeholder="TICKER"
+                  placeholderTextColor="#6F6B7C"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={10}
+                  editable={!busy}
+                  accessibilityLabel="Ticker"
+                  style={styles.symbol}
+                />
+              </View>
             </View>
           </View>
         </View>
 
-        <View style={styles.group}>
-          <Text style={styles.groupLabel}>Total supply</Text>
+        <View style={[styles.group, { marginTop: 20 }]}>
+          <Label left="Total supply" right="Can’t be changed later" />
           <Segments
+            height={40}
+            disabled={busy}
             options={[
-              ...SUPPLY_PRESETS.map((n) => ({ id: String(n), label: compact(n) })),
+              ...SUPPLY_PRESETS.map((n) => ({
+                id: String(n),
+                label: compact(n),
+              })),
               { id: "custom", label: "Custom" },
             ]}
             value={supplyMode === "custom" ? "custom" : String(supply)}
@@ -248,73 +353,85 @@ export default function CreateLaunch() {
           />
           {supplyMode === "custom" && (
             <>
-              <View style={[styles.customRow, supplyError && styles.fieldBad]}>
+              <View
+                style={[...input("custom", !!supplyError), styles.customRow]}
+              >
                 <TextInput
                   value={customText}
                   onChangeText={(text) => {
                     const digits = text.replace(/\D/g, "").slice(0, 11);
-                    const grouped = groupDigits(digits);
-                    setCustomText(grouped);
+                    setCustomText(groupDigits(digits));
                     setSupply(Number(digits) || 0, "custom");
                   }}
-                  onBlur={() => checkCustom()}
+                  onFocus={() => setFocus("custom")}
+                  onBlur={() => {
+                    setFocus(null);
+                    checkCustom();
+                  }}
+                  editable={!busy}
                   keyboardType="number-pad"
-                  placeholder="69,420,000"
-                  placeholderTextColor={colors.textFaint}
+                  placeholder="Enter supply, e.g. 420,000,000"
+                  placeholderTextColor="#6F6B7C"
                   accessibilityLabel="Custom supply"
                   style={styles.customInput}
                 />
-                <Text style={styles.customSymbol}>{symbol ? `$${symbol}` : ""}</Text>
               </View>
-              <Text style={[styles.helper, supplyError && { color: colors.loss }]}>
-                {supplyError ?? `Between ${compact(minSupply)} and ${compact(maxSupply)} tokens`}
-              </Text>
+              {supplyError && <Text style={styles.error}>{supplyError}</Text>}
             </>
           )}
         </View>
 
-        <View style={styles.group}>
-          <Text style={styles.groupLabel}>Starting price</Text>
+        <View style={[styles.group, { marginTop: 16 }]}>
+          <Label left="Starting price" right="SKR per token" />
           <Segments
+            height={52}
+            disabled={busy}
             options={(Object.keys(PRICE_TIERS) as PriceTier[]).map((id) => ({
               id,
               label: PRICE_TIERS[id].label,
-              sub: `${PRICE_TIERS[id].skr} SKR`,
+              sub: PRICE_TIERS[id].skr,
             }))}
             value={price}
             onChange={(id) => setPrice(id as PriceTier)}
           />
         </View>
 
-        <LaunchSummary
-          supply={supplyRaw}
-          startPrice={startPrice}
-          symbol={symbol}
-          skrDecimals={config.skrDecimals}
-          creatorFeeBps={cfg?.creatorFeeBps}
-        />
-
-        <View style={{ gap: 6 }}>
-          <Row
-            label="Creation fee (burned)"
-            value={creationFee === undefined ? "–" : `${formatUnits(creationFee, config.skrDecimals)} SKR`}
-          />
-          {premium.map((f) => (
-            <Row key={f.id} label={`${f.name} filter (burned)`} value={`${f.priceSkr} SKR`} />
-          ))}
-          <Row
-            label="Network fee"
-            value={networkFee.data === undefined ? "–" : `~${networkFee.data.toFixed(3)} SOL`}
+        <View style={{ marginTop: 22 }}>
+          <LaunchSummary
+            width={width - 32}
+            supply={supplyRaw}
+            startPrice={startPrice}
+            symbol={symbol}
+            skrDecimals={config.skrDecimals}
+            creatorFeeBps={cfg?.creatorFeeBps}
+            networkFee={networkFee.data}
+            creationFee={creationFee}
+            burned={premium.map((f) => ({
+              label: `${f.name} filter`,
+              skr: f.priceSkr ?? 0,
+            }))}
           />
         </View>
       </ScrollView>
 
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + 24 }]}>
-        <Button label={label} disabled={!ready || busy} onPress={start} />
+      <View style={[styles.bottom, { paddingBottom: insets.bottom + 20 }]}>
         {problem && <Problem problem={problem} onRetry={start} />}
         {launchConfig.isError && (
-          <Text style={styles.problem}>Couldn&apos;t reach the network. Check your connection.</Text>
+          <Text style={styles.problem}>
+            Couldn&apos;t reach the network. Check your connection.
+          </Text>
         )}
+        <Button
+          label={label}
+          disabled={!ready || busy}
+          onPress={start}
+          icon={
+            busy ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : undefined
+          }
+        />
+        <Text style={styles.confirm}>You’ll confirm in your wallet</Text>
       </View>
 
       {connecting && (
@@ -334,6 +451,25 @@ export default function CreateLaunch() {
   );
 }
 
+function Label({
+  left,
+  right,
+  rightColor = "#9C98A8",
+}: {
+  left: string;
+  right?: string;
+  rightColor?: string;
+}) {
+  return (
+    <View style={styles.label}>
+      <Text style={styles.labelText}>{left}</Text>
+      {!!right && (
+        <Text style={[styles.labelText, { color: rightColor }]}>{right}</Text>
+      )}
+    </View>
+  );
+}
+
 function Problem({
   problem,
   onRetry,
@@ -350,7 +486,9 @@ function Problem({
     <View style={styles.problemRow} accessibilityLiveRegion="polite">
       {problem.kind === "skr" && (
         <>
-          <Text style={styles.problem}>You need {problem.need} SKR to launch</Text>
+          <Text style={styles.problem}>
+            You need {problem.need} SKR to launch
+          </Text>
           {action("Get SKR", () =>
             Alert.alert(
               "Get test SKR",
@@ -361,20 +499,28 @@ function Problem({
       )}
       {problem.kind === "sol" && (
         <>
-          <Text style={styles.problem}>You need ~{problem.need} SOL for network fees</Text>
-          {action("Get SOL", () => Linking.openURL("https://faucet.solana.com"))}
+          <Text style={styles.problem}>
+            You need ~{problem.need} SOL for network fees
+          </Text>
+          {action("Get SOL", () =>
+            Linking.openURL("https://faucet.solana.com"),
+          )}
         </>
       )}
       {problem.kind === "failed" && (
         <>
-          <Text style={styles.problem}>Launch failed. Nothing was charged.</Text>
+          <Text style={styles.problem}>
+            Launch failed. Nothing was charged.
+          </Text>
           {action("Retry", onRetry)}
         </>
       )}
       {problem.kind === "unsafe" && (
         <Text style={styles.problem}>This photo can&apos;t be posted</Text>
       )}
-      {problem.kind === "text" && <Text style={styles.problem}>{problem.text}</Text>}
+      {problem.kind === "text" && (
+        <Text style={styles.problem}>{problem.text}</Text>
+      )}
     </View>
   );
 }
@@ -383,26 +529,51 @@ function Segments({
   options,
   value,
   onChange,
+  height,
+  disabled,
 }: {
   options: { id: string; label: string; sub?: string }[];
   value: string;
   onChange: (id: string) => void;
+  height: number;
+  disabled?: boolean;
 }) {
   return (
-    <View style={styles.segments} accessibilityRole="radiogroup">
-      {options.map((o) => {
+    <View style={[styles.segments, { height }]} accessibilityRole="radiogroup">
+      {options.map((o, i) => {
         const selected = o.id === value;
         return (
           <Pressable
             key={o.id}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled }}
             accessibilityLabel={o.sub ? `${o.label}, ${o.sub}` : o.label}
+            disabled={disabled}
             onPress={() => onChange(o.id)}
-            style={[styles.segment, selected && styles.segmentOn]}
+            style={[
+              styles.segment,
+              i > 0 && { borderLeftWidth: 1, borderLeftColor: LINE },
+              selected && { backgroundColor: "#F5F3F7" },
+            ]}
           >
-            <Text style={[styles.segmentText, selected && { color: colors.text }]}>{o.label}</Text>
-            {o.sub && <Text style={styles.segmentSub}>{o.sub}</Text>}
+            <Text
+              style={[
+                o.sub ? styles.tierName : styles.segmentText,
+                { color: selected ? "#0B0B0F" : o.sub ? "#F5F3F7" : "#B9B5C4" },
+              ]}
+            >
+              {o.label}
+            </Text>
+            {o.sub && (
+              <Text
+                style={[
+                  styles.tierValue,
+                  { color: selected ? "#3A3744" : "#9C98A8" },
+                ]}
+              >
+                {o.sub}
+              </Text>
+            )}
           </Pressable>
         );
       })}
@@ -410,91 +581,121 @@ function Segments({
   );
 }
 
+const NUM = { fontVariant: ["tabular-nums" as const] };
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  top: { height: 44, justifyContent: "center", alignItems: "center" },
-  back: { position: "absolute", left: 20, top: 10 },
-  title: { fontFamily: "DMSans_700Bold", fontSize: 16, color: colors.text },
-  content: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 16, gap: 14 },
-  header: { flexDirection: "row", alignItems: "center", gap: 14 },
-  thumb: {
-    width: THUMB.width,
-    height: THUMB.height,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#000000",
+  screen: { flex: 1, backgroundColor: "#0B0B0F" },
+  top: { height: 52, justifyContent: "center", alignItems: "center" },
+  back: {
+    position: "absolute",
+    left: 0,
+    top: 4,
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
   },
-  field: {
-    borderRadius: 12,
-    backgroundColor: colors.surface,
+  title: { fontFamily: geist.semibold, fontSize: 16, color: "#F5F3F7" },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12 },
+  thumb: {
+    top: 6,
+    width: THUMB.width,
+    height: THUMB.height,
+    backgroundColor: "#000000",
+    borderRadius: 6,
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: LINE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  label: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  labelText: {
+    fontFamily: geist.regular,
+    fontSize: 12,
+    color: "#9C98A8",
+    ...NUM,
+  },
+  input: {
+    height: 44,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: LINE,
     paddingHorizontal: 12,
   },
-  fieldBad: { borderColor: colors.loss },
-  name: { height: 40, fontFamily: "DMSans_500Medium", fontSize: 15, color: colors.text },
-  symbolField: { height: 32, flexDirection: "row", alignItems: "center", gap: 2 },
-  dollar: { fontFamily: "DMSans_700Bold", fontSize: 14, color: colors.textFaint },
+  inputFocus: { borderColor: "#B9B5C4" },
+  inputBad: { borderColor: "#FF6B7A" },
+  name: {
+    fontFamily: geist.regular,
+    fontSize: 15,
+    color: "#F5F3F7",
+    paddingVertical: 0,
+  },
+  symbolField: { flexDirection: "row", alignItems: "center", gap: 4 },
+  dollar: { fontFamily: geist.regular, fontSize: 15, color: "#9C98A8" },
   symbol: {
     flex: 1,
     padding: 0,
-    fontFamily: "DMSans_700Bold",
-    fontSize: 14,
-    color: colors.text,
+    fontFamily: geist.regular,
+    fontSize: 15,
+    color: "#F5F3F7",
   },
-  group: { gap: 8 },
-  groupLabel: { fontFamily: "DMSans_500Medium", fontSize: 13, color: colors.textMuted },
+  group: { gap: 0 },
   segments: {
     flexDirection: "row",
-    gap: 4,
-    padding: 4,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: LINE,
+    overflow: "hidden",
   },
-  segment: {
-    flex: 1,
-    minHeight: 40,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "transparent",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 2,
-  },
-  segmentOn: { backgroundColor: ref.walletTile, borderColor: ref.lineDashed },
-  segmentText: { fontFamily: "DMSans_700Bold", fontSize: 14, color: colors.textMuted },
-  segmentSub: { fontFamily: "DMSans_400Regular", fontSize: 10, color: colors.textFaint },
-  customRow: {
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: ref.lineDashed,
-  },
+  segment: { flex: 1, alignItems: "center", justifyContent: "center" },
+  segmentText: { fontFamily: geist.medium, fontSize: 14, ...NUM },
+  tierName: { fontFamily: geist.semibold, fontSize: 14 },
+  tierValue: { fontFamily: geist.regular, fontSize: 12, ...NUM },
+  customRow: { marginTop: 8, justifyContent: "center" },
   customInput: {
-    flex: 1,
     padding: 0,
-    fontFamily: "DMSans_700Bold",
-    fontSize: 16,
-    color: colors.text,
+    fontFamily: geist.regular,
+    fontSize: 15,
+    color: "#F5F3F7",
+    ...NUM,
   },
-  customSymbol: { fontFamily: "DMSans_400Regular", fontSize: 13, color: colors.textFaint },
-  helper: { fontFamily: "DMSans_400Regular", fontSize: 12, color: colors.textFaint },
-  bottom: { paddingHorizontal: 24, paddingTop: 12, gap: 10 },
-  problemRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10 },
-  problem: { fontFamily: "DMSans_500Medium", fontSize: 14, color: colors.text },
+  error: {
+    marginTop: 6,
+    fontFamily: geist.regular,
+    fontSize: 12,
+    color: "#FF6B7A",
+  },
+  bottom: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#1F1D26",
+    backgroundColor: "#0B0B0F",
+  },
+  confirm: {
+    textAlign: "center",
+    fontFamily: geist.regular,
+    fontSize: 12,
+    color: "#9C98A8",
+  },
+  problemRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+  },
+  problem: { fontFamily: geist.medium, fontSize: 14, color: "#F5F3F7" },
   problemAction: {
-    fontFamily: "DMSans_500Medium",
+    fontFamily: geist.medium,
     fontSize: 14,
-    color: colors.text,
+    color: "#F5F3F7",
     textDecorationLine: "underline",
   },
 });
