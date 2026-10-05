@@ -1,7 +1,0 @@
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/ReactAndroid/ReactAndroidConfig.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/ReactAndroid/ReactAndroidConfigVersion.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/fbjni/fbjniConfig.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/fbjni/fbjniConfigVersion.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/react-native-nitro-modules/react-native-nitro-modulesConfig.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/.cxx/Debug/512g2x70/prefab/arm64-v8a/prefab/lib/aarch64-linux-android/cmake/react-native-vision-camera/react-native-vision-cameraConfig.cmake
-/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/CMakeLists.txt
