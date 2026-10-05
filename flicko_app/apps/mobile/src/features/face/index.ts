@@ -76,6 +76,19 @@ export const detectFacesDetailed = async (
 export const detectFaces = async (imageUri: string): Promise<Face[]> =>
   (await detectFacesDetailed(imageUri))?.faces ?? [];
 export { eyeCenters } from "./geometry";
-export { FEATURE_MEDIAPIPE_LIVE } from "./flags";
-export { mlkitResult, useFaceTracking, type FaceTrackingResult } from "./live";
-export { hudPreviewFps, useFaceHud, useFaceHudSwitch } from "./hud";
+export { activeSource, FEATURE_MEDIAPIPE_LIVE, useFaceFlags } from "./flags";
+export {
+  eyesInView,
+  mediapipeResult,
+  mlkitResult,
+  useFaceTracking,
+  type FaceTrackingResult,
+} from "./live";
+export {
+  hudEnabled,
+  hudLast,
+  hudNativeStats,
+  hudPreviewFps,
+  useFaceHud,
+  useFaceHudSwitch,
+} from "./hud";

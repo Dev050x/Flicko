@@ -1,42 +1,80 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 
+import { activeSource } from "./flags";
+import { useFaceFlags } from "./flags";
 import type { FaceTrackingResult } from "./live";
 
 /*
- * Dev-only camera HUD data: which detector is live, preview and tracking fps, inference
- * time and the frame it ran on. Results are recorded from useFaceTracking; the preview
- * fps comes from the camera view. Nothing here runs unless the HUD is switched on.
+ * Dev-only camera HUD data: which detector drives the overlays, preview and tracking fps,
+ * inference time, dropped frames and the frame the detector saw. Both detectors' last
+ * results are kept so the debug overlay can draw them side by side. Nothing is recorded
+ * unless the HUD is on.
  */
-export const useFaceHudSwitch = create<{ on: boolean; toggle: () => void }>(
-  (set) => ({
-    on: false,
-    toggle: () => set((s) => ({ on: !s.on })),
-  }),
-);
+export const useFaceHudSwitch = create<{
+  /** numbers only: cheap enough to measure real performance */
+  on: boolean;
+  /** debug overlay: 478 points, ML Kit next to MediaPipe, landmarks to JS (slows tracking) */
+  debug: boolean;
+  toggle: () => void;
+  toggleDebug: () => void;
+}>((set) => ({
+  on: false,
+  debug: false,
+  toggle: () => set((s) => ({ on: !s.on })),
+  toggleDebug: () => set((s) => ({ debug: !s.debug })),
+}));
 
 const WINDOW_MS = 1000;
 const SAMPLES = 120;
 
 let enabled = false;
-let arrivals: number[] = [];
-let inference: number[] = [];
-let last: FaceTrackingResult | null = null;
+const arrivals: Record<string, number[]> = { mediapipe: [], mlkit: [] };
+const inference: Record<string, number[]> = { mediapipe: [], mlkit: [] };
+const lastBySource: Record<string, FaceTrackingResult | null> = {
+  mediapipe: null,
+  mlkit: null,
+};
 let previewFps = 0;
+let statsPrev: { offered: number; dropped: number } | null = null;
+let droppedPct: number | null = null;
+let delegate = "";
+const prep: Record<string, number[]> = { mediapipe: [], mlkit: [] };
 
-export const hudRecord = (result: FaceTrackingResult) => {
+export const hudRecord = (result: FaceTrackingResult, _view?: unknown) => {
   if (!enabled) return;
-  const now = Date.now();
-  arrivals.push(now);
-  last = result;
+  const source = result.source;
+  arrivals[source].push(Date.now());
+  lastBySource[source] = result;
+  if (result.prepMs !== undefined) {
+    prep[source].push(result.prepMs);
+    if (prep[source].length > SAMPLES) prep[source].shift();
+  }
   if (result.inferenceMs !== undefined) {
-    inference.push(result.inferenceMs);
-    if (inference.length > SAMPLES) inference.shift();
+    inference[source].push(result.inferenceMs);
+    if (inference[source].length > SAMPLES) inference[source].shift();
   }
 };
 
 export const hudPreviewFps = (fps: number) => {
   previewFps = fps;
+};
+
+/** Native counters (cumulative); dropped % is over the last interval. */
+export const hudNativeStats = (stats: {
+  offered: number;
+  dropped: number;
+  delegate: string;
+}) => {
+  delegate = stats.delegate;
+  if (statsPrev) {
+    const offered = stats.offered - statsPrev.offered;
+    droppedPct =
+      offered > 0
+        ? ((stats.dropped - statsPrev.dropped) / offered) * 100
+        : null;
+  }
+  statsPrev = { offered: stats.offered, dropped: stats.dropped };
 };
 
 const percentile = (values: number[], p: number) => {
@@ -51,33 +89,47 @@ export interface HudSnapshot {
   trackingFps: number;
   medianMs: number | null;
   p95Ms: number | null;
+  prepMs: number | null;
+  droppedPct: number | null;
+  delegate: string;
   frame: string;
   faces: number;
 }
 
 export const useFaceHud = (): HudSnapshot | null => {
-  const on = useFaceHudSwitch((s) => s.on);
+  const on = useFaceHudSwitch((s) => s.on || s.debug);
   const [snap, setSnap] = useState<HudSnapshot | null>(null);
   useEffect(() => {
     enabled = on;
     if (!on) {
-      arrivals = [];
-      inference = [];
-      last = null;
+      for (const k of Object.keys(arrivals)) {
+        arrivals[k] = [];
+        inference[k] = [];
+        prep[k] = [];
+        lastBySource[k] = null;
+      }
+      statsPrev = null;
+      droppedPct = null;
+      delegate = "";
       setSnap(null);
       return;
     }
     const timer = setInterval(() => {
       const now = Date.now();
-      arrivals = arrivals.filter((t) => now - t <= WINDOW_MS);
+      const source = activeSource(useFaceFlags.getState());
+      arrivals[source] = arrivals[source].filter((t) => now - t <= WINDOW_MS);
+      const last = lastBySource[source];
       setSnap({
-        source: last?.source ?? "none",
+        source,
         previewFps,
-        trackingFps: arrivals.length,
-        medianMs: percentile(inference, 0.5),
-        p95Ms: percentile(inference, 0.95),
+        trackingFps: arrivals[source].length,
+        medianMs: percentile(inference[source], 0.5),
+        p95Ms: percentile(inference[source], 0.95),
+        prepMs: percentile(prep[source], 0.5),
+        droppedPct: source === "mediapipe" ? droppedPct : null,
+        delegate: source === "mediapipe" ? delegate : "",
         frame: last
-          ? `${last.frame.width}x${last.frame.height} rot ${last.frame.rotation} ${last.frame.mirrored ? "mirrored" : "not mirrored"}`
+          ? `${last.frame.width}x${last.frame.height} rot ${last.frame.rotation}${last.frame.sensorRotation !== undefined ? ` (sensor ${last.frame.sensorRotation})` : ""} ${last.frame.mirrored ? "mirrored" : "not mirrored"}`
           : "–",
         faces: last?.faces.length ?? 0,
       });
@@ -86,3 +138,7 @@ export const useFaceHud = (): HudSnapshot | null => {
   }, [on]);
   return snap;
 };
+
+/* Latest result of each detector, for the debug overlay (read ~10x a second). */
+export const hudLast = (source: "mediapipe" | "mlkit") => lastBySource[source];
+export const hudEnabled = () => enabled;

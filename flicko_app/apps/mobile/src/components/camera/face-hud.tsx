@@ -17,9 +17,12 @@ export function FaceHud({ top }: { top: number }) {
       </Text>
       <Text style={styles.text}>
         inference {ms(hud.medianMs)} median · {ms(hud.p95Ms)} p95
+        {hud.prepMs !== null ? ` · prep ${ms(hud.prepMs)}` : ""}
       </Text>
       <Text style={styles.text}>
-        dropped – (ML Kit samples every 3rd frame)
+        dropped{" "}
+        {hud.droppedPct === null ? "–" : `${hud.droppedPct.toFixed(0)}%`}
+        {hud.delegate ? ` · MediaPipe ${hud.delegate}` : ""}
       </Text>
       <Text style={styles.text}>frame {hud.frame}</Text>
     </View>
