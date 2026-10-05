@@ -89,7 +89,7 @@ export function CameraLayer({
   /** look for faces on the preview (a face filter is selected) */
   trackFaces?: boolean;
   /** live eye positions; called about 10 times a second while tracking */
-  onFaces?: (result: FaceTrackingResult) => void;
+  onFaces?: (result: FaceTrackingResult, scheduledAt?: number) => void;
   /** read by the expo-camera fallback; VisionCamera takes the flash per capture */
   flash?: import("@/features/camera/settings").FlashSetting;
 }) {
@@ -106,7 +106,10 @@ export function CameraLayer({
         try {
           const image = await photo.toImageAsync();
           // NitroImage takes quality as 0-100 (0.95 would round down to 0).
-          const path = await image.saveToTemporaryFileAsync("jpg", PHOTO_JPEG_QUALITY);
+          const path = await image.saveToTemporaryFileAsync(
+            "jpg",
+            PHOTO_JPEG_QUALITY,
+          );
           return {
             uri: path.startsWith("file://") ? path : `file://${path}`,
             width: image.width,
@@ -142,14 +145,17 @@ export function CameraLayer({
 
   // Live MediaPipe tracking (Skia path only): off unless the flag is on, and ML Kit takes
   // over for the session if it can't start or keeps failing.
-  const mediapipeWanted = useFaceFlags((f) => f.mediapipeLive && !f.mediapipeFailed);
+  const mediapipeWanted = useFaceFlags(
+    (f) => f.mediapipeLive && !f.mediapipeFailed,
+  );
   const hudOn = useFaceHudSwitch((h) => h.debug);
   const liveTracker = useMemo(
     () => (live && mediapipeWanted ? createLiveFaceTracker(30) : null),
     [live, mediapipeWanted],
   );
   useEffect(() => {
-    if (live && mediapipeWanted && !liveTracker) useFaceFlags.getState().markMediapipeFailed();
+    if (live && mediapipeWanted && !liveTracker)
+      useFaceFlags.getState().markMediapipeFailed();
   }, [live, mediapipeWanted, liveTracker]);
   useEffect(() => {
     liveTracker?.setWantLandmarks(hudOn);
@@ -187,8 +193,11 @@ export function CameraLayer({
   const onFacesRef = useRef(onFaces);
   onFacesRef.current = onFaces;
   const reportLive = useCallback(
-    (snapshot: LiveFaceSnapshot, mirroredFrame: boolean) =>
-      onFacesRef.current?.(mediapipeResult(snapshot, mirroredFrame)),
+    (snapshot: LiveFaceSnapshot, mirroredFrame: boolean, scheduledAt: number) =>
+      onFacesRef.current?.(
+        mediapipeResult(snapshot, mirroredFrame),
+        scheduledAt,
+      ),
     [],
   );
   const reportFaces = useCallback(
@@ -230,12 +239,8 @@ export function CameraLayer({
 
   const onFrame = useCallback(
     (
-      frame: Parameters<
-        React.ComponentProps<typeof SkiaCamera>["onFrame"]
-      >[0],
-      render: Parameters<
-        React.ComponentProps<typeof SkiaCamera>["onFrame"]
-      >[1],
+      frame: Parameters<React.ComponentProps<typeof SkiaCamera>["onFrame"]>[0],
+      render: Parameters<React.ComponentProps<typeof SkiaCamera>["onFrame"]>[1],
     ) => {
       "worklet";
       if (bufferCheck.value === -1) {
@@ -252,7 +257,9 @@ export function CameraLayer({
         } catch (err) {
           bufferCheck.value = -1;
           frame.dispose();
-          console.warn(`[camera] can't read camera frames (${String(err)}); using plain preview`);
+          console.warn(
+            `[camera] can't read camera frames (${String(err)}); using plain preview`,
+          );
           scheduleOnRN(reportSlow);
           return;
         }
@@ -279,7 +286,12 @@ export function CameraLayer({
           const seq = liveTracker.process(frame);
           if (seq !== lastSeq.value) {
             lastSeq.value = seq;
-            scheduleOnRN(reportLive, liveTracker.latest(), mirrored.value);
+            scheduleOnRN(
+              reportLive,
+              liveTracker.latest(),
+              mirrored.value,
+              Date.now(),
+            );
           }
         } catch {
           // A frame the tracker can't read: skip it (it retires itself after repeated errors).
@@ -348,7 +360,10 @@ export function CameraLayer({
         warnIfRenderSkipped={false}
         onError={(err) => {
           // If the Skia pipeline still can't start, use the plain preview + tint.
-          console.warn("[camera] live filters unavailable, using plain preview", err);
+          console.warn(
+            "[camera] live filters unavailable, using plain preview",
+            err,
+          );
           reportSlow();
         }}
       />

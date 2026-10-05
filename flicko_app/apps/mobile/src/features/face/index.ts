@@ -82,10 +82,14 @@ export {
   mediapipeResult,
   mlkitResult,
   useFaceTracking,
+  useLiveEyes,
   type FaceTrackingResult,
 } from "./live";
 export {
   hudEnabled,
+  hudPlacement,
+  hudPlacementText,
+  hudRender,
   hudLast,
   hudNativeStats,
   hudPreviewFps,

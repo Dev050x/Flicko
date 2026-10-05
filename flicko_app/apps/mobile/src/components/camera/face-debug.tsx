@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import { hudLast, useFaceHudSwitch } from "@/features/face";
+import {
+  hudLast,
+  hudPlacementText,
+  useFaceHudSwitch,
+  useLiveEyes,
+} from "@/features/face";
 import { frameToView, type Pt } from "@/features/face/mapping";
 import type { Rect } from "@/features/filters/placement";
 
@@ -13,6 +18,7 @@ interface Drawn {
   points: string;
   mpEyes: Pt[];
   mlEyes: Pt[];
+  text: string;
 }
 
 /*
@@ -22,6 +28,7 @@ interface Drawn {
 export function FaceDebug({ view }: { view: Rect | null }) {
   const on = useFaceHudSwitch((s) => s.debug);
   const [drawn, setDrawn] = useState<Drawn | null>(null);
+  const overlayEyes = useLiveEyes((s) => s.eyes);
 
   useEffect(() => {
     if (!__DEV__ || !on || !view) {
@@ -45,7 +52,12 @@ export function FaceDebug({ view }: { view: Rect | null }) {
             return `M${q.x.toFixed(1)} ${q.y.toFixed(1)}h0.1`;
           })
           .join("") ?? "";
-      setDrawn({ points, mpEyes: eyes(mp), mlEyes: eyes(ml) });
+      setDrawn({
+        points,
+        mpEyes: eyes(mp),
+        mlEyes: eyes(ml),
+        text: hudPlacementText,
+      });
     }, 200);
     return () => clearInterval(timer);
   }, [on, view]);
@@ -53,6 +65,7 @@ export function FaceDebug({ view }: { view: Rect | null }) {
   if (!__DEV__ || !on || !view || !drawn) return null;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Text style={styles.text}>{drawn.text}</Text>
       <Svg width={view.width} height={view.height}>
         {drawn.points !== "" && (
           <Path
@@ -74,6 +87,19 @@ export function FaceDebug({ view }: { view: Rect | null }) {
             fill="none"
           />
         ))}
+        {overlayEyes.flatMap((e, i) =>
+          [e.left, e.right].map((p, j) => (
+            <Circle
+              key={`o${i}${j}`}
+              cx={p.x}
+              cy={p.y}
+              r={12}
+              stroke="#FF2D95"
+              strokeWidth={2.5}
+              fill="none"
+            />
+          )),
+        )}
         {drawn.mpEyes.map((p, i) => (
           <Circle key={`m${i}`} cx={p.x} cy={p.y} r={3.5} fill={MEDIAPIPE} />
         ))}
@@ -81,3 +107,19 @@ export function FaceDebug({ view }: { view: Rect | null }) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  text: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 395,
+    zIndex: 5,
+    padding: 4,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    fontFamily: "GeistMono_400Regular",
+    fontSize: 10,
+    color: "#FF2D95",
+  },
+});

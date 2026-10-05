@@ -39,6 +39,9 @@ let previewFps = 0;
 let statsPrev: { offered: number; dropped: number } | null = null;
 let droppedPct: number | null = null;
 let delegate = "";
+let stalls = 0;
+const queue: number[] = [];
+const render: number[] = [];
 const prep: Record<string, number[]> = { mediapipe: [], mlkit: [] };
 
 export const hudRecord = (result: FaceTrackingResult, _view?: unknown) => {
@@ -56,6 +59,26 @@ export const hudRecord = (result: FaceTrackingResult, _view?: unknown) => {
   }
 };
 
+/** ms a MediaPipe result waited between the camera thread and the JS thread. */
+export const hudQueue = (ms: number) => {
+  if (!enabled) return;
+  queue.push(ms);
+  if (queue.length > SAMPLES) queue.shift();
+};
+
+/** ms from a result reaching JS to the overlay re-rendering with it. */
+export const hudRender = (ms: number) => {
+  if (!enabled) return;
+  render.push(ms);
+  if (render.length > SAMPLES) render.shift();
+};
+
+/** The first face overlay's placement, for the debug text (what the overlay was asked to draw). */
+export let hudPlacementText = "";
+export const hudPlacement = (text: string) => {
+  if (enabled) hudPlacementText = text;
+};
+
 export const hudPreviewFps = (fps: number) => {
   previewFps = fps;
 };
@@ -64,9 +87,11 @@ export const hudPreviewFps = (fps: number) => {
 export const hudNativeStats = (stats: {
   offered: number;
   dropped: number;
+  stalls: number;
   delegate: string;
 }) => {
   delegate = stats.delegate;
+  stalls = stats.stalls;
   if (statsPrev) {
     const offered = stats.offered - statsPrev.offered;
     droppedPct =
@@ -90,8 +115,11 @@ export interface HudSnapshot {
   medianMs: number | null;
   p95Ms: number | null;
   prepMs: number | null;
+  queueMs: number | null;
+  renderMs: number | null;
   droppedPct: number | null;
   delegate: string;
+  stalls: number;
   frame: string;
   faces: number;
 }
@@ -108,6 +136,8 @@ export const useFaceHud = (): HudSnapshot | null => {
         prep[k] = [];
         lastBySource[k] = null;
       }
+      queue.length = 0;
+      render.length = 0;
       statsPrev = null;
       droppedPct = null;
       delegate = "";
@@ -126,8 +156,11 @@ export const useFaceHud = (): HudSnapshot | null => {
         medianMs: percentile(inference[source], 0.5),
         p95Ms: percentile(inference[source], 0.95),
         prepMs: percentile(prep[source], 0.5),
+        queueMs: percentile(queue, 0.95),
+        renderMs: percentile(render, 0.95),
         droppedPct: source === "mediapipe" ? droppedPct : null,
         delegate: source === "mediapipe" ? delegate : "",
+        stalls: source === "mediapipe" ? stalls : 0,
         frame: last
           ? `${last.frame.width}x${last.frame.height} rot ${last.frame.rotation}${last.frame.sensorRotation !== undefined ? ` (sensor ${last.frame.sensorRotation})` : ""} ${last.frame.mirrored ? "mirrored" : "not mirrored"}`
           : "–",

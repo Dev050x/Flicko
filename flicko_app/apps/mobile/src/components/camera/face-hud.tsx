@@ -22,7 +22,12 @@ export function FaceHud({ top }: { top: number }) {
       <Text style={styles.text}>
         dropped{" "}
         {hud.droppedPct === null ? "–" : `${hud.droppedPct.toFixed(0)}%`}
-        {hud.delegate ? ` · MediaPipe ${hud.delegate}` : ""}
+        {hud.delegate
+          ? ` · MediaPipe ${hud.delegate} · stalls ${hud.stalls}`
+          : ""}
+      </Text>
+      <Text style={styles.text}>
+        lag p95: queue {ms(hud.queueMs)} · render {ms(hud.renderMs)}
       </Text>
       <Text style={styles.text}>frame {hud.frame}</Text>
     </View>

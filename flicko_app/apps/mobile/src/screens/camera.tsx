@@ -38,14 +38,14 @@ import { WalletSheet } from "@/components/wallet/wallet-sheet";
 import { useLastShot } from "@/features/camera/last-shot";
 import { useCameraSettings } from "@/features/camera/settings";
 import { useCreateStore } from "@/features/create/store";
-import {
-  FILTERS,
-  filterById,
-  firstIndexOf,
-} from "@/features/filters/catalog";
+import { FILTERS, filterById, firstIndexOf } from "@/features/filters/catalog";
 import { FaceDebug } from "@/components/camera/face-debug";
 import { FaceHud } from "@/components/camera/face-hud";
-import { useFaceTracking, type FaceTrackingResult } from "@/features/face";
+import {
+  useFaceTracking,
+  useLiveEyes,
+  type FaceTrackingResult,
+} from "@/features/face";
 import {
   approxEyes,
   defaultStickerPose,
@@ -179,12 +179,13 @@ export default function CameraScreen() {
   // explain for 3s that they're placed on the photo.
   const hintOpacity = useSharedValue(0);
   const trackingFaces = filter.type === "face" && !!cameraModule?.tracksFaces;
-  const { eyes: liveEyes, push: onFaces } = useFaceTracking(view, trackingFaces);
+  const { push: onFaces } = useFaceTracking(view, trackingFaces);
+  const noFace = useLiveEyes((s) => s.eyes.length === 0);
   const faceHint =
     filter.type !== "face" || !cameraModule?.detectsFaces
       ? undefined
       : trackingFaces
-        ? liveEyes.length === 0
+        ? noFace
           ? FIND_FACE_HINT
           : undefined
         : FACE_HINT[filter.id];
@@ -249,7 +250,10 @@ export default function CameraScreen() {
 
       // The preview "covers" the page: the photo keeps exactly that visible area, and
       // the safe zone maps onto it (1dp on screen = 1 / scale photo pixels).
-      const scale = Math.max(view.width / shot.width, view.height / shot.height);
+      const scale = Math.max(
+        view.width / shot.width,
+        view.height / shot.height,
+      );
       const toPhoto = (r: Rect): Rect => ({
         x: (shot.width - view.width / scale) / 2 + (r.x - view.x) / scale,
         y: (shot.height - view.height / scale) / 2 + (r.y - view.y) / scale,
@@ -276,10 +280,12 @@ export default function CameraScreen() {
           centerX: toPhoto({ ...view, x: view.width / 2, width: 0 }).x,
         }),
       });
-      useCreateStore.getState().start(
-        { uri: composed.uri, width: composed.width, height: composed.height },
-        filter.id,
-      );
+      useCreateStore
+        .getState()
+        .start(
+          { uri: composed.uri, width: composed.width, height: composed.height },
+          filter.id,
+        );
       router.push({
         pathname: "/create/preview",
         params: notice ? { notice } : {},
@@ -341,7 +347,6 @@ export default function CameraScreen() {
           centerX={view!.width / 2}
           sticker={sticker}
           onStickerChange={setStickerPose}
-          faces={liveEyes}
         />
       )}
 
@@ -360,7 +365,11 @@ export default function CameraScreen() {
       {faceHint && view && (
         <Animated.View
           pointerEvents="none"
-          style={[styles.hintRow, { top: labelTop - 12 - HINT_HEIGHT }, hintStyle]}
+          style={[
+            styles.hintRow,
+            { top: labelTop - 12 - HINT_HEIGHT },
+            hintStyle,
+          ]}
         >
           <Glass style={styles.hint}>
             <Text style={styles.hintText}>{faceHint}</Text>
@@ -475,7 +484,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  filterName: { fontFamily: "DMSans_700Bold", fontSize: 17, color: colors.text },
+  filterName: {
+    fontFamily: "DMSans_700Bold",
+    fontSize: 17,
+    color: colors.text,
+  },
   premium: {
     height: 26,
     borderRadius: 13,
@@ -496,7 +509,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     justifyContent: "center",
   },
-  hintText: { fontFamily: "DMSans_500Medium", fontSize: 12, color: colors.text },
+  hintText: {
+    fontFamily: "DMSans_500Medium",
+    fontSize: 12,
+    color: colors.text,
+  },
   carousel: { position: "absolute", left: 0, right: 0, height: SHUTTER },
   chips: { position: "absolute", left: 0, right: 0 },
   countdown: {

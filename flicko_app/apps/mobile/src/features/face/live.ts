@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
+import { create } from "zustand";
 import { useSharedValue, type SharedValue } from "react-native-reanimated";
 import type { Face as MlKitFace } from "react-native-vision-camera-face-detector";
 
 import type { Eyes, Rect } from "@/features/filters/placement";
 
 import { activeSource, useFaceFlags } from "./flags";
-import { hudRecord } from "./hud";
+import { hudQueue, hudRecord } from "./hud";
 import { frameToView } from "./mapping";
 
 /*
@@ -184,38 +185,51 @@ const smoothEyes = (previous: Eyes[], next: Eyes[]): Eyes[] => {
   });
 };
 
+/*
+ * The live eyes on the preview (view space, smoothed). They live in a store, not in the
+ * camera screen's state, so each detection re-renders only the overlay that draws them
+ * instead of the whole screen (at MediaPipe's rate the screen re-render lagged the
+ * overlay behind the face).
+ */
+export const useLiveEyes = create<{ eyes: Eyes[]; at: number }>(() => ({
+  eyes: [],
+  at: 0,
+}));
+
 /**
- * The tracking state for the camera screen. `result` holds the latest detector output;
- * `eyes` is that mapped onto `view` and smoothed (empty while `enabled` is false);
- * detectors call `push` with each result.
+ * The tracking entry point for the camera screen. `result` holds the latest detector
+ * output; detectors call `push` with each result, and only the active detector moves the
+ * overlay (via `useLiveEyes`). The eyes are empty while `enabled` is false.
  */
 export const useFaceTracking = (
   view: Rect | null,
   enabled: boolean,
 ): {
   result: SharedValue<FaceTrackingResult | null>;
-  eyes: Eyes[];
-  push: (result: FaceTrackingResult) => void;
+  push: (result: FaceTrackingResult, scheduledAt?: number) => void;
 } => {
   const result = useSharedValue<FaceTrackingResult | null>(null);
-  const [eyes, setEyes] = useState<Eyes[]>([]);
   useEffect(() => {
     if (!enabled) {
-      setEyes([]);
+      useLiveEyes.setState({ eyes: [], at: 0 });
       result.value = null;
     }
   }, [enabled, result]);
   const push = useCallback(
-    (next: FaceTrackingResult) => {
+    (next: FaceTrackingResult, scheduledAt?: number) => {
+      if (scheduledAt !== undefined) hudQueue(Date.now() - scheduledAt);
       // The HUD sees every detector's results; only the active one moves the overlays.
       hudRecord(next, view);
       if (!view || next.source !== activeSource(useFaceFlags.getState()))
         return;
       result.value = next;
       const mapped = eyesInView(next, view);
-      setEyes((prev) => smoothEyes(prev, mapped));
+      useLiveEyes.setState((s) => ({
+        eyes: smoothEyes(s.eyes, mapped),
+        at: Date.now(),
+      }));
     },
     [view, result],
   );
-  return { result, eyes, push };
+  return { result, push };
 };
