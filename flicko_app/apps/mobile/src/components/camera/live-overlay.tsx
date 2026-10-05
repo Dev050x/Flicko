@@ -104,17 +104,32 @@ export function LiveOverlay({
   );
 }
 
-const artStyle = (p: Placement) => ({
-  position: "absolute" as const,
-  left: p.x - p.anchorX * p.width,
-  top: p.y - p.anchorY * p.height,
-  width: p.width,
-  height: p.height,
-  transformOrigin: `${p.anchorX * 100}% ${p.anchorY * 100}% 0`,
-  transform: p.steps.map((s) =>
-    "mirror" in s ? { scaleX: -1 } : { rotate: `${s.rotate}deg` },
-  ),
-});
+/*
+ * Steps are applied left to right around the anchor. The pivot is done with explicit
+ * translations around the view's centre (the transform default), so rotating a tilted head's
+ * glasses doesn't depend on `transformOrigin` percentages: on device that origin landed
+ * about a thousand dp away and swung the art far off the eyes as the head tilted.
+ */
+const artStyle = (p: Placement) => {
+  const pivotX = (p.anchorX - 0.5) * p.width;
+  const pivotY = (p.anchorY - 0.5) * p.height;
+  return {
+    position: "absolute" as const,
+    left: p.x - p.anchorX * p.width,
+    top: p.y - p.anchorY * p.height,
+    width: p.width,
+    height: p.height,
+    transform: [
+      { translateX: pivotX },
+      { translateY: pivotY },
+      ...p.steps.map((s) =>
+        "mirror" in s ? { scaleX: -1 } : { rotate: `${s.rotate}deg` },
+      ),
+      { translateY: -pivotY },
+      { translateX: -pivotX },
+    ],
+  };
+};
 
 /*
  * Drag to move, pinch to scale, always fully inside the safe zone. The pose is reported
