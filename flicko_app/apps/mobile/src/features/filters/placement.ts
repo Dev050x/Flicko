@@ -112,11 +112,16 @@ export const defaultStickerPose = (zone: Rect): StickerPose =>
 
 const degrees = (radians: number) => (radians * 180) / Math.PI;
 
-const faceImages = (filter: Filter, zone: Rect, eyes: Eyes): Placement[] => {
+const faceImages = (
+  filter: Filter,
+  zone: Rect,
+  eyes: Eyes,
+  rollOverride?: number,
+): Placement[] => {
   const source = filter.overlay!;
   const dx = eyes.right.x - eyes.left.x;
   const dy = eyes.right.y - eyes.left.y;
-  const roll = degrees(Math.atan2(dy, dx));
+  const roll = rollOverride ?? degrees(Math.atan2(dy, dx));
 
   if (filter.id === "laser-eyes") {
     // Beam from each eye centre, 25° up and outward; the left one is mirrored.
@@ -129,7 +134,11 @@ const faceImages = (filter: Filter, zone: Rect, eyes: Eyes): Placement[] => {
       anchorY: LASER.anchorY,
     };
     return [
-      { ...beam, ...eyes.right, steps: [{ rotate: roll }, { rotate: LASER.angle }] },
+      {
+        ...beam,
+        ...eyes.right,
+        steps: [{ rotate: roll }, { rotate: LASER.angle }],
+      },
       {
         ...beam,
         ...eyes.left,
@@ -155,6 +164,28 @@ const faceImages = (filter: Filter, zone: Rect, eyes: Eyes): Placement[] => {
 };
 
 /*
+ * What a face detector knows about one face. Only the eyes are needed today; `box`, `roll`
+ * (degrees, overrides the eye line) and `yaw` are carried for filters that use them. The
+ * live preview (view space) and the captured photo (pixel space) both call this with the
+ * same fit, so what you see live is what gets saved.
+ */
+export interface FaceFit {
+  eyes: Eyes;
+  box?: Rect;
+  roll?: number;
+  yaw?: number;
+}
+
+/*
+ * Face overlays for one face in `space` (the safe zone in view or photo pixels).
+ */
+export const computeFilterPlacement = (
+  filter: Filter,
+  space: Rect,
+  fit: FaceFit,
+): Placement[] => faceImages(filter, space, fit.eyes, fit.roll);
+
+/*
  * `faces`: eye pairs to dress (one entry per face). The live preview passes none, so
  * face filters draw nothing until a photo is taken. `centerX`: where frame text is
  * centred (the screen/photo centre; the zone itself is off-centre to clear the rail).
@@ -177,8 +208,12 @@ export const layoutFor = (
     const images: Placement[] = [];
     if (art) {
       // Centred on centerX, never wider than the zone allows on either side of it.
-      const room = 2 * Math.min(centerX - zone.x, zone.x + zone.width - centerX);
-      const width = Math.min(room, (zone.width * art.width) / FRAME_INNER_WIDTH);
+      const room =
+        2 * Math.min(centerX - zone.x, zone.x + zone.width - centerX);
+      const width = Math.min(
+        room,
+        (zone.width * art.width) / FRAME_INNER_WIDTH,
+      );
       const height = (width * art.height) / art.width;
       images.push({
         source,
@@ -193,7 +228,11 @@ export const layoutFor = (
     }
     return {
       images,
-      brackets: { rect: zone, stroke: BRACKET.stroke * dp, arm: BRACKET.arm * dp },
+      brackets: {
+        rect: zone,
+        stroke: BRACKET.stroke * dp,
+        arm: BRACKET.arm * dp,
+      },
     };
   }
 
@@ -219,7 +258,9 @@ export const layoutFor = (
 
   if (filter.type === "face") {
     return {
-      images: faces.flatMap((eyes) => faceImages(filter, zone, eyes)),
+      images: faces.flatMap((eyes) =>
+        computeFilterPlacement(filter, zone, { eyes }),
+      ),
       brackets: null,
     };
   }
