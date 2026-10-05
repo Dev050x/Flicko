@@ -1,4 +1,3 @@
-import * as Haptics from "expo-haptics";
 import { useEffect, useRef, useState } from "react";
 import {
   Pressable,
@@ -159,11 +158,6 @@ export function Intro({
 
     clock.value = withTiming(END, { duration: END, easing: Easing.linear });
     leave(END + HOLD);
-
-    const snap = setTimeout(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    }, SNAP);
-    return () => clearTimeout(snap);
     // Plays once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
