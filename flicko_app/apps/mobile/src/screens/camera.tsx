@@ -43,7 +43,7 @@ import {
   filterById,
   firstIndexOf,
 } from "@/features/filters/catalog";
-import { liveEyesInView, smoothEyes, type LiveFaces } from "@/features/face";
+import { useFaceTracking, type FaceTrackingResult } from "@/features/face";
 import {
   approxEyes,
   defaultStickerPose,
@@ -177,15 +177,7 @@ export default function CameraScreen() {
   // explain for 3s that they're placed on the photo.
   const hintOpacity = useSharedValue(0);
   const trackingFaces = filter.type === "face" && !!cameraModule?.tracksFaces;
-  const [liveEyes, setLiveEyes] = useState<Eyes[]>([]);
-  useEffect(() => {
-    if (!trackingFaces) setLiveEyes([]);
-  }, [trackingFaces]);
-  const onFaces = (found: LiveFaces) => {
-    if (!view) return;
-    const next = liveEyesInView(found, view);
-    setLiveEyes((prev) => smoothEyes(prev, next));
-  };
+  const { eyes: liveEyes, push: onFaces } = useFaceTracking(view, trackingFaces);
   const faceHint =
     filter.type !== "face" || !cameraModule?.detectsFaces
       ? undefined

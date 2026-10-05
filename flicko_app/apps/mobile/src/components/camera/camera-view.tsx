@@ -25,7 +25,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { matrixTint } from "@/features/filters/catalog";
 import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
-import type { LiveFaces } from "@/features/face";
+import { mlkitResult, type FaceTrackingResult } from "@/features/face";
 
 export { composePhoto } from "@/features/filters/apply-filter";
 
@@ -79,7 +79,7 @@ export function CameraLayer({
   /** look for faces on the preview (a face filter is selected) */
   trackFaces?: boolean;
   /** live eye positions; called about 10 times a second while tracking */
-  onFaces?: (faces: LiveFaces) => void;
+  onFaces?: (result: FaceTrackingResult) => void;
   /** read by the expo-camera fallback; VisionCamera takes the flash per capture */
   flash?: import("@/features/camera/settings").FlashSetting;
 }) {
@@ -135,7 +135,10 @@ export function CameraLayer({
   }, [trackFaces, facing, tracking, mirrored]);
   const onFacesRef = useRef(onFaces);
   onFacesRef.current = onFaces;
-  const reportFaces = useCallback((faces: LiveFaces) => onFacesRef.current?.(faces), []);
+  const reportFaces = useCallback(
+    (result: FaceTrackingResult) => onFacesRef.current?.(result),
+    [],
+  );
 
   // Plain preview: a face detector output next to the photo output. Its points are in
   // the upright frame (like the Skia path), mapped onto the preview the same way.
@@ -149,26 +152,11 @@ export function CameraLayer({
         cameraFacing: facing,
         mirrorMode,
         onFacesDetected(found) {
-          const faces: LiveFaces["faces"] = [];
-          let aspect = 0;
-          for (const face of found) {
-            const a = face.landmarks?.LEFT_EYE;
-            const b = face.landmarks?.RIGHT_EYE;
-            if (!a || !b || !face.frameWidth || !face.frameHeight) continue;
-            aspect = face.frameWidth / face.frameHeight;
-            const x = (p: { x: number }) =>
-              facing === "front" ? 1 - p.x / face.frameWidth : p.x / face.frameWidth;
-            faces.push({
-              lx: x(a),
-              ly: a.y / face.frameHeight,
-              rx: x(b),
-              ry: b.y / face.frameHeight,
-            });
-          }
+          const result = mlkitResult(found, facing === "front");
           // Report changes, and one empty result when the faces leave.
-          if (faces.length === 0 && !hadPlainFaces.current) return;
-          hadPlainFaces.current = faces.length > 0;
-          onFacesRef.current?.({ kind: "frame", faces, aspect });
+          if (result.faces.length === 0 && !hadPlainFaces.current) return;
+          hadPlainFaces.current = result.faces.length > 0;
+          onFacesRef.current?.(result);
         },
         onError(err) {
           console.warn("[camera] live face detection failed", err);
@@ -230,26 +218,11 @@ export function CameraLayer({
       if (tracking.value && ++frameCount.value % FACE_EVERY === 0) {
         try {
           const found = faceDetector.detectFaces(frame);
-          const faces: LiveFaces["faces"] = [];
-          let aspect = 0;
-          for (const face of found) {
-            const a = face.landmarks?.LEFT_EYE;
-            const b = face.landmarks?.RIGHT_EYE;
-            if (!a || !b || !face.frameWidth || !face.frameHeight) continue;
-            aspect = face.frameWidth / face.frameHeight;
-            const x = (p: { x: number }) =>
-              mirrored.value ? 1 - p.x / face.frameWidth : p.x / face.frameWidth;
-            faces.push({
-              lx: x(a),
-              ly: a.y / face.frameHeight,
-              rx: x(b),
-              ry: b.y / face.frameHeight,
-            });
-          }
+          const result = mlkitResult(found, mirrored.value);
           // Report changes, and one empty result when the faces leave.
-          if (faces.length > 0 || hadFaces.value) {
-            hadFaces.value = faces.length > 0;
-            scheduleOnRN(reportFaces, { kind: "frame", faces, aspect });
+          if (result.faces.length > 0 || hadFaces.value) {
+            hadFaces.value = result.faces.length > 0;
+            scheduleOnRN(reportFaces, result);
           }
         } catch {
           // A frame the detector can't read: skip it.

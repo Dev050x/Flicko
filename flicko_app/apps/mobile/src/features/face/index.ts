@@ -62,7 +62,10 @@ export const detectFacesDetailed = async (
   }
   return {
     ...raw,
-    faces: raw.faces.map((f) => ({ ...f, landmarks: toLandmarks(f.landmarks) })),
+    faces: raw.faces.map((f) => ({
+      ...f,
+      landmarks: toLandmarks(f.landmarks),
+    })),
   };
 };
 
@@ -73,4 +76,5 @@ export const detectFacesDetailed = async (
 export const detectFaces = async (imageUri: string): Promise<Face[]> =>
   (await detectFacesDetailed(imageUri))?.faces ?? [];
 export { eyeCenters } from "./geometry";
-export { liveEyesInView, smoothEyes, type LiveFaces } from "./live";
+export { FEATURE_MEDIAPIPE_LIVE } from "./flags";
+export { mlkitResult, useFaceTracking, type FaceTrackingResult } from "./live";

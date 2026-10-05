@@ -13,7 +13,11 @@ const IRIS_LEFT = 473;
 const RIGHT_EYE_CORNERS = [33, 133] as const;
 const LEFT_EYE_CORNERS = [362, 263] as const;
 
-const centre = (face: Face, index: number, corners: readonly [number, number]) => {
+const centre = (
+  face: Face,
+  index: number,
+  corners: readonly [number, number],
+) => {
   const iris = face.landmarks[index];
   if (iris) return iris;
   const [a, b] = corners.map((i) => face.landmarks[i]);
