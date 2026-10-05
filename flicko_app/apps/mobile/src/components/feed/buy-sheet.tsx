@@ -27,7 +27,6 @@ import { config } from "@/config";
 import { useLaunchConfig } from "@/features/create/chain";
 import { compactCount, grouped, price, skr } from "@/features/feed/format";
 import {
-  buyLimit,
   networkFeeSol,
   quoteTrade,
   skrNumber,
@@ -111,8 +110,9 @@ export function BuySheet({
       ? held
       : launching
         ? left
-        : chain && fees
-          ? Math.max(1, buyLimit(chain, fees, skrUnits))
+        : chain
+          ? // Any amount the pool can supply; "Not enough SKR" covers what you can't afford.
+            Math.max(1, Number(chain.poolTokens / TOKEN_UNIT) - 1)
           : 1;
 
   const [quantity, setQuantity] = useState(DEFAULT_QUANTITY);
@@ -121,15 +121,21 @@ export function BuySheet({
   const [draft, setDraft] = useState<string | null>(null);
   const keyboard = useKeyboardHeight();
   // Keep the amount in range as the limits load or move.
-  const shown = max < 1 ? 0 : clamp(quantity, max);
-  const quote = chain && fees && shown > 0 ? quoteTrade(chain, fees, side, shown) : null;
+  // A typed amount is kept as typed; past what's available it shows a message instead of changing.
+  const shown = max < 1 ? 0 : Math.max(1, Math.round(quantity));
+  const over = max >= 1 && shown > max;
+  // Long amounts shrink to stay inside the field.
+  const qtyLength = (draft ?? grouped(shown)).length;
+  const qtySize = qtyLength <= 7 ? 44 : Math.max(20, 44 - (qtyLength - 7) * 3);
+  const quote = chain && fees && shown > 0 && !over ? quoteTrade(chain, fees, side, shown) : null;
   const totalSkr = quote ? skrNumber(quote.skr) : null;
   const priceEach = totalSkr != null && shown > 0 ? totalSkr / shown : meme.price;
   const fee = networkFeeSol(side === "buy" && holding.data && !holding.data.exists ? (rent.data ?? 0) : 0);
 
   const busy = trade.step !== "idle";
-  const short =
-    !wallet || !quote
+  const short = over
+    ? `Only ${grouped(max)} available`
+    : !wallet || !quote
       ? null
       : side === "buy"
         ? balance.data != null && quote.skr > skrUnits
@@ -139,9 +145,10 @@ export function BuySheet({
           ? `No $${meme.ticker} to sell`
           : null;
 
-  const set = (n: number, from: Chip | null = null) => {
+  // `tick` is the haptic for button taps; typing digits stays silent.
+  const set = (n: number, from: Chip | null = null, tick = true) => {
     const next = clamp(n, max);
-    if (next !== shown) Haptics.selectionAsync().catch(() => {});
+    if (tick && next !== shown) Haptics.selectionAsync().catch(() => {});
     setQuantity(next);
     setChip(from);
     setProblem(null);
@@ -158,9 +165,8 @@ export function BuySheet({
   const type = (text: string) => {
     const digits = text.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "");
     const n = Number(digits);
-    // Past the limit the field snaps to it, like Max.
-    setDraft(n > max && max >= 1 ? String(max) : digits);
-    if (n >= 1) set(n);
+    setDraft(digits);
+    if (n >= 1) setQuantity(n);
     setChip(null);
   };
 
@@ -322,7 +328,7 @@ export function BuySheet({
                 returnKeyType="done"
                 selectTextOnFocus
                 maxLength={13}
-                style={styles.quantity}
+                style={[styles.quantity, { fontSize: qtySize, lineHeight: qtySize + 8 }]}
                 accessibilityLabel={`How many $${meme.ticker}`}
               />
               <Pressable
