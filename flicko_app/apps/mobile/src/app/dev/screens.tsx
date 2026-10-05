@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 
 import type { ConnectState } from "@/components/wallet/connect-flow";
+import { useFaceHudSwitch } from "@/features/face";
 import Permissions from "@/screens/permissions";
 import Profile from "@/screens/profile";
 import Welcome from "@/screens/welcome";
@@ -23,6 +24,7 @@ const SCREENS = [
 type Name = (typeof SCREENS)[number];
 
 export default function DevScreens() {
+  const hudOn = useFaceHudSwitch((s) => s.on);
   const { s } = useLocalSearchParams<{ s?: Name }>();
   if (s === "profile") return <Profile preview />;
   if (s === "permissions") return <Permissions />;
@@ -34,6 +36,17 @@ export default function DevScreens() {
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 24, paddingTop: 64, gap: 8 }}
     >
+      <Text
+        onPress={() => useFaceHudSwitch.getState().toggle()}
+        style={{
+          fontFamily: "DMSans_700Bold",
+          fontSize: 17,
+          color: ref.textBright,
+          paddingVertical: 12,
+        }}
+      >
+        Camera face HUD: {hudOn ? "on" : "off"} (tap to toggle)
+      </Text>
       {SCREENS.map((name) => (
         <View key={name}>
           <Text

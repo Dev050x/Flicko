@@ -78,3 +78,4 @@ export const detectFaces = async (imageUri: string): Promise<Face[]> =>
 export { eyeCenters } from "./geometry";
 export { FEATURE_MEDIAPIPE_LIVE } from "./flags";
 export { mlkitResult, useFaceTracking, type FaceTrackingResult } from "./live";
+export { hudPreviewFps, useFaceHud, useFaceHudSwitch } from "./hud";

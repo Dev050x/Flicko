@@ -25,7 +25,7 @@ import { scheduleOnRN } from "react-native-worklets";
 import { matrixTint } from "@/features/filters/catalog";
 import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
-import { mlkitResult, type FaceTrackingResult } from "@/features/face";
+import { hudPreviewFps, mlkitResult, type FaceTrackingResult } from "@/features/face";
 
 export { composePhoto } from "@/features/filters/apply-filter";
 
@@ -128,6 +128,18 @@ export function CameraLayer({
   const tracking = useSharedValue(trackFaces);
   const mirrored = useSharedValue(facing === "front");
   const frameCount = useSharedValue(0);
+  // Dev HUD: frames drawn per second, read once a second from JS.
+  const previewFrames = useSharedValue(0);
+  useEffect(() => {
+    if (!__DEV__) return;
+    let prev = previewFrames.value;
+    const timer = setInterval(() => {
+      const now = previewFrames.value;
+      hudPreviewFps(now - prev);
+      prev = now;
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [previewFrames]);
   const hadFaces = useSharedValue(false);
   useEffect(() => {
     tracking.value = trackFaces;
@@ -201,6 +213,7 @@ export function CameraLayer({
           return;
         }
       }
+      previewFrames.value += 1;
       const start = Date.now();
       render(({ canvas, frameTexture }) => {
         const m = matrixValue.value;
@@ -217,8 +230,9 @@ export function CameraLayer({
       // Every few frames, find the eyes (not counted as render time).
       if (tracking.value && ++frameCount.value % FACE_EVERY === 0) {
         try {
+          const t0 = Date.now();
           const found = faceDetector.detectFaces(frame);
-          const result = mlkitResult(found, mirrored.value);
+          const result = mlkitResult(found, mirrored.value, Date.now() - t0);
           // Report changes, and one empty result when the faces leave.
           if (result.faces.length > 0 || hadFaces.value) {
             hadFaces.value = result.faces.length > 0;
@@ -246,6 +260,7 @@ export function CameraLayer({
       reportSlow,
       tracking,
       frameCount,
+      previewFrames,
       faceDetector,
       mirrored,
       hadFaces,

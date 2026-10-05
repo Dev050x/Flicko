@@ -43,6 +43,7 @@ import {
   filterById,
   firstIndexOf,
 } from "@/features/filters/catalog";
+import { FaceHud } from "@/components/camera/face-hud";
 import { useFaceTracking, type FaceTrackingResult } from "@/features/face";
 import {
   approxEyes,
@@ -352,6 +353,7 @@ export default function CameraScreen() {
         }
       />
       <ToolRail />
+      <FaceHud top={insets.top + 120} />
 
       {faceHint && view && (
         <Animated.View

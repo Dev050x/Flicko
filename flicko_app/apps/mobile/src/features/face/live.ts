@@ -4,6 +4,8 @@ import type { Face as MlKitFace } from "react-native-vision-camera-face-detector
 
 import type { Eyes, Rect } from "@/features/filters/placement";
 
+import { hudRecord } from "./hud";
+
 /*
  * Live face tracking on the camera preview. Every detector reports the same
  * FaceTrackingResult (eye centres as fractions of the upright frame, already mirrored like
@@ -20,6 +22,8 @@ export interface FaceTrackingResult {
     mirrored: boolean;
     rotation: 0 | 90 | 180 | 270;
   };
+  /** detector time for this frame, ms (dev HUD) */
+  inferenceMs?: number;
   faces: {
     /** normalised 0..1 in preview space; ML Kit fills only the points it has */
     landmarks: { x: number; y: number; z: number }[];
@@ -44,6 +48,7 @@ export interface FaceTrackingResult {
 export const mlkitResult = (
   found: readonly MlKitFace[],
   mirrored: boolean,
+  inferenceMs?: number,
 ): FaceTrackingResult => {
   "worklet";
   const faces: FaceTrackingResult["faces"] = [];
@@ -76,6 +81,7 @@ export const mlkitResult = (
   return {
     timestamp: Date.now(),
     source: "mlkit",
+    inferenceMs,
     frame: { width, height, mirrored, rotation: 0 },
     faces,
   };
@@ -147,6 +153,7 @@ export const useFaceTracking = (
   const push = useCallback(
     (next: FaceTrackingResult) => {
       if (!view) return;
+      hudRecord(next);
       result.value = next;
       const mapped = eyesInView(next, view);
       setEyes((prev) => smoothEyes(prev, mapped));
