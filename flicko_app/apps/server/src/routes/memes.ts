@@ -20,6 +20,7 @@ import {
   listCandles,
   listTrades,
   memeExists,
+  symbolTaken,
 } from "../queries/memes";
 import {
   CHART_TFS,
@@ -65,6 +66,17 @@ const knownMint = async (db: Db, params: unknown) => {
  */
 export const memesRouter = (deps: ReadDeps) => {
   const router = Router()
+    // Is a ticker still unused? (case-insensitive; drives the Launch screen's status)
+    .get("/symbols/:symbol", async (req, res) => {
+      const { symbol } = parseOr400(
+        z.object({ symbol: z.string().trim().regex(/^[A-Za-z0-9]{1,10}$/) }),
+        req.params,
+      );
+      res.json({
+        symbol: symbol.toUpperCase(),
+        available: !(await symbolTaken(deps.db, symbol)),
+      });
+    })
     .get("/memes/:mint", optionalAuth(deps.sessions), async (req, res) => {
       const { mint } = parseOr400(mintParams, req.params);
       const meme = await getMeme(deps.db, mint);

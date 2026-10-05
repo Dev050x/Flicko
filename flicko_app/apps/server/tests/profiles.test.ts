@@ -227,3 +227,14 @@ describe("PATCH /me profile text", () => {
     expect(status).toBe(400);
   });
 });
+
+describe("GET /symbols/:symbol", () => {
+  test("reports whether a ticker is free, ignoring case", async () => {
+    expect((await call("/symbols/dip")).body).toEqual({
+      symbol: "DIP",
+      available: false,
+    });
+    expect((await call("/symbols/WEN")).body.available).toBe(true);
+    expect((await call("/symbols/no-pe")).status).toBe(400);
+  });
+});

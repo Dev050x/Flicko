@@ -262,6 +262,15 @@ export const memeExists = async (db: Db, mint: string) => {
   return row !== undefined;
 };
 
+export const symbolTaken = async (db: Db, symbol: string) => {
+  const [row] = await db
+    .select({ mint: memes.mint })
+    .from(memes)
+    .where(sql`upper(${memes.symbol}) = ${symbol.toUpperCase()}`)
+    .limit(1);
+  return row !== undefined;
+};
+
 export const getMeme = async (
   db: Db,
   mint: string,
