@@ -65,6 +65,7 @@
         "expo-symbols": "~57.0.3",
         "expo-system-ui": "~57.0.4",
         "expo-web-browser": "~57.0.3",
+        "flicko-face-live": "workspace:*",
         "nativewind": "^4.2.7",
         "react": "19.2.3",
         "react-dom": "19.2.3",
@@ -92,6 +93,16 @@
         "@types/react": "~19.2.2",
         "tailwindcss": "^3.4.17",
         "typescript": "~6.0.3",
+      },
+    },
+    "apps/mobile/modules/flicko-face-live": {
+      "name": "flicko-face-live",
+      "version": "0.1.0",
+      "peerDependencies": {
+        "react": "*",
+        "react-native": "*",
+        "react-native-nitro-modules": "*",
+        "react-native-vision-camera": "*",
       },
     },
     "apps/server": {
@@ -1245,6 +1256,8 @@
     "filter-obj": ["filter-obj@1.1.0", "", {}, "sha512-8rXg1ZnX7xzy2NGDVkBVaAy+lSlPNwad13BtgSlLuxfIslyt5Vg64U7tFcCt4WS1R0hvtnQybT/IyCkGZ3DpXQ=="],
 
     "finalhandler": ["finalhandler@2.1.1", "", { "dependencies": { "debug": "^4.4.0", "encodeurl": "^2.0.0", "escape-html": "^1.0.3", "on-finished": "^2.4.1", "parseurl": "^1.3.3", "statuses": "^2.0.1" } }, "sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA=="],
+
+    "flicko-face-live": ["flicko-face-live@workspace:apps/mobile/modules/flicko-face-live"],
 
     "flow-enums-runtime": ["flow-enums-runtime@0.0.6", "", {}, "sha512-3PYnM29RFXwvAN6Pc/scUfkI7RwhQ/xqyLUyPNlXUp9S40zI8nup9tUSrTLSVnWGBN38FNiGWbwZOB6uR4OGdw=="],
 

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": ["flicko", "facelive"],
+  "android": {
+    "androidNamespace": ["flicko", "facelive"],
+    "androidCxxLibName": "FlickoFaceLive"
+  },
+  "autolinking": {
+    "LiveFaceTrackerFactory": {
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridLiveFaceTrackerFactory"
+      }
+    }
+  },
+  "ignorePaths": ["**/node_modules"],
+  "ios": {
+    "iosModuleName": "FlickoFaceLive"
+  }
+}

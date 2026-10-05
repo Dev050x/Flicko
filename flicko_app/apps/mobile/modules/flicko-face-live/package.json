@@ -1,0 +1,25 @@
+{
+  "name": "flicko-face-live",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Live MediaPipe Face Landmarker frame processor for VisionCamera (Android)",
+  "main": "src/index",
+  "types": "src/index.ts",
+  "react-native": "src/index",
+  "source": "src/index",
+  "files": [
+    "src",
+    "nitrogen",
+    "android",
+    "nitro.json"
+  ],
+  "scripts": {
+    "specs": "nitrogen"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*",
+    "react-native-nitro-modules": "*",
+    "react-native-vision-camera": "*"
+  }
+}

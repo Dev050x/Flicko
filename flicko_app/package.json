@@ -40,7 +40,8 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/mobile/modules/flicko-face-live"
   ],
   "trustedDependencies": [
     "@shopify/react-native-skia",

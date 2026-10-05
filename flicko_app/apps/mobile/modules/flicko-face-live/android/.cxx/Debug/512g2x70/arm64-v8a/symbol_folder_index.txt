@@ -1,0 +1,1 @@
+/run/media/div/Windows/Ubuntu_OS_data/hackathon/Flicko/flicko_app/apps/mobile/modules/flicko-face-live/android/build/intermediates/cxx/Debug/512g2x70/obj/arm64-v8a
