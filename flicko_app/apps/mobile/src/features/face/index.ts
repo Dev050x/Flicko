@@ -32,6 +32,9 @@ export interface Detection {
 
 export const faceDetectionAvailable = FlickoFace !== null;
 
+/* Set once MediaPipe fails to start; stills then fall back for the rest of the session. */
+let failed = false;
+
 const toLandmarks = (flat: number[]): Landmark[] => {
   const points: Landmark[] = new Array(flat.length / 3);
   for (let i = 0; i < points.length; i++) {
@@ -46,8 +49,17 @@ const toLandmarks = (flat: number[]): Landmark[] => {
 export const detectFacesDetailed = async (
   imageUri: string,
 ): Promise<Detection | null> => {
-  if (!FlickoFace) return null;
-  const raw = await FlickoFace.detectFaces(imageUri);
+  if (!FlickoFace || failed) return null;
+  let raw: NativeDetection;
+  try {
+    raw = await FlickoFace.detectFaces(imageUri);
+  } catch (err) {
+    // Model or delegate failed (GPU and CPU both): stop trying this session and let
+    // callers use the approximate eye position.
+    failed = true;
+    console.warn("[face] MediaPipe unavailable for this session", err);
+    return null;
+  }
   return {
     ...raw,
     faces: raw.faces.map((f) => ({ ...f, landmarks: toLandmarks(f.landmarks) })),
