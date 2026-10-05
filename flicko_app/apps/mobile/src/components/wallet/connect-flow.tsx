@@ -51,6 +51,8 @@ export function ConnectFlow({
   const [state, setState] = useState<ConnectState>(preview ?? "opening");
   const [connected, setConnected] = useState<Session | null>(null);
   const attempt = useRef(0);
+  // An account that already has a username skips the profile and permissions steps.
+  const returning = useRef(false);
 
   const start = useCallback(async () => {
     const id = ++attempt.current;
@@ -67,6 +69,7 @@ export function ConnectFlow({
       if (!current()) return;
       // Returning users get the avatar they saved before (photo first, then bundled one).
       const { user } = verified;
+      returning.current = !!user.username;
       if (user.avatarUrl) useSession.getState().setAvatar(user.avatarUrl);
       else if (user.avatarId) useSession.getState().setAvatarId(user.avatarId);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(
@@ -98,11 +101,16 @@ export function ConnectFlow({
   }, [preview, start]);
 
   /*
-   * After the "gm" moment the session is saved, which moves the app on to the profile.
+   * After the "gm" moment the session is saved, which moves the app on to the profile (new
+   * accounts) or straight to the camera (accounts that already have a username).
    */
   useEffect(() => {
     if (state !== "success" || !connected) return;
-    const timer = setTimeout(() => signIn(connected), SUCCESS_MS);
+    const timer = setTimeout(() => {
+      // Finish first so the profile step never flashes before the camera.
+      if (returning.current) useSession.getState().finishOnboarding();
+      signIn(connected);
+    }, SUCCESS_MS);
     return () => clearTimeout(timer);
   }, [state, connected, signIn]);
 
