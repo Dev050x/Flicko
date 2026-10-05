@@ -19,13 +19,23 @@ import {
   createFaceDetectorOutput,
   createImageFaceDetector,
 } from "react-native-vision-camera-face-detector";
+import { createLiveFaceTracker, type LiveFaceSnapshot } from "flicko-face-live";
 import { SkiaCamera } from "react-native-vision-camera-skia";
 import { scheduleOnRN } from "react-native-worklets";
 
 import { matrixTint } from "@/features/filters/catalog";
 import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
-import { hudPreviewFps, mlkitResult, type FaceTrackingResult } from "@/features/face";
+import {
+  hudEnabled,
+  hudNativeStats,
+  hudPreviewFps,
+  mediapipeResult,
+  mlkitResult,
+  useFaceFlags,
+  useFaceHudSwitch,
+  type FaceTrackingResult,
+} from "@/features/face";
 
 export { composePhoto } from "@/features/filters/apply-filter";
 
@@ -128,18 +138,47 @@ export function CameraLayer({
   const tracking = useSharedValue(trackFaces);
   const mirrored = useSharedValue(facing === "front");
   const frameCount = useSharedValue(0);
-  // Dev HUD: frames drawn per second, read once a second from JS.
   const previewFrames = useSharedValue(0);
+
+  // Live MediaPipe tracking (Skia path only): off unless the flag is on, and ML Kit takes
+  // over for the session if it can't start or keeps failing.
+  const mediapipeWanted = useFaceFlags((f) => f.mediapipeLive && !f.mediapipeFailed);
+  const hudOn = useFaceHudSwitch((h) => h.debug);
+  const liveTracker = useMemo(
+    () => (live && mediapipeWanted ? createLiveFaceTracker(30) : null),
+    [live, mediapipeWanted],
+  );
   useEffect(() => {
-    if (!__DEV__) return;
+    if (live && mediapipeWanted && !liveTracker) useFaceFlags.getState().markMediapipeFailed();
+  }, [live, mediapipeWanted, liveTracker]);
+  useEffect(() => {
+    liveTracker?.setWantLandmarks(hudOn);
+  }, [liveTracker, hudOn]);
+  // HUD on: run ML Kit next to MediaPipe so both can be compared on screen.
+  const bothDetectors = useSharedValue(false);
+  useEffect(() => {
+    bothDetectors.value = hudOn && !!liveTracker;
+  }, [bothDetectors, hudOn, liveTracker]);
+  const lastSeq = useSharedValue(0);
+
+  // Once a second (JS): preview fps for the HUD, and the native tracker's health.
+  useEffect(() => {
     let prev = previewFrames.value;
     const timer = setInterval(() => {
       const now = previewFrames.value;
-      hudPreviewFps(now - prev);
+      if (__DEV__) hudPreviewFps(now - prev);
       prev = now;
+      if (liveTracker) {
+        const stats = liveTracker.stats();
+        if (!stats.ready) {
+          console.warn("[camera] MediaPipe live tracking failed; using ML Kit");
+          useFaceFlags.getState().markMediapipeFailed();
+        }
+        if (hudEnabled()) hudNativeStats(stats);
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, [previewFrames]);
+  }, [previewFrames, liveTracker]);
   const hadFaces = useSharedValue(false);
   useEffect(() => {
     tracking.value = trackFaces;
@@ -147,6 +186,11 @@ export function CameraLayer({
   }, [trackFaces, facing, tracking, mirrored]);
   const onFacesRef = useRef(onFaces);
   onFacesRef.current = onFaces;
+  const reportLive = useCallback(
+    (snapshot: LiveFaceSnapshot, mirroredFrame: boolean) =>
+      onFacesRef.current?.(mediapipeResult(snapshot, mirroredFrame)),
+    [],
+  );
   const reportFaces = useCallback(
     (result: FaceTrackingResult) => onFacesRef.current?.(result),
     [],
@@ -228,7 +272,24 @@ export function CameraLayer({
       const renderMs = Date.now() - start;
 
       // Every few frames, find the eyes (not counted as render time).
-      if (tracking.value && ++frameCount.value % FACE_EVERY === 0) {
+      if (liveTracker && tracking.value) {
+        try {
+          // The tracker drops frames itself (one in flight, 30 fps cap); only a new result
+          // crosses to JS.
+          const seq = liveTracker.process(frame);
+          if (seq !== lastSeq.value) {
+            lastSeq.value = seq;
+            scheduleOnRN(reportLive, liveTracker.latest(), mirrored.value);
+          }
+        } catch {
+          // A frame the tracker can't read: skip it (it retires itself after repeated errors).
+        }
+      }
+      if (
+        (!liveTracker || bothDetectors.value) &&
+        tracking.value &&
+        ++frameCount.value % FACE_EVERY === 0
+      ) {
         try {
           const t0 = Date.now();
           const found = faceDetector.detectFaces(frame);
@@ -265,6 +326,10 @@ export function CameraLayer({
       mirrored,
       hadFaces,
       reportFaces,
+      liveTracker,
+      lastSeq,
+      reportLive,
+      bothDetectors,
     ],
   );
 

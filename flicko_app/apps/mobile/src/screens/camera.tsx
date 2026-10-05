@@ -43,6 +43,7 @@ import {
   filterById,
   firstIndexOf,
 } from "@/features/filters/catalog";
+import { FaceDebug } from "@/components/camera/face-debug";
 import { FaceHud } from "@/components/camera/face-hud";
 import { useFaceTracking, type FaceTrackingResult } from "@/features/face";
 import {
@@ -353,6 +354,7 @@ export default function CameraScreen() {
         }
       />
       <ToolRail />
+      <FaceDebug view={view} />
       <FaceHud top={insets.top + 120} />
 
       {faceHint && view && (

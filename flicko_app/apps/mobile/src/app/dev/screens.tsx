@@ -2,7 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { ScrollView, Text, View } from "react-native";
 
 import type { ConnectState } from "@/components/wallet/connect-flow";
-import { useFaceHudSwitch } from "@/features/face";
+import { useFaceFlags, useFaceHudSwitch } from "@/features/face";
 import Permissions from "@/screens/permissions";
 import Profile from "@/screens/profile";
 import Welcome from "@/screens/welcome";
@@ -25,6 +25,9 @@ type Name = (typeof SCREENS)[number];
 
 export default function DevScreens() {
   const hudOn = useFaceHudSwitch((s) => s.on);
+  const debugOn = useFaceHudSwitch((s) => s.debug);
+  const mediapipe = useFaceFlags((f) => f.mediapipeLive);
+  const mediapipeFailed = useFaceFlags((f) => f.mediapipeFailed);
   const { s } = useLocalSearchParams<{ s?: Name }>();
   if (s === "profile") return <Profile preview />;
   if (s === "permissions") return <Permissions />;
@@ -46,6 +49,31 @@ export default function DevScreens() {
         }}
       >
         Camera face HUD: {hudOn ? "on" : "off"} (tap to toggle)
+      </Text>
+      <Text
+        onPress={() => useFaceHudSwitch.getState().toggleDebug()}
+        style={{
+          fontFamily: "DMSans_700Bold",
+          fontSize: 17,
+          color: ref.textBright,
+          paddingVertical: 12,
+        }}
+      >
+        Camera face debug overlay: {debugOn ? "on" : "off"} (slows tracking; tap
+        to toggle)
+      </Text>
+      <Text
+        onPress={() => useFaceFlags.getState().toggleMediapipe()}
+        style={{
+          fontFamily: "DMSans_700Bold",
+          fontSize: 17,
+          color: ref.textBright,
+          paddingVertical: 12,
+        }}
+      >
+        Live MediaPipe tracking:{" "}
+        {mediapipe ? (mediapipeFailed ? "failed, ML Kit" : "on") : "off"} (tap
+        to toggle)
       </Text>
       {SCREENS.map((name) => (
         <View key={name}>
