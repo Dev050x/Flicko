@@ -16,6 +16,12 @@ export interface Money {
   launched: boolean;
 }
 
+const skr2 = (n: number) =>
+  n.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const skr = (n: number) =>
   n >= 100
     ? grouped(n)
@@ -63,8 +69,8 @@ export function MoneyCard({
           </View>
         </View>
         <View style={styles.breakdown}>
-          <Line label="Cash" value={`${skr(money.cash)} SKR`} />
-          <Line label="Memes" value={`${skr(money.memes)} SKR`} />
+          <Line label="Cash" value={`${skr2(money.cash)} SKR`} />
+          <Line label="Memes" value={`${skr2(money.memes)} SKR`} />
           <Line label="Gas" value={`${money.sol.toFixed(2)} SOL`} />
         </View>
       </View>
