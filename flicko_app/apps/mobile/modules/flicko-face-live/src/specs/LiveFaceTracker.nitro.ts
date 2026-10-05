@@ -29,8 +29,10 @@ export interface LiveFaceSnapshot {
   seq: number;
   /** ms since boot when the frame was submitted */
   timestampMs: number;
-  /** detector time for this result, ms */
+  /** detector time for this result, ms (submit to result) */
   inferenceMs: number;
+  /** time to turn the camera frame into the rotated, scaled bitmap, ms */
+  prepMs: number;
   /** size of the image the detector saw (upright, downscaled) */
   width: number;
   height: number;
@@ -47,6 +49,8 @@ export interface LiveStats {
   /** frames skipped because one was in flight or faster than the fps cap */
   dropped: number;
   errors: number;
+  /** times a frame never produced a result and the tracker unblocked itself */
+  stalls: number;
   /** "GPU" | "CPU" | "none" */
   delegate: string;
   /** false once the landmarker could not start or failed repeatedly */

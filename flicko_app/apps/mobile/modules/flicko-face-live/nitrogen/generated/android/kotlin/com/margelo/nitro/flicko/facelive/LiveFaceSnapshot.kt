@@ -29,6 +29,9 @@ data class LiveFaceSnapshot(
   val inferenceMs: Double,
   @DoNotStrip
   @Keep
+  val prepMs: Double,
+  @DoNotStrip
+  @Keep
   val width: Double,
   @DoNotStrip
   @Keep
@@ -48,6 +51,7 @@ data class LiveFaceSnapshot(
     return Objects.deepEquals(this.seq, other.seq)
       && Objects.deepEquals(this.timestampMs, other.timestampMs)
       && Objects.deepEquals(this.inferenceMs, other.inferenceMs)
+      && Objects.deepEquals(this.prepMs, other.prepMs)
       && Objects.deepEquals(this.width, other.width)
       && Objects.deepEquals(this.height, other.height)
       && Objects.deepEquals(this.sensorRotation, other.sensorRotation)
@@ -59,6 +63,7 @@ data class LiveFaceSnapshot(
       seq,
       timestampMs,
       inferenceMs,
+      prepMs,
       width,
       height,
       sensorRotation,
@@ -74,8 +79,8 @@ data class LiveFaceSnapshot(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(seq: Double, timestampMs: Double, inferenceMs: Double, width: Double, height: Double, sensorRotation: Double, faces: Array<LiveFace>): LiveFaceSnapshot {
-      return LiveFaceSnapshot(seq, timestampMs, inferenceMs, width, height, sensorRotation, faces)
+    private fun fromCpp(seq: Double, timestampMs: Double, inferenceMs: Double, prepMs: Double, width: Double, height: Double, sensorRotation: Double, faces: Array<LiveFace>): LiveFaceSnapshot {
+      return LiveFaceSnapshot(seq, timestampMs, inferenceMs, prepMs, width, height, sensorRotation, faces)
     }
   }
 }

@@ -39,6 +39,8 @@ namespace margelo::nitro::flicko::facelive {
       double timestampMs = this->getFieldValue(fieldTimestampMs);
       static const auto fieldInferenceMs = clazz->getField<double>("inferenceMs");
       double inferenceMs = this->getFieldValue(fieldInferenceMs);
+      static const auto fieldPrepMs = clazz->getField<double>("prepMs");
+      double prepMs = this->getFieldValue(fieldPrepMs);
       static const auto fieldWidth = clazz->getField<double>("width");
       double width = this->getFieldValue(fieldWidth);
       static const auto fieldHeight = clazz->getField<double>("height");
@@ -51,6 +53,7 @@ namespace margelo::nitro::flicko::facelive {
         seq,
         timestampMs,
         inferenceMs,
+        prepMs,
         width,
         height,
         sensorRotation,
@@ -73,7 +76,7 @@ namespace margelo::nitro::flicko::facelive {
      */
     [[maybe_unused]]
     static jni::local_ref<JLiveFaceSnapshot::javaobject> fromCpp(const LiveFaceSnapshot& value) {
-      using JSignature = JLiveFaceSnapshot(double, double, double, double, double, double, jni::alias_ref<jni::JArrayClass<JLiveFace>>);
+      using JSignature = JLiveFaceSnapshot(double, double, double, double, double, double, double, jni::alias_ref<jni::JArrayClass<JLiveFace>>);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -81,6 +84,7 @@ namespace margelo::nitro::flicko::facelive {
         value.seq,
         value.timestampMs,
         value.inferenceMs,
+        value.prepMs,
         value.width,
         value.height,
         value.sensorRotation,

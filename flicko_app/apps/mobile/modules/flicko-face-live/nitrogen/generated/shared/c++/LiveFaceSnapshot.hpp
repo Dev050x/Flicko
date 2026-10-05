@@ -44,6 +44,7 @@ namespace margelo::nitro::flicko::facelive {
     double seq     SWIFT_PRIVATE;
     double timestampMs     SWIFT_PRIVATE;
     double inferenceMs     SWIFT_PRIVATE;
+    double prepMs     SWIFT_PRIVATE;
     double width     SWIFT_PRIVATE;
     double height     SWIFT_PRIVATE;
     double sensorRotation     SWIFT_PRIVATE;
@@ -51,7 +52,7 @@ namespace margelo::nitro::flicko::facelive {
 
   public:
     LiveFaceSnapshot() = default;
-    explicit LiveFaceSnapshot(double seq, double timestampMs, double inferenceMs, double width, double height, double sensorRotation, std::vector<LiveFace> faces): seq(seq), timestampMs(timestampMs), inferenceMs(inferenceMs), width(width), height(height), sensorRotation(sensorRotation), faces(faces) {}
+    explicit LiveFaceSnapshot(double seq, double timestampMs, double inferenceMs, double prepMs, double width, double height, double sensorRotation, std::vector<LiveFace> faces): seq(seq), timestampMs(timestampMs), inferenceMs(inferenceMs), prepMs(prepMs), width(width), height(height), sensorRotation(sensorRotation), faces(faces) {}
 
   public:
     friend bool operator==(const LiveFaceSnapshot& lhs, const LiveFaceSnapshot& rhs) = default;
@@ -70,6 +71,7 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "seq"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "timestampMs"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "prepMs"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "width"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "height"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "sensorRotation"))),
@@ -81,6 +83,7 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "seq"), JSIConverter<double>::toJSI(runtime, arg.seq));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "timestampMs"), JSIConverter<double>::toJSI(runtime, arg.timestampMs));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs"), JSIConverter<double>::toJSI(runtime, arg.inferenceMs));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "prepMs"), JSIConverter<double>::toJSI(runtime, arg.prepMs));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "width"), JSIConverter<double>::toJSI(runtime, arg.width));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "height"), JSIConverter<double>::toJSI(runtime, arg.height));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "sensorRotation"), JSIConverter<double>::toJSI(runtime, arg.sensorRotation));
@@ -98,6 +101,7 @@ namespace margelo::nitro {
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "seq")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "timestampMs")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "inferenceMs")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "prepMs")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "width")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "height")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "sensorRotation")))) return false;

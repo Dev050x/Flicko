@@ -32,6 +32,9 @@ data class LiveStats(
   val errors: Double,
   @DoNotStrip
   @Keep
+  val stalls: Double,
+  @DoNotStrip
+  @Keep
   val delegate: String,
   @DoNotStrip
   @Keep
@@ -46,6 +49,7 @@ data class LiveStats(
       && Objects.deepEquals(this.processed, other.processed)
       && Objects.deepEquals(this.dropped, other.dropped)
       && Objects.deepEquals(this.errors, other.errors)
+      && Objects.deepEquals(this.stalls, other.stalls)
       && Objects.deepEquals(this.delegate, other.delegate)
       && Objects.deepEquals(this.ready, other.ready)
   }
@@ -56,6 +60,7 @@ data class LiveStats(
       processed,
       dropped,
       errors,
+      stalls,
       delegate,
       ready
     ).contentDeepHashCode()
@@ -69,8 +74,8 @@ data class LiveStats(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(offered: Double, processed: Double, dropped: Double, errors: Double, delegate: String, ready: Boolean): LiveStats {
-      return LiveStats(offered, processed, dropped, errors, delegate, ready)
+    private fun fromCpp(offered: Double, processed: Double, dropped: Double, errors: Double, stalls: Double, delegate: String, ready: Boolean): LiveStats {
+      return LiveStats(offered, processed, dropped, errors, stalls, delegate, ready)
     }
   }
 }

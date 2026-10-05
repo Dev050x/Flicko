@@ -44,11 +44,13 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
   private val processed = AtomicLong()
   private val dropped = AtomicLong()
   private val errors = AtomicLong()
+  private val stalls = AtomicLong()
   private val seq = AtomicLong()
 
   @Volatile private var snapshot = emptySnapshot()
   @Volatile private var wantLandmarks = false
   @Volatile private var submittedAt = 0L
+  @Volatile private var submittedPrepMs = 0L
   @Volatile private var submittedRotation = 0
   @Volatile private var submittedWidth = 0
   @Volatile private var submittedHeight = 0
@@ -113,6 +115,13 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
     val detector = landmarker
     if (!ready || detector == null) return seq.get().toDouble()
     val now = SystemClock.elapsedRealtime()
+    // MediaPipe can drop a frame without ever calling the result listener, which would leave
+    // "one frame in flight" set forever; give up on it after a short while.
+    if (inFlight.get() && now - submittedAt > STALL_MS) {
+      Log.w(TAG, "no result for ${now - submittedAt} ms; unblocking")
+      stalls.incrementAndGet()
+      inFlight.set(false)
+    }
     if (now - lastSubmitAt < minIntervalMs || !inFlight.compareAndSet(false, true)) {
       dropped.incrementAndGet()
       return seq.get().toDouble()
@@ -140,7 +149,8 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
       if (timestamp <= lastTimestamp) timestamp = lastTimestamp + 1
       lastTimestamp = timestamp
       lastSubmitAt = now
-      submittedAt = now
+      submittedAt = SystemClock.elapsedRealtime()
+      submittedPrepMs = submittedAt - now
       processed.incrementAndGet()
       detector.detectAsync(BitmapImageBuilder(bitmap).build(), timestamp)
     } catch (e: Exception) {
@@ -212,6 +222,7 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
         seq = (seq.get() + 1).toDouble(),
         timestampMs = submittedAt.toDouble(),
         inferenceMs = (finishedAt - submittedAt).toDouble(),
+        prepMs = submittedPrepMs.toDouble(),
         width = submittedWidth.toDouble(),
         height = submittedHeight.toDouble(),
         sensorRotation = submittedRotation.toDouble(),
@@ -252,6 +263,7 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
     processed = processed.get().toDouble(),
     dropped = dropped.get().toDouble(),
     errors = errors.get().toDouble(),
+    stalls = stalls.get().toDouble(),
     delegate = delegateName,
     ready = ready,
   )
@@ -263,13 +275,15 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
   companion object {
     private const val TAG = "FlickoFaceLive"
     private const val MODEL_ASSET = "face_landmarker.task"
-    private const val MAX_EDGE = 640
+    private const val MAX_EDGE = 480
     private const val MAX_ERRORS = 3
+    private const val STALL_MS = 400L
 
     private fun emptySnapshot() = LiveFaceSnapshot(
       seq = 0.0,
       timestampMs = 0.0,
       inferenceMs = 0.0,
+      prepMs = 0.0,
       width = 0.0,
       height = 0.0,
       sensorRotation = 0.0,

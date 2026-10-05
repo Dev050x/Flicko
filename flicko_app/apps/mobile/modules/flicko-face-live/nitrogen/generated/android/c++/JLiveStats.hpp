@@ -39,6 +39,8 @@ namespace margelo::nitro::flicko::facelive {
       double dropped = this->getFieldValue(fieldDropped);
       static const auto fieldErrors = clazz->getField<double>("errors");
       double errors = this->getFieldValue(fieldErrors);
+      static const auto fieldStalls = clazz->getField<double>("stalls");
+      double stalls = this->getFieldValue(fieldStalls);
       static const auto fieldDelegate = clazz->getField<jni::JString>("delegate");
       jni::local_ref<jni::JString> delegate = this->getFieldValue(fieldDelegate);
       static const auto fieldReady = clazz->getField<jboolean>("ready");
@@ -48,6 +50,7 @@ namespace margelo::nitro::flicko::facelive {
         processed,
         dropped,
         errors,
+        stalls,
         delegate->toStdString(),
         static_cast<bool>(ready)
       );
@@ -59,7 +62,7 @@ namespace margelo::nitro::flicko::facelive {
      */
     [[maybe_unused]]
     static jni::local_ref<JLiveStats::javaobject> fromCpp(const LiveStats& value) {
-      using JSignature = JLiveStats(double, double, double, double, jni::alias_ref<jni::JString>, jboolean);
+      using JSignature = JLiveStats(double, double, double, double, double, jni::alias_ref<jni::JString>, jboolean);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -68,6 +71,7 @@ namespace margelo::nitro::flicko::facelive {
         value.processed,
         value.dropped,
         value.errors,
+        value.stalls,
         jni::make_jstring(value.delegate),
         value.ready
       );

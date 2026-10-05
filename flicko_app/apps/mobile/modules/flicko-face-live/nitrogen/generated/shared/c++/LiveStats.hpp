@@ -43,12 +43,13 @@ namespace margelo::nitro::flicko::facelive {
     double processed     SWIFT_PRIVATE;
     double dropped     SWIFT_PRIVATE;
     double errors     SWIFT_PRIVATE;
+    double stalls     SWIFT_PRIVATE;
     std::string delegate     SWIFT_PRIVATE;
     bool ready     SWIFT_PRIVATE;
 
   public:
     LiveStats() = default;
-    explicit LiveStats(double offered, double processed, double dropped, double errors, std::string delegate, bool ready): offered(offered), processed(processed), dropped(dropped), errors(errors), delegate(delegate), ready(ready) {}
+    explicit LiveStats(double offered, double processed, double dropped, double errors, double stalls, std::string delegate, bool ready): offered(offered), processed(processed), dropped(dropped), errors(errors), stalls(stalls), delegate(delegate), ready(ready) {}
 
   public:
     friend bool operator==(const LiveStats& lhs, const LiveStats& rhs) = default;
@@ -68,6 +69,7 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "processed"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "dropped"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "errors"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stalls"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "delegate"))),
         JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "ready")))
       );
@@ -78,6 +80,7 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "processed"), JSIConverter<double>::toJSI(runtime, arg.processed));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "dropped"), JSIConverter<double>::toJSI(runtime, arg.dropped));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "errors"), JSIConverter<double>::toJSI(runtime, arg.errors));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stalls"), JSIConverter<double>::toJSI(runtime, arg.stalls));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "delegate"), JSIConverter<std::string>::toJSI(runtime, arg.delegate));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "ready"), JSIConverter<bool>::toJSI(runtime, arg.ready));
       return obj;
@@ -94,6 +97,7 @@ namespace margelo::nitro {
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "processed")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "dropped")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "errors")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stalls")))) return false;
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "delegate")))) return false;
       if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "ready")))) return false;
       return true;
