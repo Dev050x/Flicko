@@ -12,6 +12,7 @@ import {
   FilamentScene,
   FilamentView,
   ModelRenderer,
+  useBuffer,
   useFilamentContext,
   useModel,
 } from "react-native-filament";
@@ -57,18 +58,25 @@ interface Tuning {
   rollSign: number;
   /** field of view scale; >1 widens, which shrinks things off-centre less */
   fov: number;
+  /** head occluder: half-width in eye distances, its front relative to the frame front, on/off */
+  headWidth: number;
+  headFront: number;
+  occluder: number;
 }
-// From a fit on device (2026-10-08): yaw and pitch from MediaPipe are mirrored against
-// the model, and the lenses sit a quarter eye distance below the frame's top-bar pivot.
+// From fits on device (2026-10-08): yaw and pitch from MediaPipe are mirrored against
+// the model, the lenses sit 0.2 eye distances below the frame's pivot, fov 1.1.
 const DEFAULT_TUNING: Tuning = {
   width: 2.2,
   dx: 0,
-  dy: 0.25,
+  dy: 0.2,
   dz: 0,
   yawSign: -1,
   pitchSign: -1,
   rollSign: 1,
-  fov: 1,
+  fov: 1.1,
+  headWidth: 0.95,
+  headFront: -0.15,
+  occluder: 1,
 };
 const useTuning = create<Tuning>(() => DEFAULT_TUNING);
 
@@ -133,8 +141,24 @@ function Scene({
   onDebug?: (d: Debug) => void;
 }) {
   const asset = useModel(model);
-  const { transformManager } = useFilamentContext();
+  const { engine, transformManager, renderableManager } = useFilamentContext();
   const loaded = asset.state === "loaded" ? asset : null;
+
+  // An invisible head (ellipsoid) that writes depth only, so parts of the model behind
+  // the head, like the far temple of glasses, are hidden.
+  const head = useModel(
+    require("../../../assets/filters/models/head-occluder.glb"),
+  );
+  const headLoaded = head.state === "loaded" ? head : null;
+  const occluderMaterial = useBuffer({
+    source: require("../../../assets/filters/materials/occluder.filamat"),
+  });
+  useEffect(() => {
+    if (!headLoaded || !occluderMaterial) return;
+    const instance = engine.createMaterial(occluderMaterial).createInstance();
+    for (const entity of headLoaded.asset.getRenderableEntities())
+      renderableManager.setMaterialInstanceAt(entity, 0, instance);
+  }, [headLoaded, occluderMaterial, engine, renderableManager]);
 
   useEffect(() => {
     const filters = Object.fromEntries(
@@ -241,6 +265,35 @@ function Scene({
             tune.dz * eyeDistance,
           ]);
         transformManager.setTransform(loaded.rootEntity, matrix);
+        if (headLoaded) {
+          // Head proportions from the half-width: taller and deeper than wide; centre a
+          // little above the eyes, front just behind the frame.
+          const rx =
+            tune.headWidth *
+              eyeDistance *
+              visible *
+              Math.max(0, tune.occluder) +
+            1e-6;
+          const ry = rx * 1.35;
+          const rz = rx * 1.25;
+          const headMatrix = transformManager
+            .createIdentityMatrix()
+            .scaling([rx, ry, rz])
+            .translate([
+              0,
+              0.3 * eyeDistance,
+              tune.headFront * eyeDistance - rz,
+            ])
+            .rotate(tune.pitchSign * shown.pitch, [1, 0, 0])
+            .rotate(tune.yawSign * shown.yaw, [0, 1, 0])
+            .rotate(-tune.rollSign * shown.roll, [0, 0, 1])
+            .translate([
+              shown.x - width / 2,
+              height / 2 - shown.y,
+              tune.dz * eyeDistance,
+            ]);
+          transformManager.setTransform(headLoaded.rootEntity, headMatrix);
+        }
         if (onDebug && now - lastDebug > 0.2) {
           lastDebug = now;
           onDebug({
@@ -261,7 +314,7 @@ function Scene({
       cancelAnimationFrame(frame);
       unsubscribe();
     };
-  }, [width, height, loaded, transformManager, onDebug]);
+  }, [width, height, loaded, headLoaded, transformManager, onDebug]);
 
   const fov = useTuning((t) => t.fov);
   const focal = FOCAL_MM / fov;
@@ -277,6 +330,7 @@ function Scene({
         far={distance * 4}
       />
       <DefaultLight />
+      <ModelRenderer model={head} />
       <ModelRenderer model={asset} />
     </FilamentView>
   );
@@ -295,11 +349,14 @@ const STEPS: { key: keyof Tuning; label: string; step: number }[] = [
   { key: "dy", label: "y", step: 0.05 },
   { key: "dz", label: "z", step: 0.25 },
   { key: "fov", label: "fov", step: 0.1 },
+  { key: "headWidth", label: "headW", step: 0.05 },
+  { key: "headFront", label: "headZ", step: 0.05 },
 ];
 const FLIPS: { key: keyof Tuning; label: string }[] = [
   { key: "yawSign", label: "yaw" },
   { key: "pitchSign", label: "pitch" },
   { key: "rollSign", label: "roll" },
+  { key: "occluder", label: "occ" },
 ];
 
 function DebugLayer({
@@ -357,7 +414,7 @@ function DebugLayer({
           {debug?.box
             ? `box c ${debug.box.c.map((v) => n(v, 2)).join(",")} h ${debug.box.h.map((v) => n(v, 2)).join(",")} s ${n(debug.scale, 2)}\n`
             : "box -\n"}
-          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign}`}
+          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder}`}
         </Text>
       </View>
       <View style={dbg.buttons}>

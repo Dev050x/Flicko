@@ -1,0 +1,20 @@
+// Depth-only material for the head occluder: writes depth, never colour, so 3D filter
+// parts behind the head (the far temple of glasses) are hidden and the camera shows
+// through. Compile with Filament 1.68 matc (material version 68, what
+// react-native-filament 1.11 ships):
+//   matc -a opengl -a vulkan -p mobile -o occluder.filamat occluder.mat
+material {
+    name : occluder,
+    shadingModel : unlit,
+    colorWrite : false,
+    depthWrite : true,
+    depthCulling : true,
+    culling : none
+}
+
+fragment {
+    void material(inout MaterialInputs material) {
+        prepareMaterial(material);
+        material.baseColor = vec4(0.0);
+    }
+}

@@ -3,7 +3,8 @@ const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
-if (!config.resolver.assetExts.includes("glb")) config.resolver.assetExts.push("glb");
+for (const ext of ["glb", "filamat"])
+  if (!config.resolver.assetExts.includes(ext)) config.resolver.assetExts.push(ext);
 
 /*
  * Two Solana dependencies resolve fine but make Metro warn on every start:
