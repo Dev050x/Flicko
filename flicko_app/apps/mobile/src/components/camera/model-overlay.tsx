@@ -490,11 +490,12 @@ const dbg = StyleSheet.create({
     padding: 6,
     backgroundColor: "rgba(0,0,0,0.6)",
   },
-  text: { color: "#fff", fontSize: 10, fontFamily: "monospace" },
+  text: { color: "#fff", fontSize: 12, fontFamily: "monospace" },
+  // bottom right, above the shutter and filter carousel
   buttons: {
     position: "absolute",
-    left: 8,
-    top: 130,
+    right: 8,
+    bottom: 240,
     padding: 4,
     gap: 4,
     backgroundColor: "rgba(0,0,0,0.6)",
