@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import {
   Camera,
   DefaultLight,
   FilamentScene,
   FilamentView,
-  Model,
+  ModelRenderer,
+  useFilamentContext,
+  useModel,
 } from "react-native-filament";
-import { Worklets } from "react-native-worklets-core";
 
 import { useLiveEyes } from "@/features/face";
 import type { Filter } from "@/features/filters/catalog";
@@ -22,7 +23,11 @@ import { OneEuro } from "@/features/model3d/smooth";
  * Tracking arrives 7-10 times a second, rendering runs at the display rate. Each detection
  * is smoothed with a One Euro filter per channel; every frame the model eases toward that
  * target, extrapolated a little along its velocity, so the motion is continuous. The
- * pose goes to Filament through shared values, no React render per frame.
+ * pose goes to Filament as one matrix set from JS each frame (no React render). Not
+ * through worklets-core shared values: then Filament runs a worklet on its render thread,
+ * which Reanimated's Babel plugin compiles for the wrong runtime and crashes. Not through
+ * the Model's translate/rotate/scale props either: those multiply onto the current
+ * transform instead of replacing it.
  */
 const FOCAL_MM = 28;
 /** Filament's lens projection: vertical field of view from a 24 mm sensor */
@@ -55,7 +60,9 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
       onLayout={onLayout}
     >
       {size && filter.model !== undefined && (
-        <Scene model={filter.model} width={size.w} height={size.h} />
+        <FilamentScene>
+          <Scene model={filter.model} width={size.w} height={size.h} />
+        </FilamentScene>
       )}
     </View>
   );
@@ -70,14 +77,9 @@ function Scene({
   width: number;
   height: number;
 }) {
-  const shared = useMemo(
-    () => ({
-      translate: Worklets.createSharedValue<Float3>([0, 0, 0]),
-      scale: Worklets.createSharedValue<Float3>([1e-4, 1e-4, 1e-4]),
-      rotate: Worklets.createSharedValue<Float3>([0, 0, 0]),
-    }),
-    [],
-  );
+  const asset = useModel(model);
+  const { transformManager } = useFilamentContext();
+  const loaded = asset.state === "loaded" ? asset : null;
 
   useEffect(() => {
     const filters = Object.fromEntries(
@@ -139,15 +141,24 @@ function Scene({
         const k = 1 - Math.exp(-dt / FOLLOW_TAU_S);
         for (const c of CHANNELS) shown[c] += (goal[c] - shown[c]) * k;
       }
-      if (shown) {
-        const s = shown.size * visible + 1e-4;
-        shared.translate.value = [shown.x - width / 2, height / 2 - shown.y, 0];
-        shared.scale.value = [s, s, s];
-        shared.rotate.value = [
-          PITCH_SIGN * shown.pitch,
-          YAW_SIGN * shown.yaw,
-          -shown.roll,
-        ];
+      if (shown && loaded) {
+        // Fit the model in a unit cube at the origin, then size, turn and place it.
+        // Each call pre-multiplies, so the steps read in the order they apply.
+        const box = loaded.boundingBox;
+        const fit =
+          1 /
+          (2 *
+            Math.max(box.halfExtent[0], box.halfExtent[1], box.halfExtent[2]));
+        const s = shown.size * visible * fit + 1e-6;
+        const matrix = transformManager
+          .createIdentityMatrix()
+          .translate([-box.center[0], -box.center[1], -box.center[2]])
+          .scaling([s, s, s])
+          .rotate(PITCH_SIGN * shown.pitch, [1, 0, 0])
+          .rotate(YAW_SIGN * shown.yaw, [0, 1, 0])
+          .rotate(-shown.roll, [0, 0, 1])
+          .translate([shown.x - width / 2, height / 2 - shown.y, 0]);
+        transformManager.setTransform(loaded.rootEntity, matrix);
       }
       frame = requestAnimationFrame(tick);
     };
@@ -156,29 +167,21 @@ function Scene({
       cancelAnimationFrame(frame);
       unsubscribe();
     };
-  }, [shared, width, height]);
+  }, [width, height, loaded, transformManager]);
 
   const distance = (height / 2) * (FOCAL_MM / HALF_SENSOR_MM);
   return (
-    <FilamentScene>
-      <FilamentView style={StyleSheet.absoluteFill}>
-        <Camera
-          focalLengthInMillimeters={FOCAL_MM}
-          cameraPosition={[0, 0, distance]}
-          cameraTarget={[0, 0, 0]}
-          cameraUp={[0, 1, 0]}
-          near={distance * 0.1}
-          far={distance * 4}
-        />
-        <DefaultLight />
-        <Model
-          source={model}
-          transformToUnitCube
-          translate={shared.translate}
-          scale={shared.scale}
-          rotate={shared.rotate}
-        />
-      </FilamentView>
-    </FilamentScene>
+    <FilamentView style={StyleSheet.absoluteFill}>
+      <Camera
+        focalLengthInMillimeters={FOCAL_MM}
+        cameraPosition={[0, 0, distance]}
+        cameraTarget={[0, 0, 0]}
+        cameraUp={[0, 1, 0]}
+        near={distance * 0.1}
+        far={distance * 4}
+      />
+      <DefaultLight />
+      <ModelRenderer model={asset} />
+    </FilamentView>
   );
 }
