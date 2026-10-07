@@ -486,7 +486,7 @@ const dbg = StyleSheet.create({
     position: "absolute",
     left: 8,
     right: 8,
-    top: 200,
+    top: 28,
     padding: 6,
     backgroundColor: "rgba(0,0,0,0.6)",
   },
@@ -494,7 +494,7 @@ const dbg = StyleSheet.create({
   buttons: {
     position: "absolute",
     left: 8,
-    top: 310,
+    top: 130,
     padding: 4,
     gap: 4,
     backgroundColor: "rgba(0,0,0,0.6)",

@@ -68,7 +68,14 @@ export function LiveOverlay({
   }
 
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <View
+      pointerEvents="box-none"
+      // The 3D debug panel (dev only) draws above the camera's top bar and rail.
+      style={[
+        StyleSheet.absoluteFill,
+        __DEV__ && filter.type === "model" && { zIndex: 10, elevation: 10 },
+      ]}
+    >
       {layout.brackets && (
         <Svg pointerEvents="none" style={StyleSheet.absoluteFill}>
           {bracketPaths(layout.brackets).map((d) => (
