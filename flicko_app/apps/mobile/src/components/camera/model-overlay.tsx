@@ -67,6 +67,7 @@ interface Tuning {
   /** auto arms (1 on, -1 off): both when facing, only the near one past armYaw degrees */
   armsAuto: number;
   armYaw: number;
+  armPitch: number;
   armLength: number;
 }
 // From fits on device (2026-10-08): yaw and pitch from MediaPipe are mirrored against
@@ -86,6 +87,7 @@ const DEFAULT_TUNING: Tuning = {
   temples: 1,
   armsAuto: 1,
   armYaw: 12,
+  armPitch: 15,
   armLength: 1,
 };
 const useTuning = create<Tuning>(() => DEFAULT_TUNING);
@@ -287,11 +289,8 @@ function Scene({
         const eyeDistance = shown.size;
         const s =
           (eyeDistance * tune.width * visible) / (2 * box.halfExtent[0]) + 1e-6;
-        // the offsets turn with the head's roll
-        const cos = Math.cos(shown.roll);
-        const sin = Math.sin(shown.roll);
-        const ox = (tune.dx * cos - tune.dy * sin) * eyeDistance;
-        const oy = (tune.dx * sin + tune.dy * cos) * eyeDistance;
+        // The offsets are in the head's own frame (applied before the rotations), so
+        // they turn with it: tilting the head up carries the lenses up with the face.
         const matrix = transformManager
           .createIdentityMatrix()
           .translate([
@@ -300,27 +299,31 @@ function Scene({
             -(box.center[2] + box.halfExtent[2]),
           ])
           .scaling([s, s, s])
+          .translate([
+            tune.dx * eyeDistance,
+            -tune.dy * eyeDistance,
+            tune.dz * eyeDistance,
+          ])
           .rotate(tune.pitchSign * shown.pitch, [1, 0, 0])
           .rotate(tune.yawSign * shown.yaw, [0, 1, 0])
           .rotate(-tune.rollSign * shown.roll, [0, 0, 1])
-          .translate([
-            shown.x + ox - width / 2,
-            height / 2 - (shown.y + oy),
-            tune.dz * eyeDistance,
-          ]);
+          .translate([shown.x - width / 2, height / 2 - shown.y, 0]);
         transformManager.setTransform(loaded.rootEntity, matrix);
         // Temples: collapse a node to hide it, put its original transform back to
         // show it; only touched when its state changes. In "auto" (armsAuto > 0) both
         // show when facing the camera; once the head turns past armYaw only the arm on
         // the side toward the camera shows: the far one otherwise crosses the lens,
         // since nothing real hides it.
+        // Past armPitch (head tilted up or down) both arms hide: they run down or up
+        // across the cheeks, which the head occluder is too small to cover.
         const yawDeg = (shown.yaw * 180) / Math.PI;
+        const pitchDeg = (shown.pitch * 180) / Math.PI;
         for (const { name, side } of TEMPLE_NODES) {
           const show =
             tune.temples > 0 &&
             (tune.armsAuto <= 0 ||
-              Math.abs(yawDeg) <= tune.armYaw ||
-              side * yawDeg > 0);
+              (Math.abs(pitchDeg) <= tune.armPitch &&
+                (Math.abs(yawDeg) <= tune.armYaw || side * yawDeg > 0)));
           if (templesShown.get(name) === show) continue;
           const entity = loaded.asset.getFirstEntityByName(name);
           if (!entity) continue;
@@ -441,6 +444,7 @@ const STEPS: { key: keyof Tuning; label: string; step: number }[] = [
   { key: "headFront", label: "headZ", step: 0.05 },
   { key: "armLength", label: "armL", step: 0.05 },
   { key: "armYaw", label: "armYaw", step: 2 },
+  { key: "armPitch", label: "armPitch", step: 2 },
 ];
 const FLIPS: { key: keyof Tuning; label: string }[] = [
   { key: "yawSign", label: "yaw" },
@@ -506,7 +510,7 @@ function DebugLayer({
           {debug?.box
             ? `box c ${debug.box.c.map((v) => n(v, 2)).join(",")} h ${debug.box.h.map((v) => n(v, 2)).join(",")} s ${n(debug.scale, 2)}\n`
             : "box -\n"}
-          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder} arms ${tune.temples} armL ${n(tune.armLength, 2)} auto ${tune.armsAuto} armYaw ${tune.armYaw}`}
+          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder} arms ${tune.temples} armL ${n(tune.armLength, 2)} auto ${tune.armsAuto} armYaw ${tune.armYaw} armPitch ${tune.armPitch}`}
         </Text>
       </View>
       <View style={dbg.buttons}>
