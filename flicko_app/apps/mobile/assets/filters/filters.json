@@ -15,6 +15,17 @@
       "thumb": null
     },
     {
+      "id": "glasses-3d",
+      "name": "3D Glasses",
+      "category": "trending",
+      "type": "model",
+      "premium": false,
+      "model": "models/glasses.glb",
+      "anchor": "eyes",
+      "notes": "3D GLB glasses on the eyes, turning with the head.",
+      "thumb": null
+    },
+    {
       "id": "laser-eyes",
       "name": "Laser Eyes",
       "category": "trending",
@@ -23,7 +34,7 @@
       "priceSkr": 5,
       "overlay": "overlays/laser-beam.png",
       "anchor": "eyes",
-      "notes": "Beam starts at each eye centre, angled 25\u00b0 up and outward; mirror for the left eye.",
+      "notes": "Beam starts at each eye centre, angled 25° up and outward; mirror for the left eye.",
       "thumb": "thumbs/laser-eyes.png"
     },
     {

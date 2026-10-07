@@ -178,7 +178,9 @@ export default function CameraScreen() {
   // Face filters follow the eyes live when the camera can track them; otherwise they
   // explain for 3s that they're placed on the photo.
   const hintOpacity = useSharedValue(0);
-  const trackingFaces = filter.type === "face" && !!cameraModule?.tracksFaces;
+  const trackingFaces =
+    (filter.type === "face" || filter.type === "model") &&
+    !!cameraModule?.tracksFaces;
   const { push: onFaces } = useFaceTracking(view, trackingFaces);
   const noFace = useLiveEyes((s) => s.eyes.length === 0);
   const faceHint =

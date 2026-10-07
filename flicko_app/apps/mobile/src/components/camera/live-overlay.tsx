@@ -22,6 +22,8 @@ import {
 } from "@/features/filters/placement";
 import { colors } from "@/theme";
 
+import { ModelOverlay } from "./model-overlay";
+
 /*
  * Filter content on the live preview, laid out in the safe zone exactly as it will be
  * baked into the photo: viewfinder brackets + frame text, or the sticker (drag to move,
@@ -82,6 +84,7 @@ export function LiveOverlay({
           ))}
         </Svg>
       )}
+      {filter.type === "model" && <ModelOverlay filter={filter} />}
       {filter.type === "sticker" && layout.images[0] ? (
         <DraggableSticker
           placement={layout.images[0]}

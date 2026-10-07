@@ -191,8 +191,21 @@ const smoothEyes = (previous: Eyes[], next: Eyes[]): Eyes[] => {
  * instead of the whole screen (at MediaPipe's rate the screen re-render lagged the
  * overlay behind the face).
  */
-export const useLiveEyes = create<{ eyes: Eyes[]; at: number }>(() => ({
+export interface HeadAngles {
+  /** degrees, as the detector reports them */
+  yaw: number;
+  pitch: number;
+  roll: number;
+}
+
+export const useLiveEyes = create<{
+  eyes: Eyes[];
+  /** head angles per face, same order as the detector's faces (3D filters) */
+  angles: HeadAngles[];
+  at: number;
+}>(() => ({
   eyes: [],
+  angles: [],
   at: 0,
 }));
 
@@ -211,7 +224,7 @@ export const useFaceTracking = (
   const result = useSharedValue<FaceTrackingResult | null>(null);
   useEffect(() => {
     if (!enabled) {
-      useLiveEyes.setState({ eyes: [], at: 0 });
+      useLiveEyes.setState({ eyes: [], angles: [], at: 0 });
       result.value = null;
     }
   }, [enabled, result]);
@@ -226,6 +239,11 @@ export const useFaceTracking = (
       const mapped = eyesInView(next, view);
       useLiveEyes.setState((s) => ({
         eyes: smoothEyes(s.eyes, mapped),
+        angles: next.faces.map(({ yaw, pitch, roll }) => ({
+          yaw,
+          pitch,
+          roll,
+        })),
         at: Date.now(),
       }));
     },
