@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from "react-native";
 import {
   Camera,
   DefaultLight,
@@ -13,6 +19,7 @@ import {
 import { useLiveEyes } from "@/features/face";
 import type { Filter } from "@/features/filters/catalog";
 import { OneEuro } from "@/features/model3d/smooth";
+import { create } from "zustand";
 
 /*
  * A GLB filter drawn by Filament over the live preview, in real 3D. World units are view
@@ -32,11 +39,46 @@ import { OneEuro } from "@/features/model3d/smooth";
 const FOCAL_MM = 28;
 /** Filament's lens projection: vertical field of view from a 24 mm sensor */
 const HALF_SENSOR_MM = 12;
-/** Glasses' width as a multiple of the distance between the eyes */
-const WIDTH_PER_EYE_DISTANCE = 2.2;
-/** flip if the model turns the wrong way against the head */
-const YAW_SIGN = 1;
-const PITCH_SIGN = 1;
+
+/*
+ * Fit settings, tunable live from the dev panel (__DEV__ only) so they can be read off
+ * a screenshot and copied back here as defaults.
+ */
+interface Tuning {
+  /** model width as a multiple of the distance between the eyes */
+  width: number;
+  /** shifts in eye distances: +x right, +y down; z toward the viewer */
+  dx: number;
+  dy: number;
+  dz: number;
+  /** flip a rotation if the model turns the wrong way against the head */
+  yawSign: number;
+  pitchSign: number;
+  rollSign: number;
+  /** field of view scale; >1 widens, which shrinks things off-centre less */
+  fov: number;
+}
+const DEFAULT_TUNING: Tuning = {
+  width: 2.2,
+  dx: 0,
+  dy: 0,
+  dz: 0,
+  yawSign: 1,
+  pitchSign: 1,
+  rollSign: 1,
+  fov: 1,
+};
+const useTuning = create<Tuning>(() => DEFAULT_TUNING);
+
+interface Debug {
+  eyes: { lx: number; ly: number; rx: number; ry: number } | null;
+  raw: { yaw: number; pitch: number; roll: number } | null;
+  shown: Pose | null;
+  box: { c: Float3; h: Float3 } | null;
+  scale: number;
+  fps: number;
+  detectHz: number;
+}
 const PREDICT_MAX_S = 0.1;
 const FOLLOW_TAU_S = 0.035;
 const FADE_TAU_S = 0.08;
@@ -47,6 +89,7 @@ type Pose = Record<(typeof CHANNELS)[number], number>;
 
 export function ModelOverlay({ filter }: { filter: Filter }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [debug, setDebug] = useState<Debug | null>(null);
   const onLayout = (e: LayoutChangeEvent) =>
     setSize({
       w: e.nativeEvent.layout.width,
@@ -55,14 +98,22 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
 
   return (
     <View
-      pointerEvents="none"
+      pointerEvents="box-none"
       style={StyleSheet.absoluteFill}
       onLayout={onLayout}
     >
       {size && filter.model !== undefined && (
         <FilamentScene>
-          <Scene model={filter.model} width={size.w} height={size.h} />
+          <Scene
+            model={filter.model}
+            width={size.w}
+            height={size.h}
+            onDebug={__DEV__ ? setDebug : undefined}
+          />
         </FilamentScene>
+      )}
+      {__DEV__ && size && (
+        <DebugLayer debug={debug} width={size.w} height={size.h} />
       )}
     </View>
   );
@@ -72,10 +123,12 @@ function Scene({
   model,
   width,
   height,
+  onDebug,
 }: {
   model: number;
   width: number;
   height: number;
+  onDebug?: (d: Debug) => void;
 }) {
   const asset = useModel(model);
   const { transformManager } = useFilamentContext();
@@ -91,6 +144,11 @@ function Scene({
     let shown: Pose | null = null;
     let visible = 0; // 0..1
     let present = false;
+    let detectHz = 0;
+    let fps = 0;
+    let rawEyes: Debug["eyes"] = null;
+    let rawAngles: Debug["raw"] = null;
+    let lastDebug = 0;
 
     const onDetection = () => {
       const { eyes, angles } = useLiveEyes.getState();
@@ -108,7 +166,7 @@ function Scene({
       const raw: Pose = {
         x: (e.left.x + e.right.x) / 2,
         y: (e.left.y + e.right.y) / 2,
-        size: Math.hypot(dx, dy) * WIDTH_PER_EYE_DISTANCE,
+        size: Math.hypot(dx, dy),
         roll: Math.atan2(dy, dx),
         yaw: ((a?.yaw ?? 0) * Math.PI) / 180,
         pitch: ((a?.pitch ?? 0) * Math.PI) / 180,
@@ -120,7 +178,11 @@ function Scene({
         for (const c of CHANNELS) velocity[c] = (next[c] - target[c]) / dt;
       }
       target = next;
+      if (targetAt)
+        detectHz = detectHz * 0.8 + (0.2 * 1) / Math.max(1e-3, t - targetAt);
       targetAt = t;
+      rawEyes = { lx: e.left.x, ly: e.left.y, rx: e.right.x, ry: e.right.y };
+      rawAngles = a ?? null;
     };
     const unsubscribe = useLiveEyes.subscribe(onDetection);
     onDetection();
@@ -130,6 +192,7 @@ function Scene({
     const tick = () => {
       const now = Date.now() / 1000;
       const dt = Math.min(0.1, now - last);
+      if (dt > 0) fps = fps * 0.9 + (0.1 * 1) / Math.max(1e-3, now - last);
       last = now;
       visible +=
         ((present ? 1 : 0) - visible) * (1 - Math.exp(-dt / FADE_TAU_S));
@@ -142,23 +205,43 @@ function Scene({
         for (const c of CHANNELS) shown[c] += (goal[c] - shown[c]) * k;
       }
       if (shown && loaded) {
-        // Fit the model in a unit cube at the origin, then size, turn and place it.
-        // Each call pre-multiplies, so the steps read in the order they apply.
+        // Fit the model's width to the face, then size, turn and place it. Each call
+        // pre-multiplies, so the steps read in the order they apply.
+        const tune = useTuning.getState();
         const box = loaded.boundingBox;
-        const fit =
-          1 /
-          (2 *
-            Math.max(box.halfExtent[0], box.halfExtent[1], box.halfExtent[2]));
-        const s = shown.size * visible * fit + 1e-6;
+        const eyeDistance = shown.size;
+        const s =
+          (eyeDistance * tune.width * visible) / (2 * box.halfExtent[0]) + 1e-6;
+        // the offsets turn with the head's roll
+        const cos = Math.cos(shown.roll);
+        const sin = Math.sin(shown.roll);
+        const ox = (tune.dx * cos - tune.dy * sin) * eyeDistance;
+        const oy = (tune.dx * sin + tune.dy * cos) * eyeDistance;
         const matrix = transformManager
           .createIdentityMatrix()
           .translate([-box.center[0], -box.center[1], -box.center[2]])
           .scaling([s, s, s])
-          .rotate(PITCH_SIGN * shown.pitch, [1, 0, 0])
-          .rotate(YAW_SIGN * shown.yaw, [0, 1, 0])
-          .rotate(-shown.roll, [0, 0, 1])
-          .translate([shown.x - width / 2, height / 2 - shown.y, 0]);
+          .rotate(tune.pitchSign * shown.pitch, [1, 0, 0])
+          .rotate(tune.yawSign * shown.yaw, [0, 1, 0])
+          .rotate(-tune.rollSign * shown.roll, [0, 0, 1])
+          .translate([
+            shown.x + ox - width / 2,
+            height / 2 - (shown.y + oy),
+            tune.dz * eyeDistance,
+          ]);
         transformManager.setTransform(loaded.rootEntity, matrix);
+        if (onDebug && now - lastDebug > 0.2) {
+          lastDebug = now;
+          onDebug({
+            eyes: rawEyes,
+            raw: rawAngles,
+            shown: { ...shown },
+            box: { c: box.center, h: box.halfExtent },
+            scale: s,
+            fps,
+            detectHz,
+          });
+        }
       }
       frame = requestAnimationFrame(tick);
     };
@@ -167,13 +250,15 @@ function Scene({
       cancelAnimationFrame(frame);
       unsubscribe();
     };
-  }, [width, height, loaded, transformManager]);
+  }, [width, height, loaded, transformManager, onDebug]);
 
-  const distance = (height / 2) * (FOCAL_MM / HALF_SENSOR_MM);
+  const fov = useTuning((t) => t.fov);
+  const focal = FOCAL_MM / fov;
+  const distance = (height / 2) * (focal / HALF_SENSOR_MM);
   return (
     <FilamentView style={StyleSheet.absoluteFill}>
       <Camera
-        focalLengthInMillimeters={FOCAL_MM}
+        focalLengthInMillimeters={focal}
         cameraPosition={[0, 0, distance]}
         cameraTarget={[0, 0, 0]}
         cameraUp={[0, 1, 0]}
@@ -185,3 +270,165 @@ function Scene({
     </FilamentView>
   );
 }
+
+/*
+ * Dev only: markers on the tracked eyes and the model's target, the numbers behind the
+ * fit, and buttons to tune it live. Take a screenshot to report a fit.
+ */
+const deg = (r: number) => ((r * 180) / Math.PI).toFixed(1);
+const n = (v: number, d = 0) => v.toFixed(d);
+
+const STEPS: { key: keyof Tuning; label: string; step: number }[] = [
+  { key: "width", label: "width", step: 0.1 },
+  { key: "dx", label: "x", step: 0.05 },
+  { key: "dy", label: "y", step: 0.05 },
+  { key: "dz", label: "z", step: 0.25 },
+  { key: "fov", label: "fov", step: 0.1 },
+];
+const FLIPS: { key: keyof Tuning; label: string }[] = [
+  { key: "yawSign", label: "yaw" },
+  { key: "pitchSign", label: "pitch" },
+  { key: "rollSign", label: "roll" },
+];
+
+function DebugLayer({
+  debug,
+  width,
+  height,
+}: {
+  debug: Debug | null;
+  width: number;
+  height: number;
+}) {
+  const tune = useTuning();
+  const e = debug?.eyes;
+  const p = debug?.shown;
+  const set = (patch: Partial<Tuning>) => useTuning.setState(patch);
+  const eyeDistance = p ? p.size : 0;
+
+  return (
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      {e && (
+        <>
+          <Dot x={e.lx} y={e.ly} color="#00e5ff" />
+          <Dot x={e.rx} y={e.ry} color="#00e5ff" />
+        </>
+      )}
+      {p && (
+        <>
+          <Dot x={p.x} y={p.y} color="#ff2d95" />
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              left: p.x - (eyeDistance * tune.width) / 2,
+              top: p.y - 2,
+              width: eyeDistance * tune.width,
+              height: 4,
+              borderColor: "#ffb21a",
+              borderWidth: 1,
+            }}
+          />
+        </>
+      )}
+      <View pointerEvents="none" style={dbg.panel}>
+        <Text style={dbg.text}>
+          {`view ${n(width)}x${n(height)}  fps ${n(debug?.fps ?? 0)}  det ${n(debug?.detectHz ?? 0, 1)}Hz\n`}
+          {e
+            ? `eyes L ${n(e.lx)},${n(e.ly)} R ${n(e.rx)},${n(e.ry)}\n`
+            : "eyes none\n"}
+          {debug?.raw
+            ? `raw yaw ${n(debug.raw.yaw, 1)} pitch ${n(debug.raw.pitch, 1)} roll ${n(debug.raw.roll, 1)}\n`
+            : "raw -\n"}
+          {p
+            ? `pose x ${n(p.x)} y ${n(p.y)} eyeDist ${n(p.size)} roll ${deg(p.roll)} yaw ${deg(p.yaw)} pitch ${deg(p.pitch)}\n`
+            : "pose -\n"}
+          {debug?.box
+            ? `box c ${debug.box.c.map((v) => n(v, 2)).join(",")} h ${debug.box.h.map((v) => n(v, 2)).join(",")} s ${n(debug.scale, 2)}\n`
+            : "box -\n"}
+          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign}`}
+        </Text>
+      </View>
+      <View style={dbg.buttons}>
+        {STEPS.map(({ key, label, step }) => (
+          <View key={key} style={dbg.row}>
+            <Btn
+              label="-"
+              onPress={() => set({ [key]: (tune[key] as number) - step })}
+            />
+            <Text style={dbg.label}>{label}</Text>
+            <Btn
+              label="+"
+              onPress={() => set({ [key]: (tune[key] as number) + step })}
+            />
+          </View>
+        ))}
+        <View style={dbg.row}>
+          {FLIPS.map(({ key, label }) => (
+            <Btn
+              key={key}
+              label={`${label}${(tune[key] as number) > 0 ? "+" : "-"}`}
+              onPress={() => set({ [key]: -(tune[key] as number) })}
+            />
+          ))}
+        </View>
+        <Btn label="reset" onPress={() => useTuning.setState(DEFAULT_TUNING)} />
+      </View>
+    </View>
+  );
+}
+
+function Dot({ x, y, color }: { x: number; y: number; color: string }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        left: x - 4,
+        top: y - 4,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: color,
+      }}
+    />
+  );
+}
+
+function Btn({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={dbg.btn}>
+      <Text style={dbg.btnText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+const dbg = StyleSheet.create({
+  panel: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    top: 200,
+    padding: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  text: { color: "#fff", fontSize: 10, fontFamily: "monospace" },
+  buttons: {
+    position: "absolute",
+    left: 8,
+    top: 310,
+    padding: 4,
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  row: { flexDirection: "row", alignItems: "center", gap: 4 },
+  label: { color: "#fff", fontSize: 11, width: 36, textAlign: "center" },
+  btn: {
+    minWidth: 34,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+  },
+  btnText: { color: "#fff", fontSize: 12 },
+});
