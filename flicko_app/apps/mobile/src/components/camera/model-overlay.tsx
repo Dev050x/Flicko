@@ -94,6 +94,14 @@ const FOLLOW_TAU_S = 0.035;
 const FADE_TAU_S = 0.08;
 
 type Float3 = [number, number, number];
+
+/*
+ * Occluder materials are never released. If their JS wrappers were collected while the
+ * head still used them, Filament would abort ("destroying MaterialInstance which is
+ * still in use"), and putting the head's own material back on unmount can run after the
+ * head itself is gone. One small material per mounted scene is cheap to keep.
+ */
+const KEEP_ALIVE: unknown[] = [];
 const CHANNELS = ["x", "y", "size", "roll", "yaw", "pitch"] as const;
 type Pose = Record<(typeof CHANNELS)[number], number>;
 
@@ -155,9 +163,11 @@ function Scene({
   });
   useEffect(() => {
     if (!headLoaded || !occluderMaterial) return;
-    const instance = engine.createMaterial(occluderMaterial).createInstance();
+    const material = engine.createMaterial(occluderMaterial);
+    const instance = material.createInstance();
     for (const entity of headLoaded.asset.getRenderableEntities())
       renderableManager.setMaterialInstanceAt(entity, 0, instance);
+    KEEP_ALIVE.push(material, instance);
   }, [headLoaded, occluderMaterial, engine, renderableManager]);
 
   useEffect(() => {
