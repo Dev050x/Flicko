@@ -58,13 +58,15 @@ interface Tuning {
   /** field of view scale; >1 widens, which shrinks things off-centre less */
   fov: number;
 }
+// From a fit on device (2026-10-08): yaw and pitch from MediaPipe are mirrored against
+// the model, and the lenses sit a quarter eye distance below the frame's top-bar pivot.
 const DEFAULT_TUNING: Tuning = {
   width: 2.2,
   dx: 0,
-  dy: 0,
+  dy: 0.25,
   dz: 0,
-  yawSign: 1,
-  pitchSign: 1,
+  yawSign: -1,
+  pitchSign: -1,
   rollSign: 1,
   fov: 1,
 };
@@ -163,11 +165,14 @@ function Scene({
       const dx = e.right.x - e.left.x;
       const dy = e.right.y - e.left.y;
       const a = angles[0];
+      // Turning the head shortens the eye line on screen; undo that so the glasses keep
+      // their size. The eye line's angle is skewed by yaw, so the tracker's roll wins.
+      const yawRad = ((a?.yaw ?? 0) * Math.PI) / 180;
       const raw: Pose = {
         x: (e.left.x + e.right.x) / 2,
         y: (e.left.y + e.right.y) / 2,
-        size: Math.hypot(dx, dy),
-        roll: Math.atan2(dy, dx),
+        size: Math.hypot(dx, dy) / Math.max(0.5, Math.cos(yawRad)),
+        roll: a ? (a.roll * Math.PI) / 180 : Math.atan2(dy, dx),
         yaw: ((a?.yaw ?? 0) * Math.PI) / 180,
         pitch: ((a?.pitch ?? 0) * Math.PI) / 180,
       };
@@ -205,8 +210,10 @@ function Scene({
         for (const c of CHANNELS) shown[c] += (goal[c] - shown[c]) * k;
       }
       if (shown && loaded) {
-        // Fit the model's width to the face, then size, turn and place it. Each call
-        // pre-multiplies, so the steps read in the order they apply.
+        // Pivot on the front of the frame (the bridge sits between the eyes; turning
+        // around the box centre swung the frame round the temples' midpoint), fit its
+        // width to the face, then size, turn and place it. Each call pre-multiplies, so
+        // the steps read in the order they apply.
         const tune = useTuning.getState();
         const box = loaded.boundingBox;
         const eyeDistance = shown.size;
@@ -219,7 +226,11 @@ function Scene({
         const oy = (tune.dx * sin + tune.dy * cos) * eyeDistance;
         const matrix = transformManager
           .createIdentityMatrix()
-          .translate([-box.center[0], -box.center[1], -box.center[2]])
+          .translate([
+            -box.center[0],
+            -box.center[1],
+            -(box.center[2] + box.halfExtent[2]),
+          ])
           .scaling([s, s, s])
           .rotate(tune.pitchSign * shown.pitch, [1, 0, 0])
           .rotate(tune.yawSign * shown.yaw, [0, 1, 0])
