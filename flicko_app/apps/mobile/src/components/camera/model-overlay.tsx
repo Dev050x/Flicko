@@ -62,14 +62,20 @@ interface Tuning {
   headWidth: number;
   headFront: number;
   occluder: number;
+  /** glasses temples: 1 shown, -1 hidden; length as a fraction of the full arm */
+  temples: number;
+  /** auto arms (1 on, -1 off): both when facing, only the near one past armYaw degrees */
+  armsAuto: number;
+  armYaw: number;
+  armLength: number;
 }
 // From fits on device (2026-10-08): yaw and pitch from MediaPipe are mirrored against
 // the model, the lenses sit 0.2 eye distances below the frame's pivot, fov 1.1.
 const DEFAULT_TUNING: Tuning = {
   width: 2.2,
-  dx: 0,
+  dx: 0.05,
   dy: 0.2,
-  dz: 0,
+  dz: 0.25,
   yawSign: -1,
   pitchSign: -1,
   rollSign: 1,
@@ -77,6 +83,10 @@ const DEFAULT_TUNING: Tuning = {
   headWidth: 0.95,
   headFront: -0.15,
   occluder: 1,
+  temples: 1,
+  armsAuto: 1,
+  armYaw: 12,
+  armLength: 1,
 };
 const useTuning = create<Tuning>(() => DEFAULT_TUNING);
 
@@ -94,6 +104,24 @@ const FOLLOW_TAU_S = 0.035;
 const FADE_TAU_S = 0.08;
 
 type Float3 = [number, number, number];
+
+/*
+ * The test glasses' temple (arm) nodes and their side on screen (-1 left, +1 right; in
+ * the model "dushka 1" sits at -x and "dushka 2" at +x). Positive yaw turns the head so
+ * its screen-right side faces the camera, so that arm is the one to show.
+ */
+const TEMPLE_NODES = [
+  { name: "dushka 1", side: -1 },
+  { name: "dushka 2", side: 1 },
+];
+/*
+ * The arms' plastic bodies (no transform of their own, so their local matrix can be set
+ * outright): they run along -x from the hinge, which sits at this x in their space.
+ */
+const ARM_BODIES = [
+  { name: "dushka 1_plastik_0", hingeX: -0.9 },
+  { name: "dushka 2_plastik_0", hingeX: -1.0 },
+];
 
 /*
  * Occluder materials are never released. If their JS wrappers were collected while the
@@ -185,6 +213,12 @@ function Scene({
     let rawEyes: Debug["eyes"] = null;
     let rawAngles: Debug["raw"] = null;
     let lastDebug = 0;
+    const templesShown = new Map<string, boolean>();
+    let armLengthShown = 1;
+    const templeOriginals = new Map<
+      string,
+      ReturnType<typeof transformManager.getTransform>
+    >();
 
     const onDetection = () => {
       const { eyes, angles } = useLiveEyes.getState();
@@ -275,6 +309,50 @@ function Scene({
             tune.dz * eyeDistance,
           ]);
         transformManager.setTransform(loaded.rootEntity, matrix);
+        // Temples: collapse a node to hide it, put its original transform back to
+        // show it; only touched when its state changes. In "auto" (armsAuto > 0) both
+        // show when facing the camera; once the head turns past armYaw only the arm on
+        // the side toward the camera shows: the far one otherwise crosses the lens,
+        // since nothing real hides it.
+        const yawDeg = (shown.yaw * 180) / Math.PI;
+        for (const { name, side } of TEMPLE_NODES) {
+          const show =
+            tune.temples > 0 &&
+            (tune.armsAuto <= 0 ||
+              Math.abs(yawDeg) <= tune.armYaw ||
+              side * yawDeg > 0);
+          if (templesShown.get(name) === show) continue;
+          const entity = loaded.asset.getFirstEntityByName(name);
+          if (!entity) continue;
+          if (!templeOriginals.has(name))
+            templeOriginals.set(name, transformManager.getTransform(entity));
+          transformManager.setTransform(
+            entity,
+            show
+              ? templeOriginals.get(name)!
+              : transformManager
+                  .createIdentityMatrix()
+                  .scaling([1e-6, 1e-6, 1e-6]),
+          );
+          templesShown.set(name, show);
+        }
+        // Arm length: scale each arm body along its length about the hinge.
+        if (tune.armLength !== armLengthShown) {
+          armLengthShown = tune.armLength;
+          const k = Math.max(0.05, tune.armLength);
+          for (const { name, hingeX } of ARM_BODIES) {
+            const entity = loaded.asset.getFirstEntityByName(name);
+            if (!entity) continue;
+            transformManager.setTransform(
+              entity,
+              transformManager
+                .createIdentityMatrix()
+                .translate([-hingeX, 0, 0])
+                .scaling([k, 1, 1])
+                .translate([hingeX, 0, 0]),
+            );
+          }
+        }
         if (headLoaded) {
           // Head proportions from the half-width: taller and deeper than wide; centre a
           // little above the eyes, front just behind the frame.
@@ -361,12 +439,16 @@ const STEPS: { key: keyof Tuning; label: string; step: number }[] = [
   { key: "fov", label: "fov", step: 0.1 },
   { key: "headWidth", label: "headW", step: 0.05 },
   { key: "headFront", label: "headZ", step: 0.05 },
+  { key: "armLength", label: "armL", step: 0.05 },
+  { key: "armYaw", label: "armYaw", step: 2 },
 ];
 const FLIPS: { key: keyof Tuning; label: string }[] = [
   { key: "yawSign", label: "yaw" },
   { key: "pitchSign", label: "pitch" },
   { key: "rollSign", label: "roll" },
   { key: "occluder", label: "occ" },
+  { key: "temples", label: "arms" },
+  { key: "armsAuto", label: "auto" },
 ];
 
 function DebugLayer({
@@ -424,7 +506,7 @@ function DebugLayer({
           {debug?.box
             ? `box c ${debug.box.c.map((v) => n(v, 2)).join(",")} h ${debug.box.h.map((v) => n(v, 2)).join(",")} s ${n(debug.scale, 2)}\n`
             : "box -\n"}
-          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder}`}
+          {`tune w ${n(tune.width, 2)} x ${n(tune.dx, 2)} y ${n(tune.dy, 2)} z ${n(tune.dz, 2)} fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder} arms ${tune.temples} armL ${n(tune.armLength, 2)} auto ${tune.armsAuto} armYaw ${tune.armYaw}`}
         </Text>
       </View>
       <View style={dbg.buttons}>
@@ -486,7 +568,7 @@ const dbg = StyleSheet.create({
     position: "absolute",
     left: 8,
     right: 8,
-    top: 28,
+    top: 110,
     padding: 6,
     backgroundColor: "rgba(0,0,0,0.6)",
   },
@@ -495,12 +577,18 @@ const dbg = StyleSheet.create({
   buttons: {
     position: "absolute",
     left: 8,
-    bottom: 240,
+    bottom: 90,
     padding: 4,
     gap: 4,
     backgroundColor: "rgba(0,0,0,0.6)",
   },
-  row: { flexDirection: "row", alignItems: "center", gap: 4 },
+  row: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    maxWidth: 280,
+    alignItems: "center",
+    gap: 4,
+  },
   label: { color: "#fff", fontSize: 11, width: 36, textAlign: "center" },
   btn: {
     minWidth: 34,
