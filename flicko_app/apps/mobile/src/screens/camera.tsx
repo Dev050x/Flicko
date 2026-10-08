@@ -58,7 +58,6 @@ import {
 } from "@/features/filters/placement";
 import { isLocked, useUnlockedFilters } from "@/features/filters/unlocks";
 import {
-  audio,
   brightness,
   camera as expoCamera,
   hasCameraStack,
@@ -67,7 +66,6 @@ import {
 import { colors, ref, type } from "@/theme";
 
 const bobo = require("../../assets/characters/bobo-cheer.png");
-const shutterSound = require("../../assets/sounds/shutter.wav");
 
 /*
  * The camera is loaded only when this build has it: VisionCamera + Skia in a development
@@ -139,6 +137,7 @@ export default function CameraScreen() {
   const [sheet, setSheet] = useState<"wallet" | "connect" | null>(null);
 
   const camera = useRef<CameraLayerRef>(null);
+  const shooting = useRef(false);
   const carousel = useRef<FilterCarouselRef>(null);
   const initialIndex = useMemo(
     () => Math.max(0, FILTERS.indexOf(filter)),
@@ -146,15 +145,10 @@ export default function CameraScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const player = useMemo(
-    () => audio()?.createAudioPlayer(shutterSound) ?? null,
-    [],
-  );
 
   useEffect(() => {
     restore();
   }, [restore]);
-  useEffect(() => () => player?.remove(), [player]);
 
   const labelTop = view
     ? view.height - SHUTTER_CENTER - SHUTTER / 2 - LABEL_HEIGHT
@@ -230,7 +224,17 @@ export default function CameraScreen() {
   };
 
   const shoot = async () => {
-    if (busy || !cameraModule || !camera.current || !view || !zone) return;
+    // `busy` is state and lags a fast double tap; the ref blocks it at once.
+    if (
+      shooting.current ||
+      busy ||
+      !cameraModule ||
+      !camera.current ||
+      !view ||
+      !zone
+    )
+      return;
+    shooting.current = true;
     setBusy(true);
     let restoreBrightness: number | null = null;
     try {
@@ -257,10 +261,6 @@ export default function CameraScreen() {
         filter.type === "model" ? await snapshotModelLayer() : null;
       const shot = await camera.current.capture(front ? "off" : flash);
       useLastShot.getState().set(shot.uri);
-      if (player) {
-        player.seekTo(0);
-        player.play();
-      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       setScreenFlash(false);
 
@@ -314,6 +314,7 @@ export default function CameraScreen() {
       setScreenFlash(false);
       setCount(null);
       setBusy(false);
+      shooting.current = false;
       if (restoreBrightness !== null) {
         brightness()
           ?.setBrightnessAsync(restoreBrightness)

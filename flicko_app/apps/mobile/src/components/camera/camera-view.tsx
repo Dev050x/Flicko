@@ -217,8 +217,9 @@ export function CameraLayer({
     ref,
     () => ({
       capture: async (flashMode) => {
+        // The phone's own camera click, played by the camera at the moment of capture.
         const photo = await photoOutput.capturePhoto(
-          { flashMode, enableShutterSound: false },
+          { flashMode, enableShutterSound: true },
           {},
         );
         try {

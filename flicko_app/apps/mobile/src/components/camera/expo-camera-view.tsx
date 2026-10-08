@@ -51,7 +51,7 @@ export function CameraLayer({
     capture: async () => {
       const photo = await camera.current?.takePictureAsync({
         quality: 0.92,
-        shutterSound: false,
+        shutterSound: true,
       });
       if (!photo) throw new Error("no photo");
       return { uri: photo.uri, width: photo.width, height: photo.height };
