@@ -95,6 +95,18 @@
       ]
     },
     {
+      "id": "laser-eyes",
+      "name": "Laser Eyes",
+      "category": "trending",
+      "type": "face",
+      "premium": true,
+      "priceSkr": 5,
+      "overlay": "overlays/laser-beam.png",
+      "anchor": "eyes",
+      "notes": "Beam starts at each eye centre, angled 25° up and outward; mirror for the left eye.",
+      "thumb": "thumbs/laser-eyes.png"
+    },
+    {
       "id": "neon-goggles-3d",
       "name": "Neon Goggles",
       "category": "trending",
@@ -102,7 +114,7 @@
       "premium": false,
       "anchor": "eyes",
       "notes": "3D neon VR goggles (GLB) on the eyes, turning with the head.",
-      "thumb": null,
+      "thumb": "thumbs/neon-goggles.png",
       "parts": [
         {
           "model": "models/neon-goggles.glb",
@@ -125,29 +137,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "laser-eyes",
-      "name": "Laser Eyes",
-      "category": "trending",
-      "type": "face",
-      "premium": true,
-      "priceSkr": 5,
-      "overlay": "overlays/laser-beam.png",
-      "anchor": "eyes",
-      "notes": "Beam starts at each eye centre, angled 25° up and outward; mirror for the left eye.",
-      "thumb": "thumbs/laser-eyes.png"
-    },
-    {
-      "id": "deal-with-it",
-      "name": "Deal With It",
-      "category": "trending",
-      "type": "face",
-      "premium": false,
-      "overlay": "overlays/deal-with-it.png",
-      "anchor": "eyes",
-      "notes": "Width = 1.6 x distance between eyes, centred on the eye midpoint, rotated with the head roll.",
-      "thumb": "thumbs/deal-with-it.png"
     },
     {
       "id": "to-the-moon",

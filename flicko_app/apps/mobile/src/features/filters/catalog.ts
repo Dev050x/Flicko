@@ -61,7 +61,6 @@ export interface ScreenSticker {
 }
 
 const OVERLAYS: Record<string, ImageSourcePropType> = {
-  "overlays/deal-with-it.png": require("../../../assets/filters/overlays/deal-with-it.png"),
   "overlays/text-seeker.png": require("../../../assets/filters/overlays/text-seeker.png"),
   "overlays/text-to-the-moon.png": require("../../../assets/filters/overlays/text-to-the-moon.png"),
   "overlays/text-wagmi.png": require("../../../assets/filters/overlays/text-wagmi.png"),
@@ -85,7 +84,7 @@ const STICKERS: Record<string, ImageSourcePropType> = {
 
 const THUMBS: Record<string, ImageSourcePropType> = {
   "thumbs/degen-mode.png": require("../../../assets/filters/thumbs/degen-mode.png"),
-  "thumbs/deal-with-it.png": require("../../../assets/filters/thumbs/deal-with-it.png"),
+  "thumbs/neon-goggles.png": require("../../../assets/filters/thumbs/neon-goggles.png"),
   "thumbs/degen.png": require("../../../assets/filters/thumbs/degen.png"),
   "thumbs/gm.png": require("../../../assets/filters/thumbs/gm.png"),
   "thumbs/laser-eyes.png": require("../../../assets/filters/thumbs/laser-eyes.png"),
