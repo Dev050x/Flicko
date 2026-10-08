@@ -18,12 +18,46 @@ export interface Filter {
   premium: boolean;
   priceSkr?: number;
   overlay?: ImageSourcePropType;
-  /** 3D model (GLB asset), drawn by Filament on the live preview */
-  model?: number;
+  /** 3D models (GLB assets) on the face, drawn by Filament on the live preview */
+  parts?: ModelPart[];
+  /** image that replaces the background behind the person (person segmentation) */
+  background?: number;
+  /** 2D art placed on the screen around the face (3D filters) */
+  stickers?: ScreenSticker[];
   anchor?: "eyes";
   notes?: string;
   thumb: ImageSourcePropType | null;
   matrix?: number[];
+}
+
+/*
+ * One 3D model of a filter. Sizes and offsets are in eye distances in the head's own
+ * frame (+x right, +y down, +z toward the camera) so the part follows the head:
+ * `width` = the model's largest dimension; `pivot` = the point of the model placed at the
+ * offset, in its bounding box (-1..1 per axis; [0, 0, 1] = the front centre); `rotate` =
+ * degrees about x, y, z applied to the model first.
+ */
+export interface ModelPart {
+  name: string;
+  /** what the offset is from: between the eyes, or the screen-right mouth corner */
+  anchor: "eyes" | "mouth-right";
+  model: number;
+  width: number;
+  offset: [number, number, number];
+  pivot: [number, number, number];
+  rotate: [number, number, number];
+}
+
+/** Screen art: centre and width as fractions of the preview, rotation in degrees. */
+export interface ScreenSticker {
+  image: ImageSourcePropType;
+  x: number;
+  y: number;
+  width: number;
+  rotate: number;
+  /** gently float up and down */
+  bob: boolean;
+  opacity: number;
 }
 
 const OVERLAYS: Record<string, ImageSourcePropType> = {
@@ -37,7 +71,20 @@ const OVERLAYS: Record<string, ImageSourcePropType> = {
   "overlays/sticker-skr-coin.png": require("../../../assets/filters/overlays/sticker-skr-coin.png"),
 };
 
+const BACKGROUNDS: Record<string, number> = {
+  "backgrounds/degen.jpg": require("../../../assets/filters/backgrounds/degen.jpg"),
+};
+
+const STICKERS: Record<string, ImageSourcePropType> = {
+  "stickers/degen/portfolio.png": require("../../../assets/filters/stickers/degen/portfolio.png"),
+  "stickers/degen/coin-a.png": require("../../../assets/filters/stickers/degen/coin-a.png"),
+  "stickers/degen/coin-b.png": require("../../../assets/filters/stickers/degen/coin-b.png"),
+  "stickers/degen/shiba.png": require("../../../assets/filters/stickers/degen/shiba.png"),
+  "stickers/degen/can.png": require("../../../assets/filters/stickers/degen/can.png"),
+};
+
 const THUMBS: Record<string, ImageSourcePropType> = {
+  "thumbs/degen-mode.png": require("../../../assets/filters/thumbs/degen-mode.png"),
   "thumbs/deal-with-it.png": require("../../../assets/filters/thumbs/deal-with-it.png"),
   "thumbs/degen.png": require("../../../assets/filters/thumbs/degen.png"),
   "thumbs/gm.png": require("../../../assets/filters/thumbs/gm.png"),
@@ -49,12 +96,30 @@ const THUMBS: Record<string, ImageSourcePropType> = {
 };
 
 const MODELS: Record<string, number> = {
-  "models/glasses.glb": require("../../../assets/filters/models/glasses.glb"),
+  "models/neon-goggles.glb": require("../../../assets/filters/models/neon-goggles.glb"),
+  "models/crown.glb": require("../../../assets/filters/models/crown.glb"),
+  "models/cigar.glb": require("../../../assets/filters/models/cigar.glb"),
 };
 
 type RawFilter = (typeof data.filters)[number] & {
   overlay?: string;
-  model?: string;
+  parts?: {
+    name: string;
+    anchor?: string;
+    model: string;
+    width: number;
+    offset: number[];
+    pivot: number[];
+    rotate?: number[];
+  }[];
+  stickers?: {
+    image: string;
+    x: number;
+    y: number;
+    width: number;
+    rotate?: number;
+    bob?: number;
+  }[];
   thumb: string | null;
   matrix?: number[];
   priceSkr?: number;
@@ -77,7 +142,27 @@ export const FILTERS: Filter[] = (data.filters as RawFilter[]).map((f) => ({
   premium: PREMIUM_ENABLED && f.premium,
   priceSkr: f.priceSkr,
   overlay: f.overlay ? OVERLAYS[f.overlay] : undefined,
-  model: f.model ? MODELS[f.model] : undefined,
+  parts: f.parts?.map((p) => ({
+    name: p.name,
+    anchor: p.anchor === "mouth-right" ? "mouth-right" : "eyes",
+    model: MODELS[p.model],
+    width: p.width,
+    offset: p.offset as [number, number, number],
+    pivot: p.pivot as [number, number, number],
+    rotate: (p.rotate ?? [0, 0, 0]) as [number, number, number],
+  })),
+  background: (f as { background?: string }).background
+    ? BACKGROUNDS[(f as { background?: string }).background!]
+    : undefined,
+  stickers: f.stickers?.map((t) => ({
+    image: STICKERS[t.image],
+    x: t.x,
+    y: t.y,
+    width: t.width,
+    rotate: (t as { rotate?: number }).rotate ?? 0,
+    bob: !!t.bob,
+    opacity: (t as { opacity?: number }).opacity ?? 1,
+  })),
   anchor: f.anchor === "eyes" ? "eyes" : undefined,
   notes: f.notes,
   thumb: f.thumb ? (THUMBS[f.thumb] ?? null) : null,

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { useSharedValue, type SharedValue } from "react-native-reanimated";
 import type { Face as MlKitFace } from "react-native-vision-camera-face-detector";
 
-import type { Eyes, Rect } from "@/features/filters/placement";
+import type { Eyes, Point, Rect } from "@/features/filters/placement";
 
 import { activeSource, useFaceFlags } from "./flags";
 import { hudQueue, hudRecord } from "./hud";
@@ -166,6 +166,34 @@ export const eyesInView = (live: FaceTrackingResult, view: Rect): Eyes[] =>
     return a.x <= b.x ? { left: a, right: b } : { left: b, right: a };
   });
 
+/*
+ * The mouth on the preview (view space): both corners, left/right by screen x, and the
+ * centre between the inner lips. MediaPipe's face mesh only (landmarks 61 and 291 are the
+ * corners, 13 and 14 the inner upper and lower lip); null for detectors without a mesh.
+ */
+export interface Mouth {
+  left: Point;
+  right: Point;
+  center: Point;
+}
+export const mouthsInView = (
+  live: FaceTrackingResult,
+  view: Rect,
+): (Mouth | null)[] =>
+  live.faces.map((f) => {
+    const l = f.landmarks;
+    if (l.length < 292) return null;
+    const a = frameToView(l[61], live.frame, view);
+    const b = frameToView(l[291], live.frame, view);
+    const up = frameToView(l[13], live.frame, view);
+    const down = frameToView(l[14], live.frame, view);
+    return {
+      left: a.x <= b.x ? a : b,
+      right: a.x <= b.x ? b : a,
+      center: { x: (up.x + down.x) / 2, y: (up.y + down.y) / 2 },
+    };
+  });
+
 /** Ease toward the new positions when the same number of faces is still in view. */
 const smoothEyes = (previous: Eyes[], next: Eyes[]): Eyes[] => {
   if (previous.length !== next.length) return next;
@@ -202,10 +230,13 @@ export const useLiveEyes = create<{
   eyes: Eyes[];
   /** head angles per face, same order as the detector's faces (3D filters) */
   angles: HeadAngles[];
+  /** mouth per face (MediaPipe only), same order */
+  mouths: (Mouth | null)[];
   at: number;
 }>(() => ({
   eyes: [],
   angles: [],
+  mouths: [],
   at: 0,
 }));
 
@@ -224,7 +255,7 @@ export const useFaceTracking = (
   const result = useSharedValue<FaceTrackingResult | null>(null);
   useEffect(() => {
     if (!enabled) {
-      useLiveEyes.setState({ eyes: [], angles: [], at: 0 });
+      useLiveEyes.setState({ eyes: [], angles: [], mouths: [], at: 0 });
       result.value = null;
     }
   }, [enabled, result]);
@@ -239,6 +270,7 @@ export const useFaceTracking = (
       const mapped = eyesInView(next, view);
       useLiveEyes.setState((s) => ({
         eyes: smoothEyes(s.eyes, mapped),
+        mouths: mouthsInView(next, view),
         angles: next.faces.map(({ yaw, pitch, roll }) => ({
           yaw,
           pitch,

@@ -15,15 +15,157 @@
       "thumb": null
     },
     {
-      "id": "glasses-3d",
-      "name": "3D Glasses",
+      "id": "degen-mode",
+      "name": "Degen Mode",
       "category": "trending",
       "type": "model",
       "premium": false,
-      "model": "models/glasses.glb",
+      "notes": "3D neon goggles, gold crown and a cigar held at the mouth corner; SOL coins, Shiba, can and portfolio panel around it.",
+      "thumb": "thumbs/degen-mode.png",
+      "parts": [
+        {
+          "model": "models/neon-goggles.glb",
+          "name": "goggles",
+          "width": 2.2,
+          "offset": [
+            0,
+            0.15,
+            0.5
+          ],
+          "pivot": [
+            0,
+            0,
+            1
+          ],
+          "rotate": [
+            10,
+            0,
+            0
+          ]
+        },
+        {
+          "model": "models/crown.glb",
+          "name": "crown",
+          "width": 2.6,
+          "offset": [
+            -0.15,
+            -1.1,
+            -0.6
+          ],
+          "pivot": [
+            0,
+            -1,
+            0
+          ],
+          "rotate": [
+            12,
+            0,
+            0
+          ]
+        },
+        {
+          "model": "models/cigar.glb",
+          "name": "cigar",
+          "width": 1.3,
+          "offset": [
+            0,
+            -0.15,
+            0
+          ],
+          "pivot": [
+            0,
+            0,
+            -1
+          ],
+          "rotate": [
+            0,
+            70,
+            -20
+          ],
+          "anchor": "mouth-right"
+        }
+      ],
+      "stickers": [
+        {
+          "image": "stickers/degen/coin-a.png",
+          "x": 0.13,
+          "y": 0.26,
+          "width": 0.22,
+          "bob": 1
+        },
+        {
+          "image": "stickers/degen/coin-b.png",
+          "x": 0.97,
+          "y": 0.36,
+          "width": 0.16,
+          "bob": 1
+        },
+        {
+          "image": "stickers/degen/shiba.png",
+          "x": 0.1,
+          "y": 0.47,
+          "width": 0.3
+        },
+        {
+          "image": "stickers/degen/coin-a.png",
+          "x": 0.12,
+          "y": 0.59,
+          "width": 0.3,
+          "bob": 1
+        },
+        {
+          "image": "stickers/degen/coin-b.png",
+          "x": 0.14,
+          "y": 0.71,
+          "width": 0.32,
+          "bob": 1
+        },
+        {
+          "image": "stickers/degen/can.png",
+          "x": 0.88,
+          "y": 0.55,
+          "width": 0.26
+        },
+        {
+          "image": "stickers/degen/portfolio.png",
+          "x": 0.8,
+          "y": 0.72,
+          "width": 0.38
+        }
+      ],
+      "background": "backgrounds/degen.jpg"
+    },
+    {
+      "id": "neon-goggles-3d",
+      "name": "Neon Goggles",
+      "category": "trending",
+      "type": "model",
+      "premium": false,
       "anchor": "eyes",
-      "notes": "3D GLB glasses on the eyes, turning with the head.",
-      "thumb": null
+      "notes": "3D neon VR goggles (GLB) on the eyes, turning with the head.",
+      "thumb": null,
+      "parts": [
+        {
+          "model": "models/neon-goggles.glb",
+          "name": "goggles",
+          "width": 2.2,
+          "offset": [
+            0,
+            0.15,
+            0.5
+          ],
+          "pivot": [
+            0,
+            0,
+            1
+          ],
+          "rotate": [
+            10,
+            0,
+            0
+          ]
+        }
+      ]
     },
     {
       "id": "laser-eyes",

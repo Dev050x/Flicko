@@ -28,7 +28,7 @@ export default function DevModel3d() {
           <Camera />
           <DefaultLight />
           <Model
-            source={require("../../../assets/filters/models/glasses.glb")}
+            source={require("../../../assets/filters/models/neon-goggles.glb")}
             transformToUnitCube
             rotate={[0, angle, 0]}
           />
