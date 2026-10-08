@@ -160,7 +160,7 @@ export const FILTERS: Filter[] = (data.filters as RawFilter[]).map((f) => ({
     y: t.y,
     width: t.width,
     rotate: (t as { rotate?: number }).rotate ?? 0,
-    bob: !!t.bob,
+    bob: !!(t as { bob?: number }).bob,
     opacity: (t as { opacity?: number }).opacity ?? 1,
   })),
   anchor: f.anchor === "eyes" ? "eyes" : undefined,
