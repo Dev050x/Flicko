@@ -1,10 +1,13 @@
+import { Image } from "expo-image";
 import { StyleSheet, Text, View } from "react-native";
 
 import { TextButton } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { formatSkr, useSkrBalance } from "@/features/wallet/skr-balance";
 import { useSession } from "@/store/session";
-import { cam, colors, ref, type } from "@/theme";
+import { colors, ref, type } from "@/theme";
+
+const SKR_TOKEN = require("../../../assets/brand/skr-token.png");
 
 /*
  * Wallet sheet from the camera's SKR pill. A stub for now: address and SKR balance.
@@ -20,7 +23,7 @@ export function WalletSheet({ onClose }: { onClose: () => void }) {
     <Sheet height={260} onClose={onClose}>
       <Text style={[type.sheetTitle, { color: colors.text }]}>Wallet</Text>
       <View style={styles.balance}>
-        <View style={styles.coin} />
+        <Image source={SKR_TOKEN} style={styles.coin} />
         <Text style={styles.amount}>
           {balance.data === undefined ? "–" : formatSkr(balance.data)} SKR
         </Text>
@@ -35,15 +38,8 @@ export function WalletSheet({ onClose }: { onClose: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  balance: { flexDirection: "row", alignItems: "center", gap: 10 },
-  coin: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: cam.coin,
-    borderWidth: 3,
-    borderColor: cam.coinRim,
-  },
+  balance: { flexDirection: "row", alignItems: "center", gap: 8 },
+  coin: { width: 30, height: 30 },
   amount: {
     fontFamily: "BricolageGrotesque_800ExtraBold",
     fontSize: 34,

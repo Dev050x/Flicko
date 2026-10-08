@@ -7,7 +7,9 @@ import { formatSkr, useSkrBalance } from "@/features/wallet/skr-balance";
 import { usePumpingCount } from "@/features/market/pumping";
 import { useMyAvatar } from "@/features/avatars/catalog";
 import { useSession } from "@/store/session";
-import { cam, colors } from "@/theme";
+import { colors } from "@/theme";
+
+const SKR_TOKEN = require("../../../assets/brand/skr-token.png");
 
 /*
  * Top left: avatar (→ profile) and the SKR balance pill (→ wallet sheet; "Connect" for
@@ -61,7 +63,7 @@ export function TopBar({
           hitSlop={8}
         >
           <Glass style={styles.skr}>
-            <View style={styles.coin} />
+            <Image source={SKR_TOKEN} style={styles.coin} />
             <Text style={styles.skrText}>{skrLabel}</Text>
           </Glass>
         </Pressable>
@@ -114,14 +116,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
   },
-  coin: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: cam.coin,
-    borderWidth: 2,
-    borderColor: cam.coinRim,
-  },
+  coin: { width: 16, height: 16 },
   skrText: { fontFamily: "DMSans_700Bold", fontSize: 14, color: colors.text },
   pumpingRow: {
     position: "absolute",
