@@ -95,6 +95,23 @@
       ]
     },
     {
+      "id": "rug-pull",
+      "name": "Rug Pull",
+      "category": "trending",
+      "type": "model",
+      "premium": false,
+      "notes": "Full-screen crash frame (red chart, -99.9% LP REMOVED, coins, 'Dev has left the chat' skull) over the live camera, baked into the photo.",
+      "thumb": "thumbs/rug-pull.png",
+      "stickers": [
+        {
+          "image": "stickers/rug-pull/frame.png",
+          "x": 0.5,
+          "y": 0.5,
+          "width": 1.0
+        }
+      ]
+    },
+    {
       "id": "laser-eyes",
       "name": "Laser Eyes",
       "category": "trending",

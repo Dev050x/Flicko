@@ -76,6 +76,7 @@ const BACKGROUNDS: Record<string, number> = {
 
 const STICKERS: Record<string, ImageSourcePropType> = {
   "stickers/degen/portfolio.png": require("../../../assets/filters/stickers/degen/portfolio.png"),
+  "stickers/rug-pull/frame.png": require("../../../assets/filters/stickers/rug-pull/frame.png"),
   "stickers/degen/coin-a.png": require("../../../assets/filters/stickers/degen/coin-a.png"),
   "stickers/degen/coin-b.png": require("../../../assets/filters/stickers/degen/coin-b.png"),
   "stickers/degen/shiba.png": require("../../../assets/filters/stickers/degen/shiba.png"),
@@ -85,6 +86,7 @@ const STICKERS: Record<string, ImageSourcePropType> = {
 const THUMBS: Record<string, ImageSourcePropType> = {
   "thumbs/degen-mode.png": require("../../../assets/filters/thumbs/degen-mode.png"),
   "thumbs/neon-goggles.png": require("../../../assets/filters/thumbs/neon-goggles.png"),
+  "thumbs/rug-pull.png": require("../../../assets/filters/thumbs/rug-pull.png"),
   "thumbs/degen.png": require("../../../assets/filters/thumbs/degen.png"),
   "thumbs/gm.png": require("../../../assets/filters/thumbs/gm.png"),
   "thumbs/laser-eyes.png": require("../../../assets/filters/thumbs/laser-eyes.png"),
