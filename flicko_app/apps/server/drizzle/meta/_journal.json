@@ -71,6 +71,13 @@
       "when": 1791157541472,
       "tag": "0009_backfill_avatars",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791491818996,
+      "tag": "0010_likes",
+      "breakpoints": true
     }
   ]
 }

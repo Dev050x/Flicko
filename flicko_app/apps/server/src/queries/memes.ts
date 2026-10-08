@@ -1,7 +1,18 @@
-import { and, asc, desc, eq, gt, inArray, isNotNull, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  sql,
+} from "drizzle-orm";
 import {
   candles,
   follows,
+  likes,
   memes,
   positions,
   trades,
@@ -39,6 +50,10 @@ export interface MemeCard {
   graduatedAt: string | null;
   /** whether the signed-in viewer follows the creator (only set when a viewer is known) */
   creatorFollowed?: boolean;
+  /** feed likes (set on feed cards) */
+  likeCount?: number;
+  /** whether the signed-in viewer liked it (feed cards, only when a viewer is known) */
+  likedByMe?: boolean;
 }
 
 export interface MemeDetail extends MemeCard {
@@ -225,17 +240,47 @@ export const listFeed = async (
     .orderBy(...order)
     .limit(limit)
     .offset(offset);
-  const cards = rows.map(toCard);
+  const mints = rows.map((row) => row.mint);
+  const likeCounts = await likeCountsOf(db, mints);
+  const cards = rows.map((row) => ({
+    ...toCard(row),
+    likeCount: likeCounts.get(row.mint) ?? 0,
+  }));
   if (!viewer) return cards;
-  const followed = await followedAmong(
-    db,
-    viewer,
-    cards.map((card) => card.creator),
-  );
+  const [followed, liked] = await Promise.all([
+    followedAmong(
+      db,
+      viewer,
+      cards.map((card) => card.creator),
+    ),
+    likedAmong(db, viewer, mints),
+  ]);
   return cards.map((card) => ({
     ...card,
     creatorFollowed: followed.has(card.creator),
+    likedByMe: liked.has(card.mint),
   }));
+};
+
+/* Likes per mint (mints without likes are missing). */
+export const likeCountsOf = async (db: Db, mints: string[]) => {
+  if (!mints.length) return new Map<string, number>();
+  const rows = await db
+    .select({ mint: likes.mint, n: count() })
+    .from(likes)
+    .where(inArray(likes.mint, mints))
+    .groupBy(likes.mint);
+  return new Map(rows.map((row) => [row.mint, Number(row.n)]));
+};
+
+/* The subset of `mints` that `viewer` liked. */
+export const likedAmong = async (db: Db, viewer: string, mints: string[]) => {
+  if (!mints.length) return new Set<string>();
+  const rows = await db
+    .select({ mint: likes.mint })
+    .from(likes)
+    .where(and(eq(likes.wallet, viewer), inArray(likes.mint, mints)));
+  return new Set(rows.map((row) => row.mint));
 };
 
 /* The subset of `wallets` that `viewer` follows. */

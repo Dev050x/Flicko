@@ -242,6 +242,22 @@ export const follows = pgTable(
   ],
 );
 
+/* Feed likes: one per wallet per meme. */
+export const likes = pgTable(
+  "likes",
+  {
+    wallet: text("wallet").notNull(),
+    mint: text("mint")
+      .notNull()
+      .references(() => memes.mint),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.wallet, t.mint] }),
+    index("likes_mint_idx").on(t.mint),
+  ],
+);
+
 export const reactionKind = pgEnum("reaction_kind", ["rocket", "fire", "poop"]);
 
 /* One reaction of each kind per wallet per meme. */
