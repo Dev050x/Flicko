@@ -42,6 +42,7 @@ import { FILTERS, filterById, firstIndexOf } from "@/features/filters/catalog";
 import { FaceDebug } from "@/components/camera/face-debug";
 import { FaceHud } from "@/components/camera/face-hud";
 import {
+  useFaceFlags,
   useFaceTracking,
   useLiveEyes,
   type FaceTrackingResult,
@@ -182,6 +183,11 @@ export default function CameraScreen() {
     (filter.type === "face" || filter.type === "model") &&
     !!cameraModule?.tracksFaces;
   const { push: onFaces } = useFaceTracking(view, trackingFaces);
+  // 3D filters need MediaPipe's face mesh and person mask, whatever the dev flag says.
+  useEffect(() => {
+    useFaceFlags.setState({ mediapipeRequired: filter.type === "model" });
+    return () => useFaceFlags.setState({ mediapipeRequired: false });
+  }, [filter.type]);
   const noFace = useLiveEyes((s) => s.eyes.length === 0);
   const faceHint =
     filter.type !== "face" || !cameraModule?.detectsFaces
@@ -326,6 +332,8 @@ export default function CameraScreen() {
           }}
           trackFaces={trackingFaces}
           onFaces={onFaces}
+          background={filter.background}
+          wantMesh={filter.type === "model"}
         />
       ) : (
         <CameraCard

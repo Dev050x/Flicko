@@ -1,4 +1,14 @@
-import { Skia } from "@shopify/react-native-skia";
+import {
+  AlphaType,
+  BlendMode,
+  ColorType,
+  FilterMode,
+  MipmapMode,
+  Skia,
+  useImage,
+  type SkCanvas,
+  type SkImage,
+} from "@shopify/react-native-skia";
 import {
   useCallback,
   useEffect,
@@ -70,6 +80,123 @@ const SLOW_FRAME_MS = 16;
 const FACE_EVERY = 3;
 const SLOW_FOR_MS = 2000;
 
+/*
+ * Background replacement for filters that have one: in the upright output space (the
+ * plugin's orientation transform popped), draw the background, then the camera frame
+ * in a layer masked by the person mask (DstIn), so only the person shows over it. The
+ * mask comes from the live tracker: upright and unmirrored, so it is mirrored here for
+ * a mirrored (front) frame. The newest mask is cached on the worklet runtime's global.
+ */
+type FrameLike = {
+  width: number;
+  height: number;
+  orientation: "up" | "down" | "left" | "right";
+  isMirrored: boolean;
+};
+const ORIENTATION_DEGREES = { up: 0, right: 90, down: 180, left: 270 };
+
+const applyFrameTransform = (canvas: SkCanvas, frame: FrameLike) => {
+  "worklet";
+  // Same steps as react-native-vision-camera-skia's renderToTexture.
+  const landscape =
+    frame.orientation === "left" || frame.orientation === "right";
+  const outW = landscape ? frame.height : frame.width;
+  const outH = landscape ? frame.width : frame.height;
+  canvas.translate(outW / 2, outH / 2);
+  if (frame.isMirrored) canvas.scale(-1, 1);
+  canvas.rotate((360 - ORIENTATION_DEGREES[frame.orientation]) % 360, 0, 0);
+  if (landscape) canvas.translate(-outH / 2, -outW / 2);
+  else canvas.translate(-outW / 2, -outH / 2);
+};
+
+const drawCover = (canvas: SkCanvas, image: SkImage, w: number, h: number) => {
+  "worklet";
+  const scale = Math.max(w / image.width(), h / image.height());
+  const sw = w / scale;
+  const sh = h / scale;
+  canvas.drawImageRect(
+    image,
+    Skia.XYWHRect((image.width() - sw) / 2, (image.height() - sh) / 2, sw, sh),
+    Skia.XYWHRect(0, 0, w, h),
+    Skia.Paint(),
+  );
+};
+
+/* The newest person mask as an alpha image on the worklet runtime's global. */
+const updateMask = (tracker: {
+  latestMask: () => {
+    seq: number;
+    width: number;
+    height: number;
+    data: ArrayBuffer;
+  };
+}) => {
+  "worklet";
+  const g = globalThis as unknown as {
+    __flickoMask?: { seq: number; image: SkImage };
+  };
+  try {
+    const latest = tracker.latestMask();
+    if (latest.seq <= 0 || latest.seq === g.__flickoMask?.seq) return;
+    const image = Skia.Image.MakeImage(
+      {
+        width: latest.width,
+        height: latest.height,
+        colorType: ColorType.Alpha_8,
+        alphaType: AlphaType.Premul,
+      },
+      Skia.Data.fromBytes(new Uint8Array(latest.data)),
+      latest.width,
+    );
+    if (!image) return;
+    if (!g.__flickoMask) console.log("[camera] first person mask");
+    g.__flickoMask?.image.dispose();
+    g.__flickoMask = { seq: latest.seq, image };
+  } catch (err) {
+    console.warn(`[camera] person mask failed: ${String(err)}`);
+  }
+};
+
+const drawWithBackground = (
+  canvas: SkCanvas,
+  frame: FrameLike,
+  frameTexture: SkImage,
+  framePaint: ReturnType<typeof Skia.Paint>,
+  background: SkImage,
+  mask: SkImage,
+) => {
+  "worklet";
+  const landscape =
+    frame.orientation === "left" || frame.orientation === "right";
+  const outW = landscape ? frame.height : frame.width;
+  const outH = landscape ? frame.width : frame.height;
+  canvas.restore(); // the plugin's orientation transform
+  drawCover(canvas, background, outW, outH);
+  canvas.saveLayer();
+  canvas.save();
+  applyFrameTransform(canvas, frame);
+  canvas.drawImage(frameTexture, 0, 0, framePaint);
+  canvas.restore();
+  const maskPaint = Skia.Paint();
+  maskPaint.setBlendMode(BlendMode.DstIn);
+  canvas.save();
+  if (frame.isMirrored) {
+    canvas.translate(outW, 0);
+    canvas.scale(-1, 1);
+  }
+  canvas.drawImageRectOptions(
+    mask,
+    Skia.XYWHRect(0, 0, mask.width(), mask.height()),
+    Skia.XYWHRect(0, 0, outW, outH),
+    FilterMode.Linear,
+    MipmapMode.None,
+    maskPaint,
+  );
+  canvas.restore();
+  canvas.restore(); // layer
+  canvas.save(); // balances the plugin's restore()
+};
+
 export function CameraLayer({
   ref,
   facing,
@@ -79,6 +206,8 @@ export function CameraLayer({
   onSlow,
   trackFaces = false,
   onFaces,
+  background,
+  wantMesh = false,
 }: {
   ref?: Ref<CameraLayerRef>;
   facing: Facing;
@@ -90,6 +219,10 @@ export function CameraLayer({
   trackFaces?: boolean;
   /** live eye positions; called about 10 times a second while tracking */
   onFaces?: (result: FaceTrackingResult, scheduledAt?: number) => void;
+  /** image that replaces the background behind the person (live Skia preview only) */
+  background?: number;
+  /** keep the face mesh in live results (3D filters anchored to the mouth) */
+  wantMesh?: boolean;
   /** read by the expo-camera fallback; VisionCamera takes the flash per capture */
   flash?: import("@/features/camera/settings").FlashSetting;
 }) {
@@ -146,7 +279,7 @@ export function CameraLayer({
   // Live MediaPipe tracking (Skia path only): off unless the flag is on, and ML Kit takes
   // over for the session if it can't start or keeps failing.
   const mediapipeWanted = useFaceFlags(
-    (f) => f.mediapipeLive && !f.mediapipeFailed,
+    (f) => (f.mediapipeLive || f.mediapipeRequired) && !f.mediapipeFailed,
   );
   const hudOn = useFaceHudSwitch((h) => h.debug);
   const liveTracker = useMemo(
@@ -158,8 +291,16 @@ export function CameraLayer({
       useFaceFlags.getState().markMediapipeFailed();
   }, [live, mediapipeWanted, liveTracker]);
   useEffect(() => {
-    liveTracker?.setWantLandmarks(hudOn);
-  }, [liveTracker, hudOn]);
+    liveTracker?.setWantLandmarks(hudOn || wantMesh);
+  }, [liveTracker, hudOn, wantMesh]);
+  useEffect(() => {
+    liveTracker?.setWantSegmentation(background !== undefined);
+  }, [liveTracker, background]);
+  const backgroundImage = useImage(background ?? null);
+  const backgroundValue = useSharedValue<SkImage | null>(null);
+  useEffect(() => {
+    backgroundValue.value = background !== undefined ? backgroundImage : null;
+  }, [background, backgroundImage, backgroundValue]);
   // HUD on: run ML Kit next to MediaPipe so both can be compared on screen.
   const bothDetectors = useSharedValue(false);
   useEffect(() => {
@@ -266,8 +407,28 @@ export function CameraLayer({
       }
       previewFrames.value += 1;
       const start = Date.now();
+      const bg = backgroundValue.value;
+      const g = globalThis as unknown as {
+        __flickoMask?: { seq: number; image: SkImage };
+        __flickoBgFailed?: boolean;
+      };
+      const mask =
+        bg && !g.__flickoBgFailed ? g.__flickoMask?.image : undefined;
       render(({ canvas, frameTexture }) => {
         const m = matrixValue.value;
+        if (bg && mask) {
+          const paint = Skia.Paint();
+          if (m) paint.setColorFilter(Skia.ColorFilter.MakeMatrix(m));
+          try {
+            drawWithBackground(canvas, frame, frameTexture, paint, bg, mask);
+            return;
+          } catch (err) {
+            g.__flickoBgFailed = true;
+            console.warn(
+              `[camera] background compositing failed: ${String(err)}`,
+            );
+          }
+        }
         if (m) {
           const paint = Skia.Paint();
           paint.setColorFilter(Skia.ColorFilter.MakeMatrix(m));
@@ -286,6 +447,7 @@ export function CameraLayer({
           const seq = liveTracker.process(frame);
           if (seq !== lastSeq.value) {
             lastSeq.value = seq;
+            if (backgroundValue.value) updateMask(liveTracker);
             scheduleOnRN(
               reportLive,
               liveTracker.latest(),
@@ -328,6 +490,7 @@ export function CameraLayer({
     },
     [
       matrixValue,
+      backgroundValue,
       slowSince,
       bufferCheck,
       reportSlow,

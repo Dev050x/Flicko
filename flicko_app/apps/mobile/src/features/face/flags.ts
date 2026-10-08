@@ -9,6 +9,8 @@ export const FEATURE_MEDIAPIPE_LIVE = false;
 
 interface FaceFlags {
   mediapipeLive: boolean;
+  /** the selected filter needs MediaPipe (3D: face mesh, person mask), flag or not */
+  mediapipeRequired: boolean;
   /** MediaPipe could not start or kept failing: ML Kit for the rest of the session */
   mediapipeFailed: boolean;
   toggleMediapipe: () => void;
@@ -17,6 +19,7 @@ interface FaceFlags {
 
 export const useFaceFlags = create<FaceFlags>((set) => ({
   mediapipeLive: FEATURE_MEDIAPIPE_LIVE,
+  mediapipeRequired: false,
   mediapipeFailed: false,
   toggleMediapipe: () =>
     set((s) => ({ mediapipeLive: !s.mediapipeLive, mediapipeFailed: false })),
@@ -25,8 +28,11 @@ export const useFaceFlags = create<FaceFlags>((set) => ({
 
 /** Which detector drives the overlays right now. */
 export const activeSource = (
-  flags: Pick<FaceFlags, "mediapipeLive" | "mediapipeFailed">,
+  flags: Pick<
+    FaceFlags,
+    "mediapipeLive" | "mediapipeRequired" | "mediapipeFailed"
+  >,
 ) =>
-  flags.mediapipeLive && !flags.mediapipeFailed
+  (flags.mediapipeLive || flags.mediapipeRequired) && !flags.mediapipeFailed
     ? ("mediapipe" as const)
     : ("mlkit" as const);
