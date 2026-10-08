@@ -4,9 +4,7 @@ import {
   Animated,
   Easing,
   Image,
-  Pressable,
   StyleSheet,
-  Text,
   View,
   type LayoutChangeEvent,
 } from "react-native";
@@ -92,8 +90,6 @@ interface Tuning {
   headFront: number;
   occluder: number;
   parts: PartTune[];
-  /** the part the panel edits */
-  selected: number;
 }
 // From fits on device with the neon goggles (2026-10-08): yaw and pitch from MediaPipe
 // are mirrored against the model.
@@ -119,22 +115,12 @@ const partDefaults = (parts: ModelPart[]): PartTune[] =>
 const useTuning = create<Tuning>(() => ({
   ...SHARED_DEFAULTS,
   parts: [],
-  selected: 0,
 }));
 const resetTuning = (parts: ModelPart[]) =>
   useTuning.setState({
     ...SHARED_DEFAULTS,
     parts: partDefaults(parts),
-    selected: 0,
   });
-
-interface Debug {
-  eyes: { lx: number; ly: number; rx: number; ry: number } | null;
-  raw: { yaw: number; pitch: number; roll: number } | null;
-  shown: Pose | null;
-  fps: number;
-  detectHz: number;
-}
 
 /*
  * Occluder materials are never released. If their JS wrappers were collected while the
@@ -164,7 +150,6 @@ export const snapshotModelLayer = async (): Promise<SkImage | null> => {
 
 export function ModelOverlay({ filter }: { filter: Filter }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
-  const [debug, setDebug] = useState<Debug | null>(null);
   const parts = filter.parts ?? [];
   useEffect(() => resetTuning(filter.parts ?? []), [filter]);
   const onLayout = (e: LayoutChangeEvent) =>
@@ -196,19 +181,10 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
               parts={parts}
               width={size.w}
               height={size.h}
-              onDebug={__DEV__ ? setDebug : undefined}
             />
           </FilamentScene>
         )}
       </View>
-      {__DEV__ && size && parts.length > 0 && (
-        <DebugLayer
-          debug={debug}
-          parts={parts}
-          width={size.w}
-          height={size.h}
-        />
-      )}
     </View>
   );
 }
@@ -238,12 +214,10 @@ function Scene({
   parts,
   width,
   height,
-  onDebug,
 }: {
   parts: ModelPart[];
   width: number;
   height: number;
-  onDebug?: (d: Debug) => void;
 }) {
   const { engine, transformManager, renderableManager } = useFilamentContext();
   const loadedParts = useRef<(Loaded | null)[]>([]);
@@ -288,11 +262,6 @@ function Scene({
     let shown: Pose | null = null;
     let visible = 0; // 0..1
     let present = false;
-    let detectHz = 0;
-    let fps = 0;
-    let rawEyes: Debug["eyes"] = null;
-    let rawAngles: Debug["raw"] = null;
-    let lastDebug = 0;
 
     const onDetection = () => {
       const { eyes, angles, mouths } = useLiveEyes.getState();
@@ -335,11 +304,7 @@ function Scene({
         for (const c of CHANNELS) velocity[c] = (next[c] - target[c]) / dt;
       }
       target = next;
-      if (targetAt)
-        detectHz = detectHz * 0.8 + 0.2 / Math.max(1e-3, t - targetAt);
       targetAt = t;
-      rawEyes = { lx: e.left.x, ly: e.left.y, rx: e.right.x, ry: e.right.y };
-      rawAngles = a ?? null;
     };
     const unsubscribe = useLiveEyes.subscribe(onDetection);
     onDetection();
@@ -383,7 +348,6 @@ function Scene({
     const step = () => {
       const now = Date.now() / 1000;
       const dt = Math.min(0.1, now - last);
-      if (dt > 0) fps = fps * 0.9 + 0.1 / Math.max(1e-3, now - last);
       last = now;
       visible +=
         ((present ? 1 : 0) - visible) * (1 - Math.exp(-dt / FADE_TAU_S));
@@ -450,16 +414,6 @@ function Scene({
         );
       }
 
-      if (onDebug && now - lastDebug > 0.2) {
-        lastDebug = now;
-        onDebug({
-          eyes: rawEyes,
-          raw: rawAngles,
-          shown: { ...shown },
-          fps,
-          detectHz,
-        });
-      }
     };
     frame = requestAnimationFrame(tick);
     return () => {
@@ -467,7 +421,7 @@ function Scene({
       cancelAnimationFrame(frame);
       unsubscribe();
     };
-  }, [parts, width, height, headLoaded, transformManager, onDebug]);
+  }, [parts, width, height, headLoaded, transformManager]);
 
   const fov = useTuning((t) => t.fov);
   const focal = FOCAL_MM / fov;
@@ -582,225 +536,3 @@ function StickerArt({
     />
   );
 }
-
-/*
- * Dev only: markers on the tracked eyes and the head pose, the numbers behind the fit,
- * and buttons to tune the selected part live. Take a screenshot to report a fit.
- */
-const deg = (r: number) => ((r * 180) / Math.PI).toFixed(1);
-const n = (v: number, d = 0) => v.toFixed(d);
-
-const PART_STEPS: { key: keyof PartTune; label: string; step: number }[] = [
-  { key: "width", label: "width", step: 0.1 },
-  { key: "dx", label: "x", step: 0.05 },
-  { key: "dy", label: "y", step: 0.05 },
-  { key: "dz", label: "z", step: 0.1 },
-  { key: "rx", label: "rotX", step: 5 },
-  { key: "ry", label: "rotY", step: 5 },
-  { key: "rz", label: "rotZ", step: 5 },
-];
-type SharedKey = "fov" | "headWidth" | "headFront";
-const SHARED_STEPS: { key: SharedKey; label: string; step: number }[] = [
-  { key: "fov", label: "fov", step: 0.1 },
-  { key: "headWidth", label: "headW", step: 0.05 },
-  { key: "headFront", label: "headZ", step: 0.05 },
-];
-type FlipKey = "yawSign" | "pitchSign" | "rollSign" | "occluder";
-const FLIPS: { key: FlipKey; label: string }[] = [
-  { key: "yawSign", label: "yaw" },
-  { key: "pitchSign", label: "pitch" },
-  { key: "rollSign", label: "roll" },
-  { key: "occluder", label: "occ" },
-];
-
-/** Hides the panel and markers, leaving one "debug" button to bring them back. */
-const useDebugHidden = create<{ hidden: boolean }>(() => ({ hidden: false }));
-
-function DebugLayer({
-  debug,
-  parts,
-  width,
-  height,
-}: {
-  debug: Debug | null;
-  parts: ModelPart[];
-  width: number;
-  height: number;
-}) {
-  const tune = useTuning();
-  const hidden = useDebugHidden((h) => h.hidden);
-  const e = debug?.eyes;
-  const p = debug?.shown;
-  const selected = Math.min(tune.selected, parts.length - 1);
-  const part = tune.parts[selected];
-  const setPart = (patch: Partial<PartTune>) =>
-    useTuning.setState((s) => ({
-      parts: s.parts.map((t, i) => (i === selected ? { ...t, ...patch } : t)),
-    }));
-
-  if (hidden)
-    return (
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <View style={dbg.show}>
-          <Btn
-            label="debug"
-            onPress={() => useDebugHidden.setState({ hidden: false })}
-          />
-        </View>
-      </View>
-    );
-
-  return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      {e && (
-        <>
-          <Dot x={e.lx} y={e.ly} color="#00e5ff" />
-          <Dot x={e.rx} y={e.ry} color="#00e5ff" />
-        </>
-      )}
-      {p && <Dot x={p.x} y={p.y} color="#ff2d95" />}
-      <View pointerEvents="none" style={dbg.panel}>
-        <Text style={dbg.text}>
-          {`view ${n(width)}x${n(height)}  fps ${n(debug?.fps ?? 0)}  det ${n(debug?.detectHz ?? 0, 1)}Hz\n`}
-          {debug?.raw
-            ? `raw yaw ${n(debug.raw.yaw, 1)} pitch ${n(debug.raw.pitch, 1)} roll ${n(debug.raw.roll, 1)}\n`
-            : "raw -\n"}
-          {p
-            ? `pose x ${n(p.x)} y ${n(p.y)} eyeDist ${n(p.size)} roll ${deg(p.roll)} yaw ${deg(p.yaw)} pitch ${deg(p.pitch)}\n`
-            : "pose -\n"}
-          {`shared fov ${n(tune.fov, 2)} signs ${tune.yawSign},${tune.pitchSign},${tune.rollSign} head ${n(tune.headWidth, 2)},${n(tune.headFront, 2)} occ ${tune.occluder}\n`}
-          {tune.parts
-            .map(
-              (t, i) =>
-                `${i === selected ? ">" : " "}${parts[i]?.name ?? i} w ${n(t.width, 2)} x ${n(t.dx, 2)} y ${n(t.dy, 2)} z ${n(t.dz, 2)} r ${t.rx},${t.ry},${t.rz}`,
-            )
-            .join("\n")}
-        </Text>
-      </View>
-      <View style={dbg.buttons}>
-        {parts.length > 1 && (
-          <Btn
-            label={`part: ${parts[selected]?.name}`}
-            onPress={() =>
-              useTuning.setState({ selected: (selected + 1) % parts.length })
-            }
-          />
-        )}
-        {part &&
-          PART_STEPS.map(({ key, label, step }) => (
-            <Stepper
-              key={key}
-              label={label}
-              onMinus={() => setPart({ [key]: part[key] - step })}
-              onPlus={() => setPart({ [key]: part[key] + step })}
-            />
-          ))}
-        {SHARED_STEPS.map(({ key, label, step }) => (
-          <Stepper
-            key={key}
-            label={label}
-            onMinus={() => useTuning.setState({ [key]: tune[key] - step })}
-            onPlus={() => useTuning.setState({ [key]: tune[key] + step })}
-          />
-        ))}
-        <View style={dbg.row}>
-          {FLIPS.map(({ key, label }) => (
-            <Btn
-              key={key}
-              label={`${label}${tune[key] > 0 ? "+" : "-"}`}
-              onPress={() => useTuning.setState({ [key]: -tune[key] })}
-            />
-          ))}
-        </View>
-        <View style={dbg.row}>
-          <Btn label="reset" onPress={() => resetTuning(parts)} />
-          <Btn
-            label="hide"
-            onPress={() => useDebugHidden.setState({ hidden: true })}
-          />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function Stepper({
-  label,
-  onMinus,
-  onPlus,
-}: {
-  label: string;
-  onMinus: () => void;
-  onPlus: () => void;
-}) {
-  return (
-    <View style={dbg.row}>
-      <Btn label="-" onPress={onMinus} />
-      <Text style={dbg.label}>{label}</Text>
-      <Btn label="+" onPress={onPlus} />
-    </View>
-  );
-}
-
-function Dot({ x, y, color }: { x: number; y: number; color: string }) {
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: "absolute",
-        left: x - 4,
-        top: y - 4,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: color,
-      }}
-    />
-  );
-}
-
-function Btn({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={dbg.btn}>
-      <Text style={dbg.btnText}>{label}</Text>
-    </Pressable>
-  );
-}
-
-const dbg = StyleSheet.create({
-  panel: {
-    position: "absolute",
-    left: 8,
-    right: 8,
-    top: 110,
-    padding: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  text: { color: "#fff", fontSize: 12, fontFamily: "monospace" },
-  // bottom left, above the shutter and filter carousel
-  buttons: {
-    position: "absolute",
-    left: 8,
-    bottom: 90,
-    padding: 4,
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  show: { position: "absolute", left: 8, bottom: 90 },
-  row: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    maxWidth: 280,
-    alignItems: "center",
-    gap: 4,
-  },
-  label: { color: "#fff", fontSize: 11, width: 40, textAlign: "center" },
-  btn: {
-    minWidth: 34,
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-  },
-  btnText: { color: "#fff", fontSize: 12 },
-});
