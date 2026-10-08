@@ -166,14 +166,22 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
         <Stickers stickers={filter.stickers} width={size.w} height={size.h} />
       )}
       {size && parts.length > 0 && (
-        <FilamentScene>
-          <Scene
-            parts={parts}
-            width={size.w}
-            height={size.h}
-            onDebug={__DEV__ ? setDebug : undefined}
-          />
-        </FilamentScene>
+        // The native 3D view would otherwise take every touch (in dev it sits above the
+        // camera controls for the debug panel), blocking the filter strip.
+        <View
+          pointerEvents="none"
+          collapsable={false}
+          style={StyleSheet.absoluteFill}
+        >
+          <FilamentScene>
+            <Scene
+              parts={parts}
+              width={size.w}
+              height={size.h}
+              onDebug={__DEV__ ? setDebug : undefined}
+            />
+          </FilamentScene>
+        </View>
       )}
       {__DEV__ && size && parts.length > 0 && (
         <DebugLayer
@@ -447,7 +455,7 @@ function Scene({
   const focal = FOCAL_MM / fov;
   const distance = (height / 2) * (focal / HALF_SENSOR_MM);
   return (
-    <FilamentView style={StyleSheet.absoluteFill}>
+    <FilamentView pointerEvents="none" style={StyleSheet.absoluteFill}>
       <Camera
         focalLengthInMillimeters={focal}
         cameraPosition={[0, 0, distance]}
