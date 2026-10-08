@@ -45,6 +45,10 @@ const schema = z.object({
     .transform((value) => value === "true"),
   EXPO_ACCESS_TOKEN: optional,
   ATTESTOR_SECRET_KEY: optional,
+  /** devnet faucet wallet (base58 or keygen JSON) that sends new users their welcome SKR */
+  FAUCET_SECRET_KEY: optional,
+  /** whole SKR each new user gets on first sign-in (0 turns it off) */
+  WELCOME_SKR: z.coerce.number().int().min(0).default(10_000),
 });
 
 export type Env = z.infer<typeof schema> & {

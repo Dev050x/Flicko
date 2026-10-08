@@ -1,4 +1,5 @@
 import "./net";
+import { faucetAirdrop } from "./airdrop/welcome";
 import { createApp } from "./app";
 import { createSessions } from "./auth/jwt";
 import { upstashNonceStore } from "./auth/nonces";
@@ -13,7 +14,7 @@ import { expoPushSender } from "./notify/expo";
 import { createNotifier } from "./notify/notifier";
 import { rpcBurnVerifier } from "./filters/burns";
 import { s3BlobStore } from "./storage/blobs";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 const env = parseEnv(process.env);
 const database = createDb(env.DATABASE_URL);
@@ -37,6 +38,18 @@ const blobs = s3BlobStore({
 const attestor = createAttestor(
   parseSecretKey(required("ATTESTOR_SECRET_KEY", env.ATTESTOR_SECRET_KEY)),
 );
+// Welcome SKR for new users, sent from the devnet faucet wallet (`bun run devnet:faucet-wallet`).
+const airdrop =
+  env.FAUCET_SECRET_KEY && env.skrMint && env.WELCOME_SKR > 0
+    ? faucetAirdrop({
+        connection: new Connection(env.RPC_URL, "confirmed"),
+        faucet: Keypair.fromSecretKey(parseSecretKey(env.FAUCET_SECRET_KEY)),
+        skrMint: new PublicKey(env.skrMint),
+        decimals: env.skrDecimals,
+        amount: BigInt(env.WELCOME_SKR) * 10n ** BigInt(env.skrDecimals),
+      })
+    : undefined;
+if (!airdrop) console.log("[airdrop] welcome SKR is off (no FAUCET_SECRET_KEY)");
 const ai =
   env.AI_PROVIDER === "deepseek"
     ? deepSeekCaptions({
@@ -70,6 +83,7 @@ const app = createApp({
       statement: "Sign in to Flicko",
       ttlSeconds: 300,
     },
+    airdrop,
   },
   read: { db: database.db, sessions },
   filters: {

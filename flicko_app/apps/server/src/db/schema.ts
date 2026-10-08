@@ -242,6 +242,19 @@ export const follows = pgTable(
   ],
 );
 
+/*
+ * Welcome SKR sent to a wallet on its first sign-in: at most one row per wallet. The row
+ * is written before sending; `signature` stays null until the transfer confirms, so a
+ * failed send is retried on a later sign-in.
+ */
+export const skrAirdrops = pgTable("skr_airdrops", {
+  wallet: text("wallet").primaryKey(),
+  /** SKR base units */
+  amount: amount("amount").notNull(),
+  signature: text("signature"),
+  createdAt: createdAt(),
+});
+
 /* Feed likes: one per wallet per meme. */
 export const likes = pgTable(
   "likes",

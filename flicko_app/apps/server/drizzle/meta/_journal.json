@@ -78,6 +78,13 @@
       "when": 1791491818996,
       "tag": "0010_likes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791492672655,
+      "tag": "0011_skr_airdrops",
+      "breakpoints": true
     }
   ]
 }

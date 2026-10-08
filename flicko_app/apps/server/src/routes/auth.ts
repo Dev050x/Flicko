@@ -1,5 +1,7 @@
-import { randomAvatarId } from "../avatars";
+import { getTableColumns, sql } from "drizzle-orm";
 import { Router } from "express";
+import { grantWelcomeSkr, type WelcomeAirdrop } from "../airdrop/welcome";
+import { randomAvatarId } from "../avatars";
 import { z } from "zod";
 import type { Sessions } from "../auth/jwt";
 import type { NonceStore } from "../auth/nonces";
@@ -20,6 +22,8 @@ export interface AuthDeps {
   nonces: NonceStore;
   sessions: Sessions;
   policy: SiwsPolicy;
+  /** welcome SKR for new wallets (devnet faucet); off when absent */
+  airdrop?: WelcomeAirdrop;
 }
 
 const base64 = z
@@ -59,13 +63,28 @@ export const authRouter = (deps: AuthDeps) =>
         throw err;
       }
 
-      const [user] = await deps.db
+      // xmax = 0 only on a freshly inserted row: this sign-in created the user.
+      const [row] = await deps.db
         .insert(users)
         .values({ wallet: body.address, avatarId: randomAvatarId() })
         .onConflictDoUpdate({
           target: users.wallet,
           set: { wallet: body.address },
         })
-        .returning();
-      res.json({ ...(await deps.sessions.issue(body.address)), user });
+        .returning({
+          ...getTableColumns(users),
+          isNew: sql<boolean>`(xmax = 0)`,
+        });
+      if (!row) throw new Error("user upsert returned nothing");
+      const { isNew, ...user } = row;
+      const welcome = isNew && deps.airdrop ? deps.airdrop : undefined;
+      if (deps.airdrop) {
+        // In the background: the SKR arrives a few seconds after sign-in.
+        void grantWelcomeSkr(deps.db, deps.airdrop, body.address, isNew);
+      }
+      res.json({
+        ...(await deps.sessions.issue(body.address)),
+        user,
+        ...(welcome ? { welcomeSkr: welcome.amount.toString() } : {}),
+      });
     });

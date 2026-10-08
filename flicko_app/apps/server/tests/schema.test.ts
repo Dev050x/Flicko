@@ -64,6 +64,7 @@ describe("schema migrations", () => {
       "positions",
       "price_alerts",
       "reactions",
+      "skr_airdrops",
       "trades",
       "uploads",
       "users",
