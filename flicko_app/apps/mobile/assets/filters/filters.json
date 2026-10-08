@@ -283,15 +283,6 @@
       "thumb": null
     },
     {
-      "id": "skr-coin",
-      "name": "SKR Coin",
-      "category": "solana",
-      "type": "sticker",
-      "premium": false,
-      "overlay": "overlays/sticker-skr-coin.png",
-      "thumb": null
-    },
-    {
       "id": "degen",
       "name": "Degen",
       "category": "mood",

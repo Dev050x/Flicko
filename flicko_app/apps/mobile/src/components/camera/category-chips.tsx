@@ -9,14 +9,15 @@ import {
 import { cam, colors } from "@/theme";
 
 /*
- * Category chips under the carousel. The selected one is a glass pill; picking a chip
- * scrolls the (single, continuous) filter list to that category's first filter.
+ * Category chips under the carousel. The selected one is a glass pill (none while the
+ * plain camera is on); picking a chip scrolls the (single, continuous) filter list to
+ * that category's first filter.
  */
 export function CategoryChips({
   selected,
   onSelect,
 }: {
-  selected: FilterCategory;
+  selected?: FilterCategory;
   onSelect: (category: FilterCategory) => void;
 }) {
   return (

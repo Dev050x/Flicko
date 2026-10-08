@@ -67,7 +67,6 @@ const OVERLAYS: Record<string, ImageSourcePropType> = {
   "overlays/laser-beam.png": require("../../../assets/filters/overlays/laser-beam.png"),
   "overlays/sticker-candle-up.png": require("../../../assets/filters/overlays/sticker-candle-up.png"),
   "overlays/sticker-chart-down.png": require("../../../assets/filters/overlays/sticker-chart-down.png"),
-  "overlays/sticker-skr-coin.png": require("../../../assets/filters/overlays/sticker-skr-coin.png"),
 };
 
 const BACKGROUNDS: Record<string, number> = {

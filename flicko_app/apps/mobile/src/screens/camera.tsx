@@ -423,7 +423,7 @@ export default function CameraScreen() {
       </View>
       <View style={[styles.chips, { bottom: CHIPS_BOTTOM }]}>
         <CategoryChips
-          selected={filter.category}
+          selected={filter.type === "none" ? undefined : filter.category}
           onSelect={(category) =>
             carousel.current?.scrollTo(firstIndexOf(category))
           }
