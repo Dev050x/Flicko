@@ -5,6 +5,7 @@ import {
   FilterMode,
   MipmapMode,
   Skia,
+  TileMode,
   useImage,
   type SkCanvas,
   type SkImage,
@@ -76,50 +77,25 @@ export interface CameraLayerRef {
 /** JPEG quality for the captured photo, 0-100 (NitroImage scale). */
 const PHOTO_JPEG_QUALITY = 95;
 const SLOW_FRAME_MS = 16;
+const BACKGROUND_FRAME_MS = 33;
 /** Look for faces on every Nth frame (about 10 a second at 30 fps). */
 const FACE_EVERY = 3;
 const SLOW_FOR_MS = 2000;
 
 /*
- * Background replacement for filters that have one: in the upright output space (the
- * plugin's orientation transform popped), draw the background, then the camera frame
- * in a layer masked by the person mask (DstIn), so only the person shows over it. The
- * mask comes from the live tracker: upright and unmirrored, so it is mirrored here for
- * a mirrored (front) frame. The newest mask is cached on the worklet runtime's global.
+ * Background replacement for filters that have one, in one extra draw and no offscreen
+ * layer (a full-frame layer was too slow to keep up with the camera): the camera frame
+ * is drawn as usual, then, in the upright output space (the plugin's orientation
+ * transform popped), the background is drawn over it with the inverted person mask as
+ * its alpha, so only the person shows through. The mask comes from the live tracker:
+ * upright and unmirrored, so it is mirrored here for a mirrored (front) frame. The
+ * newest mask is cached on the worklet runtime's global.
  */
 type FrameLike = {
   width: number;
   height: number;
   orientation: "up" | "down" | "left" | "right";
   isMirrored: boolean;
-};
-const ORIENTATION_DEGREES = { up: 0, right: 90, down: 180, left: 270 };
-
-const applyFrameTransform = (canvas: SkCanvas, frame: FrameLike) => {
-  "worklet";
-  // Same steps as react-native-vision-camera-skia's renderToTexture.
-  const landscape =
-    frame.orientation === "left" || frame.orientation === "right";
-  const outW = landscape ? frame.height : frame.width;
-  const outH = landscape ? frame.width : frame.height;
-  canvas.translate(outW / 2, outH / 2);
-  if (frame.isMirrored) canvas.scale(-1, 1);
-  canvas.rotate((360 - ORIENTATION_DEGREES[frame.orientation]) % 360, 0, 0);
-  if (landscape) canvas.translate(-outH / 2, -outW / 2);
-  else canvas.translate(-outW / 2, -outH / 2);
-};
-
-const drawCover = (canvas: SkCanvas, image: SkImage, w: number, h: number) => {
-  "worklet";
-  const scale = Math.max(w / image.width(), h / image.height());
-  const sw = w / scale;
-  const sh = h / scale;
-  canvas.drawImageRect(
-    image,
-    Skia.XYWHRect((image.width() - sw) / 2, (image.height() - sh) / 2, sw, sh),
-    Skia.XYWHRect(0, 0, w, h),
-    Skia.Paint(),
-  );
 };
 
 /* The newest person mask as an alpha image on the worklet runtime's global. */
@@ -161,39 +137,48 @@ const drawWithBackground = (
   canvas: SkCanvas,
   frame: FrameLike,
   frameTexture: SkImage,
-  framePaint: ReturnType<typeof Skia.Paint>,
+  framePaint: ReturnType<typeof Skia.Paint> | undefined,
   background: SkImage,
   mask: SkImage,
 ) => {
   "worklet";
+  canvas.drawImage(frameTexture, 0, 0, framePaint);
   const landscape =
     frame.orientation === "left" || frame.orientation === "right";
   const outW = landscape ? frame.height : frame.width;
   const outH = landscape ? frame.width : frame.height;
-  canvas.restore(); // the plugin's orientation transform
-  drawCover(canvas, background, outW, outH);
-  canvas.saveLayer();
-  canvas.save();
-  applyFrameTransform(canvas, frame);
-  canvas.drawImage(frameTexture, 0, 0, framePaint);
-  canvas.restore();
-  const maskPaint = Skia.Paint();
-  maskPaint.setBlendMode(BlendMode.DstIn);
-  canvas.save();
-  if (frame.isMirrored) {
-    canvas.translate(outW, 0);
-    canvas.scale(-1, 1);
-  }
-  canvas.drawImageRectOptions(
-    mask,
-    Skia.XYWHRect(0, 0, mask.width(), mask.height()),
-    Skia.XYWHRect(0, 0, outW, outH),
+  // Background: cover-fit, centred.
+  const cover = Math.max(outW / background.width(), outH / background.height());
+  const backgroundShader = background.makeShaderOptions(
+    TileMode.Clamp,
+    TileMode.Clamp,
     FilterMode.Linear,
     MipmapMode.None,
-    maskPaint,
+    Skia.Matrix()
+      .translate(
+        (outW - background.width() * cover) / 2,
+        (outH - background.height() * cover) / 2,
+      )
+      .scale(cover, cover),
   );
-  canvas.restore();
-  canvas.restore(); // layer
+  // Mask: stretched over the output, mirrored like the frame.
+  const maskMatrix = Skia.Matrix();
+  if (frame.isMirrored) maskMatrix.translate(outW, 0).scale(-1, 1);
+  maskMatrix.scale(outW / mask.width(), outH / mask.height());
+  const maskShader = mask.makeShaderOptions(
+    TileMode.Clamp,
+    TileMode.Clamp,
+    FilterMode.Linear,
+    MipmapMode.None,
+    maskMatrix,
+  );
+  const paint = Skia.Paint();
+  // background × (1 − person)
+  paint.setShader(
+    Skia.Shader.MakeBlend(BlendMode.DstOut, backgroundShader, maskShader),
+  );
+  canvas.restore(); // the plugin's orientation transform
+  canvas.drawRect(Skia.XYWHRect(0, 0, outW, outH), paint);
   canvas.save(); // balances the plugin's restore()
 };
 
@@ -302,6 +287,13 @@ export function CameraLayer({
     backgroundValue.value = background !== undefined ? backgroundImage : null;
   }, [background, backgroundImage, backgroundValue]);
   // HUD on: run ML Kit next to MediaPipe so both can be compared on screen.
+  // A 3D filter shares the GPU with Filament and MediaPipe: camera frames take longer to
+  // draw without the preview being any less smooth, so they get a whole camera frame and
+  // never trigger the plain-preview fallback.
+  const gpuShared = useSharedValue(false);
+  useEffect(() => {
+    gpuShared.value = wantMesh;
+  }, [gpuShared, wantMesh]);
   const bothDetectors = useSharedValue(false);
   useEffect(() => {
     bothDetectors.value = hudOn && !!liveTracker;
@@ -417,8 +409,11 @@ export function CameraLayer({
       render(({ canvas, frameTexture }) => {
         const m = matrixValue.value;
         if (bg && mask) {
-          const paint = Skia.Paint();
-          if (m) paint.setColorFilter(Skia.ColorFilter.MakeMatrix(m));
+          let paint: ReturnType<typeof Skia.Paint> | undefined;
+          if (m) {
+            paint = Skia.Paint();
+            paint.setColorFilter(Skia.ColorFilter.MakeMatrix(m));
+          }
           try {
             drawWithBackground(canvas, frame, frameTexture, paint, bg, mask);
             return;
@@ -427,6 +422,7 @@ export function CameraLayer({
             console.warn(
               `[camera] background compositing failed: ${String(err)}`,
             );
+            return; // the frame may be drawn already; better one plain frame than two
           }
         }
         if (m) {
@@ -479,18 +475,32 @@ export function CameraLayer({
       }
       frame.dispose();
 
-      if (renderMs <= SLOW_FRAME_MS) {
+      // Background compositing and 3D filters get a whole camera frame (30 fps); if even
+      // that is too slow, only the background goes, not every live filter.
+      const budget =
+        mask || gpuShared.value ? BACKGROUND_FRAME_MS : SLOW_FRAME_MS;
+      if (renderMs <= budget) {
         slowSince.value = 0;
       } else if (slowSince.value === 0) {
         slowSince.value = start;
       } else if (start - slowSince.value > SLOW_FOR_MS) {
         slowSince.value = 0;
-        scheduleOnRN(reportSlow);
+        if (mask) {
+          g.__flickoBgFailed = true;
+          console.warn(
+            `[camera] background too slow (${renderMs} ms a frame); turned off`,
+          );
+        } else if (gpuShared.value) {
+          console.warn(`[camera] slow frames with a 3D filter (${renderMs} ms)`);
+        } else {
+          scheduleOnRN(reportSlow);
+        }
       }
     },
     [
       matrixValue,
       backgroundValue,
+      gpuShared,
       slowSince,
       bufferCheck,
       reportSlow,
