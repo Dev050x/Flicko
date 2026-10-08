@@ -96,18 +96,21 @@ export interface Composed {
 }
 
 /*
- * `crop` and `layout` are in the photo's pixel coordinates.
+ * `crop` and `layout` are in the photo's pixel coordinates. `screenLayer` (3D filters)
+ * is a snapshot of what was drawn over the preview; it covers exactly the crop.
  */
 export const composePhoto = async ({
   photoUri,
   filter,
   crop,
   layout,
+  screenLayer,
 }: {
   photoUri: string;
   filter: Filter;
   crop: Rect;
   layout: Layout;
+  screenLayer?: SkImage | null;
 }): Promise<Composed> => {
   const placements = layout.images;
   const photo = Skia.Image.MakeImageFromEncoded(
@@ -132,6 +135,14 @@ export const composePhoto = async ({
   if (layout.brackets) drawBrackets(canvas, layout.brackets);
   placements.forEach((p, i) => drawPlacement(canvas, overlays[i], p));
   canvas.restore();
+  if (screenLayer) {
+    canvas.drawImageRect(
+      screenLayer,
+      Skia.XYWHRect(0, 0, screenLayer.width(), screenLayer.height()),
+      Skia.XYWHRect(0, 0, width, height),
+      Skia.Paint(),
+    );
+  }
   surface.flush();
 
   const snapshot = surface.makeImageSnapshot();

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { makeImageFromView, type SkImage } from "@shopify/react-native-skia";
+import { createRef, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -145,6 +146,22 @@ const KEEP_ALIVE: unknown[] = [];
 
 const deg2rad = (d: number) => (d * Math.PI) / 180;
 
+/*
+ * The shown 3D parts and stickers as one transparent image the size of the overlay (the
+ * camera preview), for baking into the captured photo; null if no 3D filter is shown.
+ */
+const captureRef = createRef<View>();
+
+export const snapshotModelLayer = async (): Promise<SkImage | null> => {
+  if (!captureRef.current) return null;
+  try {
+    return await makeImageFromView(captureRef);
+  } catch (err) {
+    console.warn("[model] snapshot failed", err);
+    return null;
+  }
+};
+
 export function ModelOverlay({ filter }: { filter: Filter }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [debug, setDebug] = useState<Debug | null>(null);
@@ -162,17 +179,18 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
       style={StyleSheet.absoluteFill}
       onLayout={onLayout}
     >
-      {size && filter.stickers && (
-        <Stickers stickers={filter.stickers} width={size.w} height={size.h} />
-      )}
-      {size && parts.length > 0 && (
-        // The native 3D view would otherwise take every touch (in dev it sits above the
-        // camera controls for the debug panel), blocking the filter strip.
-        <View
-          pointerEvents="none"
-          collapsable={false}
-          style={StyleSheet.absoluteFill}
-        >
+      {/* Everything that goes into the photo, in one view the shutter can snapshot. The
+          native 3D view would otherwise take every touch, blocking the filter strip. */}
+      <View
+        ref={captureRef}
+        pointerEvents="none"
+        collapsable={false}
+        style={StyleSheet.absoluteFill}
+      >
+        {size && filter.stickers && (
+          <Stickers stickers={filter.stickers} width={size.w} height={size.h} />
+        )}
+        {size && parts.length > 0 && (
           <FilamentScene>
             <Scene
               parts={parts}
@@ -181,8 +199,8 @@ export function ModelOverlay({ filter }: { filter: Filter }) {
               onDebug={__DEV__ ? setDebug : undefined}
             />
           </FilamentScene>
-        </View>
-      )}
+        )}
+      </View>
       {__DEV__ && size && parts.length > 0 && (
         <DebugLayer
           debug={debug}

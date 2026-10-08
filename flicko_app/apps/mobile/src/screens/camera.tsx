@@ -28,6 +28,7 @@ import {
   type FilterCarouselRef,
 } from "@/components/camera/filter-carousel";
 import { LiveOverlay } from "@/components/camera/live-overlay";
+import { snapshotModelLayer } from "@/components/camera/model-overlay";
 import { ToolRail } from "@/components/camera/tool-rail";
 import { TopBar } from "@/components/camera/top-bar";
 import { Button } from "@/components/ui/button";
@@ -178,9 +179,10 @@ export default function CameraScreen() {
   // Face filters follow the eyes live when the camera can track them; otherwise they
   // explain for 3s that they're placed on the photo.
   const hintOpacity = useSharedValue(0);
+  // 3D parts follow the head; a sticker-only "model" filter needs no tracking.
+  const has3d = filter.type === "model" && (filter.parts?.length ?? 0) > 0;
   const trackingFaces =
-    (filter.type === "face" || filter.type === "model") &&
-    !!cameraModule?.tracksFaces;
+    (filter.type === "face" || has3d) && !!cameraModule?.tracksFaces;
   const { push: onFaces } = useFaceTracking(view, trackingFaces);
   // Filters with a background need MediaPipe's person mask, whatever the dev flag says.
   // Not forced for every 3D filter: MediaPipe on the GPU next to Filament made the camera
@@ -250,6 +252,9 @@ export default function CameraScreen() {
         await wait(250);
       }
 
+      // 3D filters: what is drawn over the preview right now goes into the photo.
+      const screenLayer =
+        filter.type === "model" ? await snapshotModelLayer() : null;
       const shot = await camera.current.capture(front ? "off" : flash);
       useLastShot.getState().set(shot.uri);
       if (player) {
@@ -290,6 +295,7 @@ export default function CameraScreen() {
           faces,
           centerX: toPhoto({ ...view, x: view.width / 2, width: 0 }).x,
         }),
+        screenLayer,
       });
       useCreateStore
         .getState()
@@ -336,7 +342,7 @@ export default function CameraScreen() {
           trackFaces={trackingFaces}
           onFaces={onFaces}
           background={filter.background}
-          wantMesh={filter.type === "model"}
+          wantMesh={has3d}
         />
       ) : (
         <CameraCard
