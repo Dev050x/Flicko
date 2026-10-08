@@ -34,6 +34,9 @@ interface MemeCard {
   graduatedAt: string | null;
   /** whether the signed-in viewer follows the creator (absent for guests) */
   creatorFollowed?: boolean;
+  likeCount?: number;
+  /** whether the signed-in viewer liked it (absent for guests) */
+  likedByMe?: boolean;
 }
 
 interface FeedPage {
@@ -78,9 +81,9 @@ export const toMeme = (card: MemeCard): Meme => {
       trading && card.graduatedAt
         ? Math.max(1, Math.round((Date.parse(card.graduatedAt) - createdAt) / 60_000))
         : undefined,
-    likeCount: 0,
+    likeCount: card.likeCount ?? 0,
     commentCount: 0,
-    likedByMe: false,
+    likedByMe: card.likedByMe ?? false,
   };
 };
 

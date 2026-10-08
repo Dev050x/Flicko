@@ -10,8 +10,8 @@ import type { FeedTab, Meme } from "./types";
 /*
  * Feed state: memes by id (pages subscribe to their own meme, so a like re-renders one
  * page), the tab, and the ids shown. Server pages are merged in with `ingest`; likes
- * are optimistic and kept here (the server has no likes yet) and follows are sent to the
- * server right away, so a refetch doesn't undo them.
+ * and follows are optimistic, sent to the server right away and kept here too, so a
+ * refetch doesn't undo them.
  */
 interface Local {
   liked: Record<string, boolean>;
@@ -92,20 +92,30 @@ export const useFeedStore = create<FeedState>((set) => ({
         },
       };
     }),
-  toggleLike: (id) =>
-    set((s) => {
-      const m = s.memes[id];
-      if (!m) return s;
-      // TODO: POST the like once the server has likes; roll back on failure.
-      const liked = !m.likedByMe;
-      return {
-        liked: { ...s.liked, [id]: liked },
-        memes: {
-          ...s.memes,
-          [id]: { ...m, likedByMe: liked, likeCount: Math.max(0, m.likeCount + (liked ? 1 : -1)) },
-        },
-      };
-    }),
+  toggleLike: (id) => {
+    const token = useSession.getState().session?.token;
+    const current = useFeedStore.getState().memes[id];
+    if (!token || !current) return;
+    const apply = (liked: boolean) =>
+      set((s) => {
+        const m = s.memes[id];
+        if (!m || m.likedByMe === liked) return s;
+        return {
+          liked: { ...s.liked, [id]: liked },
+          memes: {
+            ...s.memes,
+            [id]: { ...m, likedByMe: liked, likeCount: Math.max(0, m.likeCount + (liked ? 1 : -1)) },
+          },
+        };
+      });
+    const next = !current.likedByMe;
+    apply(next);
+    // Optimistic; put the heart back if the server says no.
+    api(`/memes/${id}/like`, { method: next ? "PUT" : "DELETE", token }).catch((err) => {
+      console.warn("[feed] like failed", err);
+      apply(!next);
+    });
+  },
   toggleFollow: (wallet) => {
     const token = useSession.getState().session?.token;
     if (!token) return;
