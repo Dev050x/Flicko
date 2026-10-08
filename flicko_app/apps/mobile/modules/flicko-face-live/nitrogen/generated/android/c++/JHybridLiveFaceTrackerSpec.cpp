@@ -13,6 +13,8 @@ namespace margelo::nitro::flicko::facelive { struct LiveFaceSnapshot; }
 namespace margelo::nitro::flicko::facelive { struct LiveFace; }
 // Forward declaration of `LiveStats` to properly resolve imports.
 namespace margelo::nitro::flicko::facelive { struct LiveStats; }
+// Forward declaration of `LiveMask` to properly resolve imports.
+namespace margelo::nitro::flicko::facelive { struct LiveMask; }
 // Forward declaration of `HybridFrameSpec` to properly resolve imports.
 namespace margelo::nitro::camera { class HybridFrameSpec; }
 
@@ -24,6 +26,10 @@ namespace margelo::nitro::camera { class HybridFrameSpec; }
 #include "LiveStats.hpp"
 #include "JLiveStats.hpp"
 #include <string>
+#include "LiveMask.hpp"
+#include "JLiveMask.hpp"
+#include <NitroModules/ArrayBuffer.hpp>
+#include <NitroModules/JArrayBuffer.hpp>
 #include <memory>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include <VisionCamera/JHybridFrameSpec.hpp>
@@ -79,6 +85,15 @@ namespace margelo::nitro::flicko::facelive {
   void JHybridLiveFaceTrackerSpec::setWantLandmarks(bool want) {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jboolean /* want */)>("setWantLandmarks");
     method(_javaPart, want);
+  }
+  void JHybridLiveFaceTrackerSpec::setWantSegmentation(bool want) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jboolean /* want */)>("setWantSegmentation");
+    method(_javaPart, want);
+  }
+  LiveMask JHybridLiveFaceTrackerSpec::latestMask() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JLiveMask>()>("latestMask");
+    auto __result = method(_javaPart);
+    return __result->toCpp();
   }
 
 } // namespace margelo::nitro::flicko::facelive

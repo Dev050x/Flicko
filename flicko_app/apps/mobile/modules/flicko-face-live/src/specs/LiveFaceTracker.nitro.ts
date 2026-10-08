@@ -41,6 +41,18 @@ export interface LiveFaceSnapshot {
   faces: LiveFace[];
 }
 
+/*
+ * The latest person mask from the selfie segmenter: one byte per pixel (255 = person),
+ * upright and unmirrored like the tracker's frames, `width` x `height`. `seq` changes with
+ * every new mask; 0 = none yet.
+ */
+export interface LiveMask {
+  seq: number;
+  width: number;
+  height: number;
+  data: ArrayBuffer;
+}
+
 export interface LiveStats {
   /** frames handed to process() */
   offered: number;
@@ -67,6 +79,9 @@ export interface LiveFaceTracker extends HybridObject<{ android: "kotlin" }> {
   stats(): LiveStats;
   /** include the 478 points in results (debug overlay only) */
   setWantLandmarks(want: boolean): void;
+  /** run the selfie segmenter too (filters that replace the background) */
+  setWantSegmentation(want: boolean): void;
+  latestMask(): LiveMask;
 }
 
 export interface LiveFaceTrackerFactory extends HybridObject<{

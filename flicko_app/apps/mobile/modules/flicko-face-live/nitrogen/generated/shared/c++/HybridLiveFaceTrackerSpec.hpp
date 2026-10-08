@@ -19,11 +19,14 @@ namespace margelo::nitro::camera { class HybridFrameSpec; }
 namespace margelo::nitro::flicko::facelive { struct LiveFaceSnapshot; }
 // Forward declaration of `LiveStats` to properly resolve imports.
 namespace margelo::nitro::flicko::facelive { struct LiveStats; }
+// Forward declaration of `LiveMask` to properly resolve imports.
+namespace margelo::nitro::flicko::facelive { struct LiveMask; }
 
 #include <memory>
 #include <VisionCamera/HybridFrameSpec.hpp>
 #include "LiveFaceSnapshot.hpp"
 #include "LiveStats.hpp"
+#include "LiveMask.hpp"
 
 namespace margelo::nitro::flicko::facelive {
 
@@ -60,6 +63,8 @@ namespace margelo::nitro::flicko::facelive {
       virtual LiveFaceSnapshot latest() = 0;
       virtual LiveStats stats() = 0;
       virtual void setWantLandmarks(bool want) = 0;
+      virtual void setWantSegmentation(bool want) = 0;
+      virtual LiveMask latestMask() = 0;
 
     protected:
       // Hybrid Setup

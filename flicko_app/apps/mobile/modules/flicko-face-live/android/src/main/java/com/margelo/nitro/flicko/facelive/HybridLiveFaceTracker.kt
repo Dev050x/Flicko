@@ -7,14 +7,18 @@ import android.util.Log
 import androidx.annotation.Keep
 import com.facebook.proguard.annotations.DoNotStrip
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.ByteBufferExtractor
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
+import com.google.mediapipe.tasks.vision.imagesegmenter.ImageSegmenter
+import com.google.mediapipe.tasks.vision.imagesegmenter.ImageSegmenterResult
 import com.margelo.nitro.NitroModules
 import com.margelo.nitro.camera.HybridFrameSpec
 import com.margelo.nitro.camera.public.NativeFrame
+import com.margelo.nitro.core.ArrayBuffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.atomic.AtomicBoolean
@@ -34,6 +38,8 @@ import kotlin.math.max
  * - Only the latest result is kept; JS reads it when `process` reports a new sequence.
  * - GPU delegate first, CPU if the GPU can't be created; if neither starts, `ready`
  *   stays false and the app keeps ML Kit.
+ * - On request, the selfie segmenter runs on the same upright frames (its own frame in
+ *   flight) and keeps the latest person mask for filters that replace the background.
  */
 @DoNotStrip
 @Keep
@@ -59,6 +65,14 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
   private var lastTimestamp = 0L
   private var delegateName = "none"
   private var landmarker: FaceLandmarker? = null
+
+  @Volatile private var wantSegmentation = false
+  @Volatile private var mask = emptyMask()
+  @Volatile private var segmenter: ImageSegmenter? = null
+  @Volatile private var segmenterTried = false
+  private val segInFlight = AtomicBoolean(false)
+  @Volatile private var segSubmittedAt = 0L
+  private val maskSeq = AtomicLong()
 
   init {
     createLandmarker()
@@ -152,7 +166,21 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
       submittedAt = SystemClock.elapsedRealtime()
       submittedPrepMs = submittedAt - now
       processed.incrementAndGet()
-      detector.detectAsync(BitmapImageBuilder(bitmap).build(), timestamp)
+      val image = BitmapImageBuilder(bitmap).build()
+      detector.detectAsync(image, timestamp)
+      val seg = segmenter
+      if (wantSegmentation && seg != null) {
+        if (segInFlight.get() && now - segSubmittedAt > STALL_MS) segInFlight.set(false)
+        if (segInFlight.compareAndSet(false, true)) {
+          segSubmittedAt = now
+          try {
+            seg.segmentAsync(BitmapImageBuilder(bitmap).build(), timestamp)
+          } catch (e: Exception) {
+            segInFlight.set(false)
+            Log.w(TAG, "segmentation failed", e)
+          }
+        }
+      }
     } catch (e: Exception) {
       inFlight.set(false)
       onError(RuntimeException(e))
@@ -256,6 +284,84 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
     return doubleArrayOf(yaw, if (abs(pitch) > 180) 0.0 else pitch)
   }
 
+  private fun createSegmenter() {
+    val context = NitroModules.applicationContext?.applicationContext ?: return
+    val model = try {
+      context.assets.open(SEGMENTER_ASSET).use { input ->
+        val bytes = input.readBytes()
+        ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).apply {
+          put(bytes)
+          rewind()
+        }
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "can't read $SEGMENTER_ASSET", e)
+      return
+    }
+    // CPU only: on the GPU delegate the confidence masks come back as GPU buffers that
+    // MediaPipe's own packet getter can't read ("image_frame.cc Invalid format: UNKNOWN"
+    // abort). The model is small (256x256), XNNPack runs it in a few ms.
+    for (delegate in listOf(Delegate.CPU)) {
+      try {
+        val base = BaseOptions.builder()
+          .setModelAssetBuffer(model.duplicate())
+          .setDelegate(delegate)
+          .build()
+        val options = ImageSegmenter.ImageSegmenterOptions.builder()
+          .setBaseOptions(base)
+          .setRunningMode(RunningMode.LIVE_STREAM)
+          .setOutputConfidenceMasks(true)
+          .setOutputCategoryMask(false)
+          .setResultListener { result, _ -> onMask(result) }
+          .setErrorListener { e ->
+            Log.w(TAG, "segmenter error", e)
+            segInFlight.set(false)
+          }
+          .build()
+        segmenter = ImageSegmenter.createFromOptions(context, options)
+        Log.i(TAG, "selfie segmenter ready on $delegate")
+        return
+      } catch (e: Exception) {
+        Log.w(TAG, "selfie segmenter failed on $delegate", e)
+      }
+    }
+  }
+
+  /* The person confidence (0..1 floats, input-sized) as one byte per pixel. */
+  private fun onMask(result: ImageSegmenterResult) {
+    try {
+      val image = result.confidenceMasks().orElse(null)?.firstOrNull() ?: return
+      val floats = ByteBufferExtractor.extract(image).order(ByteOrder.nativeOrder()).asFloatBuffer()
+      val size = image.width * image.height
+      val bytes = ByteArray(size)
+      for (i in 0 until size) bytes[i] = (floats.get(i).coerceIn(0f, 1f) * 255f).toInt().toByte()
+      if (maskSeq.get() == 0L) Log.i(TAG, "first mask ${image.width}x${image.height}")
+      mask = LiveMask(
+        seq = maskSeq.incrementAndGet().toDouble(),
+        width = image.width.toDouble(),
+        height = image.height.toDouble(),
+        data = ArrayBuffer.copy(bytes),
+      )
+    } catch (e: Exception) {
+      Log.w(TAG, "mask failed", e)
+    } finally {
+      segInFlight.set(false)
+    }
+  }
+
+  override fun setWantSegmentation(want: Boolean) {
+    Log.i(TAG, "segmentation wanted: $want")
+    wantSegmentation = want
+    // Loading the model and starting the graph takes a while: never on the caller's
+    // (JS) thread.
+    if (want && !segmenterTried) {
+      segmenterTried = true
+      Thread({ createSegmenter() }, "FlickoSegmenterInit").start()
+    }
+  }
+
+  override fun latestMask(): LiveMask = mask
+
   override fun latest(): LiveFaceSnapshot = snapshot
 
   override fun stats() = LiveStats(
@@ -275,9 +381,17 @@ class HybridLiveFaceTracker(maxFps: Double) : HybridLiveFaceTrackerSpec() {
   companion object {
     private const val TAG = "FlickoFaceLive"
     private const val MODEL_ASSET = "face_landmarker.task"
+    private const val SEGMENTER_ASSET = "selfie_segmenter.tflite"
     private const val MAX_EDGE = 480
     private const val MAX_ERRORS = 3
     private const val STALL_MS = 400L
+
+    private fun emptyMask() = LiveMask(
+      seq = 0.0,
+      width = 0.0,
+      height = 0.0,
+      data = ArrayBuffer.allocate(1),
+    )
 
     private fun emptySnapshot() = LiveFaceSnapshot(
       seq = 0.0,

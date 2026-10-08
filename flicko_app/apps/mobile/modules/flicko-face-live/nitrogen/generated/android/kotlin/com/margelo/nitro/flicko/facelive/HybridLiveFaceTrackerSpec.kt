@@ -45,6 +45,14 @@ abstract class HybridLiveFaceTrackerSpec: HybridObject() {
   @DoNotStrip
   @Keep
   abstract fun setWantLandmarks(want: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun setWantSegmentation(want: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun latestMask(): LiveMask
 
   // Default implementation of `HybridObject.toString()`
   override fun toString(): String {

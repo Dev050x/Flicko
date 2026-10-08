@@ -58,6 +58,8 @@ namespace margelo::nitro::flicko::facelive {
     LiveFaceSnapshot latest() override;
     LiveStats stats() override;
     void setWantLandmarks(bool want) override;
+    void setWantSegmentation(bool want) override;
+    LiveMask latestMask() override;
 
   private:
     jni::global_ref<JHybridLiveFaceTrackerSpec::JavaPart> _javaPart;

@@ -18,6 +18,8 @@ namespace margelo::nitro::flicko::facelive {
       prototype.registerHybridMethod("latest", &HybridLiveFaceTrackerSpec::latest);
       prototype.registerHybridMethod("stats", &HybridLiveFaceTrackerSpec::stats);
       prototype.registerHybridMethod("setWantLandmarks", &HybridLiveFaceTrackerSpec::setWantLandmarks);
+      prototype.registerHybridMethod("setWantSegmentation", &HybridLiveFaceTrackerSpec::setWantSegmentation);
+      prototype.registerHybridMethod("latestMask", &HybridLiveFaceTrackerSpec::latestMask);
     });
   }
 
