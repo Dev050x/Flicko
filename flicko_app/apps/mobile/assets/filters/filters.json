@@ -112,6 +112,58 @@
       ]
     },
     {
+      "id": "ai-agent",
+      "name": "AI Agent",
+      "category": "trending",
+      "type": "model",
+      "premium": false,
+      "notes": "3D futuristic goggles on the eyes (same fit as Neon Goggles); AI analysis panels with the Solana robot, a coin and a 'Bro is in buy mode again.' bubble.",
+      "thumb": "thumbs/ai-agent.png",
+      "parts": [
+        {
+          "model": "models/futuristic-goggles.glb",
+          "name": "goggles",
+          "width": 2.2,
+          "offset": [
+            0,
+            0.15,
+            0.5
+          ],
+          "pivot": [
+            0,
+            0,
+            1
+          ],
+          "rotate": [
+            10,
+            0,
+            0
+          ]
+        }
+      ],
+      "stickers": [
+        {
+          "image": "stickers/ai-agent/analysis.png",
+          "x": 0.52,
+          "y": 0.26,
+          "width": 0.84
+        },
+        {
+          "image": "stickers/ai-agent/coin.png",
+          "x": 0.87,
+          "y": 0.62,
+          "width": 0.18,
+          "bob": 1
+        },
+        {
+          "image": "stickers/ai-agent/buy-mode.png",
+          "x": 0.72,
+          "y": 0.71,
+          "width": 0.52
+        }
+      ]
+    },
+    {
       "id": "laser-eyes",
       "name": "Laser Eyes",
       "category": "trending",

@@ -77,6 +77,9 @@ const BACKGROUNDS: Record<string, number> = {
 const STICKERS: Record<string, ImageSourcePropType> = {
   "stickers/degen/portfolio.png": require("../../../assets/filters/stickers/degen/portfolio.png"),
   "stickers/rug-pull/frame.png": require("../../../assets/filters/stickers/rug-pull/frame.png"),
+  "stickers/ai-agent/analysis.png": require("../../../assets/filters/stickers/ai-agent/analysis.png"),
+  "stickers/ai-agent/buy-mode.png": require("../../../assets/filters/stickers/ai-agent/buy-mode.png"),
+  "stickers/ai-agent/coin.png": require("../../../assets/filters/stickers/ai-agent/coin.png"),
   "stickers/degen/coin-a.png": require("../../../assets/filters/stickers/degen/coin-a.png"),
   "stickers/degen/coin-b.png": require("../../../assets/filters/stickers/degen/coin-b.png"),
   "stickers/degen/shiba.png": require("../../../assets/filters/stickers/degen/shiba.png"),
@@ -87,6 +90,7 @@ const THUMBS: Record<string, ImageSourcePropType> = {
   "thumbs/degen-mode.png": require("../../../assets/filters/thumbs/degen-mode.png"),
   "thumbs/neon-goggles.png": require("../../../assets/filters/thumbs/neon-goggles.png"),
   "thumbs/rug-pull.png": require("../../../assets/filters/thumbs/rug-pull.png"),
+  "thumbs/ai-agent.png": require("../../../assets/filters/thumbs/ai-agent.png"),
   "thumbs/degen.png": require("../../../assets/filters/thumbs/degen.png"),
   "thumbs/gm.png": require("../../../assets/filters/thumbs/gm.png"),
   "thumbs/laser-eyes.png": require("../../../assets/filters/thumbs/laser-eyes.png"),
@@ -98,6 +102,7 @@ const THUMBS: Record<string, ImageSourcePropType> = {
 
 const MODELS: Record<string, number> = {
   "models/neon-goggles.glb": require("../../../assets/filters/models/neon-goggles.glb"),
+  "models/futuristic-goggles.glb": require("../../../assets/filters/models/futuristic-goggles.glb"),
   "models/crown.glb": require("../../../assets/filters/models/crown.glb"),
   "models/cigar.glb": require("../../../assets/filters/models/cigar.glb"),
 };
