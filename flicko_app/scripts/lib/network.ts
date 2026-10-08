@@ -24,6 +24,8 @@ export interface NetworkConfig {
   skrMint?: string;
   skrDecimals?: number;
   attestor?: string;
+  /** devnet wallet the server sends welcome SKR from */
+  faucet?: string;
   lookupTable?: string;
 }
 
@@ -43,29 +45,39 @@ export const attestorKeypairPath =
 
 export const connection = new Connection(RPC_URL, "confirmed");
 
-export const loadAttestor = ({ create = false } = {}) => {
-  if (!existsSync(attestorKeypairPath)) {
+const loadKeypair = (
+  path: string,
+  name: string,
+  setup: string,
+  { create = false } = {},
+) => {
+  if (!existsSync(path)) {
     if (!create) {
-      console.error(
-        `no attestor keypair at ${attestorKeypairPath}, run devnet:attestor first`,
-      );
+      console.error(`no ${name} keypair at ${path}, run ${setup} first`);
       process.exit(1);
     }
-    mkdirSync(dirname(attestorKeypairPath), { recursive: true });
-    writeFileSync(
-      attestorKeypairPath,
-      JSON.stringify([...Keypair.generate().secretKey]),
-      { mode: 0o600 },
-    );
-    chmodSync(attestorKeypairPath, 0o600);
-    console.log(`created attestor keypair at ${attestorKeypairPath}`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify([...Keypair.generate().secretKey]), {
+      mode: 0o600,
+    });
+    chmodSync(path, 0o600);
+    console.log(`created ${name} keypair at ${path}`);
   }
   return Keypair.fromSecretKey(
-    Uint8Array.from(
-      JSON.parse(readFileSync(attestorKeypairPath, "utf8")) as number[],
-    ),
+    Uint8Array.from(JSON.parse(readFileSync(path, "utf8")) as number[]),
   );
 };
+
+export const loadAttestor = (opts: { create?: boolean } = {}) =>
+  loadKeypair(attestorKeypairPath, "attestor", "devnet:attestor", opts);
+
+/* The wallet the server sends new users' welcome SKR from. */
+export const faucetKeypairPath =
+  process.env.FAUCET_KEYPAIR ??
+  join(homedir(), ".config/solana/flicko-faucet.json");
+
+export const loadFaucet = (opts: { create?: boolean } = {}) =>
+  loadKeypair(faucetKeypairPath, "faucet", "devnet:faucet-wallet", opts);
 
 export const payer = Keypair.fromSecretKey(
   Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]),
