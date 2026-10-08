@@ -110,7 +110,6 @@ const HINT_HEIGHT = 28;
 
 const FACE_HINT: Record<string, string> = {
   "laser-eyes": "Lasers lock onto your eyes after you snap",
-  "deal-with-it": "Glasses lock onto your eyes after you snap",
 };
 const FIND_FACE_HINT = "Point the camera at a face";
 
@@ -183,11 +182,15 @@ export default function CameraScreen() {
     (filter.type === "face" || filter.type === "model") &&
     !!cameraModule?.tracksFaces;
   const { push: onFaces } = useFaceTracking(view, trackingFaces);
-  // 3D filters need MediaPipe's face mesh and person mask, whatever the dev flag says.
+  // Filters with a background need MediaPipe's person mask, whatever the dev flag says.
+  // Not forced for every 3D filter: MediaPipe on the GPU next to Filament made the camera
+  // stall on device (mouth anchors fall back to an estimate from the eyes).
   useEffect(() => {
-    useFaceFlags.setState({ mediapipeRequired: filter.type === "model" });
+    useFaceFlags.setState({
+      mediapipeRequired: filter.background !== undefined,
+    });
     return () => useFaceFlags.setState({ mediapipeRequired: false });
-  }, [filter.type]);
+  }, [filter.background]);
   const noFace = useLiveEyes((s) => s.eyes.length === 0);
   const faceHint =
     filter.type !== "face" || !cameraModule?.detectsFaces
