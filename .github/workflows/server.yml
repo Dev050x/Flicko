@@ -65,5 +65,7 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
           chmod 600 ~/.ssh/deploy
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # Fetch first so the server always runs this commit's deploy.sh.
           ssh -i ~/.ssh/deploy "$USER@$HOST" \
-            "bash ~/Flicko/flicko_app/apps/server/deploy/deploy.sh $GITHUB_SHA"
+            "cd ~/Flicko && git fetch --quiet origin main && git merge --ff-only $GITHUB_SHA \
+              && bash flicko_app/apps/server/deploy/deploy.sh $GITHUB_SHA"
