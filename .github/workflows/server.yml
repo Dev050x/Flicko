@@ -1,0 +1,69 @@
+name: server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flicko_app/apps/server/**"
+      - "flicko_app/packages/sdk/**"
+      - "flicko_app/packages/typescript-config/**"
+      - "flicko_app/config/**"
+      - "flicko_app/package.json"
+      - "flicko_app/bun.lock"
+      - ".github/workflows/server.yml"
+  pull_request:
+    paths:
+      - "flicko_app/apps/server/**"
+      - "flicko_app/packages/sdk/**"
+      - "flicko_app/packages/typescript-config/**"
+      - "flicko_app/config/**"
+      - "flicko_app/package.json"
+      - "flicko_app/bun.lock"
+      - ".github/workflows/server.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flicko_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Install
+        run: bun install --filter @flicko/server --filter @flicko/sdk --frozen-lockfile
+      - name: Type-check
+        run: bunx tsc --noEmit -p packages/sdk && bunx tsc --noEmit -p apps/server
+      - name: Test SDK
+        working-directory: flicko_app/packages/sdk
+        run: bun test
+      - name: Test server
+        working-directory: flicko_app/apps/server
+        run: bun test
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api.getflicko.tech/health
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy "$USER@$HOST" \
+            "bash ~/Flicko/flicko_app/apps/server/deploy/deploy.sh $GITHUB_SHA"
