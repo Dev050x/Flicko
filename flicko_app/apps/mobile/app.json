@@ -95,6 +95,12 @@
       "reactCompiler": true
     },
     "backgroundColor": "#0E0B14",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/105750e2-e91c-4d97-8c34-ccf9c444a617"
+    },
     "extra": {
       "router": {},
       "eas": {

@@ -46,6 +46,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
     "expo-system-ui": "~57.0.4",
+    "expo-updates": "~57.0.25",
     "expo-web-browser": "~57.0.3",
     "flicko-face-live": "workspace:*",
     "nativewind": "^4.2.7",
@@ -85,6 +86,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "build:preview": "bunx eas-cli build -p android --profile preview",
+    "update:preview": "EXPO_PUBLIC_API_URL=https://api.getflicko.tech EXPO_PUBLIC_CLUSTER=devnet EXPO_PUBLIC_RPC_URL=https://api.devnet.solana.com bunx eas-cli update --channel preview --platform android",
     "check-types": "tsc --noEmit"
   },
   "private": true
