@@ -17,11 +17,13 @@ import { useCreateStore } from "../store";
 import { panel } from "./controls";
 
 /*
- * Filters: the camera's catalog on the still photo. Face filters look for faces in the
- * photo the first time one is picked. Premium filters can be tried; they are paid for
- * (burned) with the launch.
+ * Filters: the camera's catalog on the still photo, without the 3D filters (they need the
+ * live face tracking). Face filters look for faces in the photo the first time one is
+ * picked. Premium filters can be tried; they are paid for (burned) with the launch.
  */
 export const NO_FACE = "Couldn't find a face, placed it for you";
+
+const PHOTO_FILTERS = FILTERS.filter((f) => f.type !== "model");
 
 export function FilterTool({ onNotice }: { onNotice: (text: string) => void }) {
   const filterId = useCreateStore((s) => s.edits.filterId);
@@ -56,7 +58,7 @@ export function FilterTool({ onNotice }: { onNotice: (text: string) => void }) {
   return (
     <View style={[panel.wrap, { paddingHorizontal: 0 }]}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.list}>
-        {FILTERS.map((f) => {
+        {PHOTO_FILTERS.map((f) => {
           const selected = f.id === filterId;
           return (
             <Pressable
@@ -74,6 +76,10 @@ export function FilterTool({ onNotice }: { onNotice: (text: string) => void }) {
                   </View>
                 ) : f.thumb ? (
                   <Image source={f.thumb} style={styles.thumb} contentFit="cover" />
+                ) : f.overlay ? (
+                  <View style={[styles.thumb, styles.art]}>
+                    <Image source={f.overlay} style={styles.artImage} contentFit="contain" />
+                  </View>
                 ) : (
                   <View
                     style={[
@@ -123,6 +129,13 @@ const styles = StyleSheet.create({
   },
   ringOn: { borderColor: cam.thumbRing },
   thumb: { width: THUMB, height: THUMB, borderRadius: THUMB / 2 },
+  art: {
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  artImage: { width: THUMB * 0.7, height: THUMB * 0.7 },
   none: {
     backgroundColor: colors.surface,
     alignItems: "center",

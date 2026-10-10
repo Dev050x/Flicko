@@ -62,17 +62,21 @@ export const updateLayer = <T extends TextLayer>(id: string, patch: Partial<T>) 
   }));
 
 export function TextTool({
-  selected,
+  selectedId,
   defaults,
   onDefaults,
   onAdd,
 }: {
-  selected: TextLayer | null;
+  selectedId: string | null;
   defaults: TextDefaults;
   onDefaults: (d: TextDefaults) => void;
   onAdd: () => void;
 }) {
   const commit = useCreateStore((s) => s.commit);
+  const selected = useCreateStore((s) => {
+    const layer = s.edits.layers.find((l) => l.id === selectedId);
+    return layer?.kind === "text" ? layer : null;
+  });
   const style = selected?.style ?? defaults.style;
   const color = selected?.color ?? defaults.color;
 

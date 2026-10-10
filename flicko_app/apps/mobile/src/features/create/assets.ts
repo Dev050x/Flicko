@@ -34,11 +34,6 @@ export const STICKERS: { id: string; name: string; source: ImageSourcePropType }
     name: "Bobo cheering",
     source: require("../../../assets/characters/bobo-cheer.png"),
   },
-  {
-    id: "bobo-gang",
-    name: "Bobo and friends",
-    source: require("../../../assets/characters/monkeys-sticker.png"),
-  },
 ];
 
 const FONT_FILES: Record<TextStyle | "caption", number> = {

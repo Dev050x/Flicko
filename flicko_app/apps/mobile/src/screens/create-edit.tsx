@@ -1,9 +1,9 @@
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SceneCanvas, useSceneAssets } from "@/components/create/scene-canvas";
+import { LiveSceneCanvas, useEditAssets } from "@/components/create/scene-canvas";
 import {
   AdjustIcon,
   CropIcon,
@@ -29,7 +29,7 @@ import {
 } from "@/features/create/edit/text-tool";
 import { sceneAspect } from "@/features/create/scene";
 import { type TextLayer, useCreateStore } from "@/features/create/store";
-import { fitIn, useScene } from "@/features/create/use-scene";
+import { fitIn } from "@/features/create/use-scene";
 import { colors, cam } from "@/theme";
 
 /*
@@ -59,12 +59,15 @@ export default function CreateEdit() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ tool?: string }>();
   const [tool, setTool] = useState<EditTool>(isTool(params.tool) ? params.tool : "adjust");
-  const scene = useScene();
-  const uncropped = useMemo(
-    () => (scene && tool === "crop" ? { ...scene, uncropped: true } : null),
-    [scene, tool],
+  const cropping = tool === "crop";
+  const hasPhoto = useCreateStore((s) => s.photo !== null);
+  // Only the shape of the photo re-renders the screen; the canvas follows edits itself.
+  const aspect = useCreateStore((s) =>
+    s.photo
+      ? sceneAspect({ photo: s.photo, edits: s.edits, faces: [], uncropped: cropping })
+      : 1,
   );
-  const assets = useSceneAssets(scene);
+  const assets = useEditAssets();
   const [area, setArea] = useState({ width: 0, height: 0 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -145,11 +148,10 @@ export default function CreateEdit() {
     commit();
   };
 
-  const layers = scene?.edits.layers ?? [];
-  const selected = layers.find((l) => l.id === selectedId) ?? null;
-  const editing = layers.find((l) => l.id === editingId) as TextLayer | undefined;
-  const shown = uncropped ?? scene;
-  const size = shown ? fitIn(sceneAspect(shown), area) : area;
+  const editing = useCreateStore((s) =>
+    editingId ? s.edits.layers.find((l) => l.id === editingId) : undefined,
+  ) as TextLayer | undefined;
+  const size = fitIn(aspect, area);
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -172,16 +174,15 @@ export default function CreateEdit() {
           setArea({ width: width - 48, height: height - 16 });
         }}
       >
-        {scene && size.width > 0 && (
+        {hasPhoto && size.width > 0 && (
           <View style={[styles.photo, { width: size.width, height: size.height }]}>
-            {uncropped ? (
+            {cropping ? (
               <>
-                <SceneCanvas scene={uncropped} assets={assets} width={size.width} height={size.height} />
+                <LiveSceneCanvas assets={assets} width={size.width} height={size.height} uncropped />
                 <CropOverlay width={size.width} height={size.height} />
               </>
             ) : (
               <EditCanvas
-                scene={scene}
                 assets={assets}
                 width={size.width}
                 height={size.height}
@@ -212,7 +213,7 @@ export default function CreateEdit() {
         {tool === "adjust" && <AdjustTool />}
         {tool === "text" && (
           <TextTool
-            selected={selected?.kind === "text" ? selected : null}
+            selectedId={selectedId}
             defaults={textDefaults}
             onDefaults={setTextDefaults}
             onAdd={() => addText()}

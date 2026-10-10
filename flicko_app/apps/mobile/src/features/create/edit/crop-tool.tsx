@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
@@ -108,12 +108,8 @@ type Target = "move" | "tl" | "tr" | "bl" | "br";
  * The crop box over the whole photo, drawn at `width` x `height`.
  */
 export function CropOverlay({ width, height }: { width: number; height: number }) {
-  const photo = useCreateStore((s) => s.photo)!;
   const crop = useCreateStore((s) => s.edits.crop);
-  const change = useCreateStore((s) => s.change);
-  const commit = useCreateStore((s) => s.commit);
   const [dragging, setDragging] = useState(false);
-  const start = useRef<{ target: Target; rect: Rect } | null>(null);
 
   const box = {
     x: crop.rect.x * width,
@@ -122,78 +118,87 @@ export function CropOverlay({ width, height }: { width: number; height: number }
     height: crop.rect.height * height,
   };
 
-  const targetAt = (x: number, y: number): Target | null => {
-    const near = (cx: number, cy: number) =>
-      Math.abs(x - cx) < HANDLE_HIT && Math.abs(y - cy) < HANDLE_HIT;
-    const r = box.x + box.width;
-    const b = box.y + box.height;
-    if (near(box.x, box.y)) return "tl";
-    if (near(r, box.y)) return "tr";
-    if (near(box.x, b)) return "bl";
-    if (near(r, b)) return "br";
-    if (x > box.x && x < r && y > box.y && y < b) return "move";
-    return null;
-  };
+  // Built once per size; reads the crop from the store when a drag starts.
+  const pan = useMemo(() => {
+    const { change, commit } = useCreateStore.getState();
+    let start: { target: Target; rect: Rect } | null = null;
 
-  const resize = (s: { target: Target; rect: Rect }, dx: number, dy: number): Rect => {
-    const { rect, target } = s;
-    if (target === "move") {
-      return {
-        ...rect,
-        x: clamp(rect.x + dx, 0, 1 - rect.width),
-        y: clamp(rect.y + dy, 0, 1 - rect.height),
-      };
-    }
-    const left = target === "tl" || target === "bl";
-    const top = target === "tl" || target === "tr";
-    // The opposite corner stays put.
-    const fx = left ? rect.x + rect.width : rect.x;
-    const fy = top ? rect.y + rect.height : rect.y;
-    const mx = clamp((left ? rect.x : rect.x + rect.width) + dx, 0, 1);
-    const my = clamp((top ? rect.y : rect.y + rect.height) + dy, 0, 1);
-    const roomX = left ? fx : 1 - fx;
-    const roomY = top ? fy : 1 - fy;
-    let w = clamp(left ? fx - mx : mx - fx, MIN_SIZE, roomX);
-    let h = clamp(top ? fy - my : my - fy, MIN_SIZE, roomY);
-    const ratio = normalisedRatio(photo, crop);
-    if (ratio !== null) {
-      h = w / ratio;
-      if (h > roomY) {
-        h = roomY;
-        w = h * ratio;
-      }
-      if (h < MIN_SIZE) {
-        h = MIN_SIZE;
-        w = h * ratio;
-      }
-    }
-    return {
-      x: left ? fx - w : fx,
-      y: top ? fy - h : fy,
-      width: w,
-      height: h,
+    const targetAt = (rect: Rect, x: number, y: number): Target | null => {
+      const near = (cx: number, cy: number) =>
+        Math.abs(x - cx) < HANDLE_HIT && Math.abs(y - cy) < HANDLE_HIT;
+      const left = rect.x * width;
+      const top = rect.y * height;
+      const right = left + rect.width * width;
+      const bottom = top + rect.height * height;
+      if (near(left, top)) return "tl";
+      if (near(right, top)) return "tr";
+      if (near(left, bottom)) return "bl";
+      if (near(right, bottom)) return "br";
+      if (x > left && x < right && y > top && y < bottom) return "move";
+      return null;
     };
-  };
 
-  const pan = Gesture.Pan()
-    .runOnJS(true)
-    .minDistance(0)
-    .onBegin((e) => {
-      const target = targetAt(e.x, e.y);
-      start.current = target ? { target, rect: crop.rect } : null;
-      if (target) setDragging(true);
-    })
-    .onUpdate((e) => {
-      const s = start.current;
-      if (!s) return;
-      const rect = resize(s, e.translationX / width, e.translationY / height);
-      change((ed) => ({ ...ed, crop: { ...ed.crop, rect } }));
-    })
-    .onFinalize(() => {
-      if (start.current) commit();
-      start.current = null;
-      setDragging(false);
-    });
+    const resize = (s: { target: Target; rect: Rect }, dx: number, dy: number): Rect => {
+      const { rect, target } = s;
+      if (target === "move") {
+        return {
+          ...rect,
+          x: clamp(rect.x + dx, 0, 1 - rect.width),
+          y: clamp(rect.y + dy, 0, 1 - rect.height),
+        };
+      }
+      const left = target === "tl" || target === "bl";
+      const top = target === "tl" || target === "tr";
+      // The opposite corner stays put.
+      const fx = left ? rect.x + rect.width : rect.x;
+      const fy = top ? rect.y + rect.height : rect.y;
+      const mx = clamp((left ? rect.x : rect.x + rect.width) + dx, 0, 1);
+      const my = clamp((top ? rect.y : rect.y + rect.height) + dy, 0, 1);
+      const roomX = left ? fx : 1 - fx;
+      const roomY = top ? fy : 1 - fy;
+      let w = clamp(left ? fx - mx : mx - fx, MIN_SIZE, roomX);
+      let h = clamp(top ? fy - my : my - fy, MIN_SIZE, roomY);
+      const { photo, edits } = useCreateStore.getState();
+      const ratio = photo ? normalisedRatio(photo, edits.crop) : null;
+      if (ratio !== null) {
+        h = w / ratio;
+        if (h > roomY) {
+          h = roomY;
+          w = h * ratio;
+        }
+        if (h < MIN_SIZE) {
+          h = MIN_SIZE;
+          w = h * ratio;
+        }
+      }
+      return {
+        x: left ? fx - w : fx,
+        y: top ? fy - h : fy,
+        width: w,
+        height: h,
+      };
+    };
+
+    return Gesture.Pan()
+      .runOnJS(true)
+      .minDistance(0)
+      .onBegin((e) => {
+        const rect = useCreateStore.getState().edits.crop.rect;
+        const target = targetAt(rect, e.x, e.y);
+        start = target ? { target, rect } : null;
+        if (target) setDragging(true);
+      })
+      .onUpdate((e) => {
+        if (!start) return;
+        const rect = resize(start, e.translationX / width, e.translationY / height);
+        change((ed) => ({ ...ed, crop: { ...ed.crop, rect } }));
+      })
+      .onFinalize(() => {
+        if (start) commit();
+        start = null;
+        setDragging(false);
+      });
+  }, [width, height]);
 
   const r = box.x + box.width;
   const b = box.y + box.height;

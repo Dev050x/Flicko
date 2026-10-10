@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { colors, ref } from "@/theme";
 
@@ -86,6 +88,10 @@ export function AdjustTool() {
 
 const THUMB = 20;
 
+/*
+ * The thumb and fill move on the UI thread; the store (and so the photo) only hears
+ * about whole-number changes.
+ */
 function Slider({
   label,
   value,
@@ -98,25 +104,57 @@ function Slider({
   onEnd: () => void;
 }) {
   const [width, setWidth] = useState(0);
-  const toValue = (x: number) =>
-    Math.round(Math.max(-100, Math.min(100, ((x / width) * 2 - 1) * 100)));
+  const position = useSharedValue(value);
+  const dragging = useSharedValue(false);
+  const handlers = useRef({ onChange, onEnd });
+  handlers.current = { onChange, onEnd };
 
-  const pan = Gesture.Pan()
-    .runOnJS(true)
-    .minDistance(1)
-    .onStart((e) => width && onChange(toValue(e.x)))
-    .onUpdate((e) => width && onChange(toValue(e.x)))
-    .onEnd(onEnd);
-  const reset = Gesture.Tap()
-    .runOnJS(true)
-    .numberOfTaps(2)
-    .onEnd(() => {
-      onChange(0);
-      onEnd();
-    });
+  // Undo, Reset and double-tap move the thumb from outside.
+  useEffect(() => {
+    if (!dragging.value) position.value = value;
+  }, [value, position, dragging]);
 
-  const centre = width / 2;
-  const thumb = centre + (value / 100) * (width / 2 - THUMB / 2);
+  const gesture = useMemo(() => {
+    const emit = (v: number) => handlers.current.onChange(v);
+    const end = () => handlers.current.onEnd();
+    const reset = () => {
+      handlers.current.onChange(0);
+      handlers.current.onEnd();
+    };
+    const pan = Gesture.Pan()
+      .minDistance(1)
+      .onStart(() => {
+        dragging.value = true;
+      })
+      .onUpdate((e) => {
+        if (width <= 0) return;
+        const next = Math.round(Math.max(-100, Math.min(100, ((e.x / width) * 2 - 1) * 100)));
+        if (next !== position.value) {
+          position.value = next;
+          scheduleOnRN(emit, next);
+        }
+      })
+      .onEnd(() => scheduleOnRN(end))
+      .onFinalize(() => {
+        dragging.value = false;
+      });
+    const doubleTap = Gesture.Tap()
+      .numberOfTaps(2)
+      .onEnd(() => {
+        position.value = 0;
+        scheduleOnRN(reset);
+      });
+    return Gesture.Simultaneous(doubleTap, pan);
+  }, [width, position, dragging]);
+
+  const half = width / 2;
+  const fillStyle = useAnimatedStyle(() => {
+    const thumb = half + (position.value / 100) * (half - THUMB / 2);
+    return { left: Math.min(half, thumb), width: Math.abs(thumb - half) };
+  });
+  const thumbStyle = useAnimatedStyle(() => ({
+    left: half + (position.value / 100) * (half - THUMB / 2) - THUMB / 2,
+  }));
 
   return (
     <View style={{ gap: 10 }}>
@@ -124,7 +162,7 @@ function Slider({
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.value}>{value > 0 ? `+${value}` : value}</Text>
       </View>
-      <GestureDetector gesture={Gesture.Simultaneous(reset, pan)}>
+      <GestureDetector gesture={gesture}>
         <View
           style={styles.track}
           onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
@@ -140,14 +178,9 @@ function Slider({
           }}
         >
           <View style={styles.rail} />
-          <View style={[styles.tick, { left: centre - 1 }]} />
-          <View
-            style={[
-              styles.fill,
-              { left: Math.min(centre, thumb), width: Math.abs(thumb - centre) },
-            ]}
-          />
-          <View style={[styles.thumb, { left: thumb - THUMB / 2 }]} />
+          <View style={[styles.tick, { left: half - 1 }]} />
+          <Animated.View style={[styles.fill, fillStyle]} />
+          <Animated.View style={[styles.thumb, thumbStyle]} />
         </View>
       </GestureDetector>
     </View>

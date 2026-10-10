@@ -139,7 +139,7 @@ const freshLaunch = (): LaunchAttempt => ({
   signature: null,
 });
 
-interface CreateState {
+export interface CreateState {
   photo: Photo | null;
   /** the camera filter baked into the photo (premium ones are paid at launch) */
   filterId: string;
