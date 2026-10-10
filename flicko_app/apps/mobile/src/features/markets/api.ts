@@ -5,12 +5,9 @@ import { config } from "@/config";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 
-import { mockMarket, mockStats } from "./mocks";
-
 /*
  * Markets data: `GET /market` rows (amounts as base-unit strings) mapped to MarketItem in
- * whole SKR, the stats strip, and the signed-in wallet's watchlist. With
- * EXPO_PUBLIC_USE_MOCKS=1 everything comes from src/mocks instead.
+ * whole SKR, the stats strip, and the signed-in wallet's watchlist.
  */
 export type Window = "5m" | "1h" | "6h" | "24h";
 export const WINDOWS: Window[] = ["5m", "1h", "6h", "24h"];
@@ -110,7 +107,6 @@ export const useMarketList = (
     initialPageParam: 0,
     refetchInterval: live ? 15_000 : false,
     queryFn: async ({ pageParam }) => {
-      if (config.useMocks) return { items: mockMarket(tab, window, sort, q), nextOffset: null };
       const params = new URLSearchParams({
         sort: sort === "rank" ? SERVER_SORT[tab] : SORT_PARAM[sort],
         window: SERVER_WINDOW[window],
@@ -131,7 +127,6 @@ export const useMarketStats = (live: boolean) =>
     queryKey: ["market-stats"],
     refetchInterval: live ? 15_000 : false,
     queryFn: async (): Promise<MarketStats> => {
-      if (config.useMocks) return mockStats();
       const s = await api<{ volume24h: string; trades24h: number; launchesToday: number }>(
         "/market/stats",
       );
@@ -145,9 +140,6 @@ export const useMarketStats = (live: boolean) =>
 
 /* ---- watchlist ---- */
 
-// Mock mode keeps stars in memory.
-const mockStars = new Set<string>();
-
 const watchKey = (wallet: string | undefined) => ["watchlist", wallet] as const;
 
 /* Starred mints (for star buttons). Empty for guests. */
@@ -155,9 +147,8 @@ export const useWatchedMints = () => {
   const session = useSession((s) => s.session);
   return useQuery({
     queryKey: watchKey(session?.wallet),
-    enabled: config.useMocks || !!session,
+    enabled: !!session,
     queryFn: async () => {
-      if (config.useMocks) return [...mockStars];
       return (await api<{ mints: string[] }>("/me/watchlist", { token: session!.token })).mints;
     },
   });
@@ -168,12 +159,9 @@ export const useWatchlistRows = (window: Window, live: boolean) => {
   const session = useSession((s) => s.session);
   return useQuery({
     queryKey: [...watchKey(session?.wallet), "rows", window],
-    enabled: config.useMocks || !!session,
+    enabled: !!session,
     refetchInterval: live ? 15_000 : false,
     queryFn: async () => {
-      if (config.useMocks) {
-        return mockMarket("trending", window, "rank", "").filter((m) => mockStars.has(m.mint));
-      }
       const res = await api<{ items: MarketRow[] }>(
         `/me/watchlist?window=${SERVER_WINDOW[window]}`,
         { token: session!.token },
@@ -190,11 +178,6 @@ export const useToggleWatch = () => {
   const key = watchKey(session?.wallet);
   return useMutation({
     mutationFn: async ({ mint, on }: { mint: string; on: boolean }) => {
-      if (config.useMocks) {
-        if (on) mockStars.add(mint);
-        else mockStars.delete(mint);
-        return;
-      }
       if (!session) throw new Error("not signed in");
       await api(`/me/watchlist/${mint}`, { method: on ? "POST" : "DELETE", token: session.token });
     },

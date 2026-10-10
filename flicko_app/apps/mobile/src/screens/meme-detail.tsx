@@ -293,7 +293,7 @@ export default function MemeDetail() {
 
   const onReact = useCallback(
     (kind: ReactionKind, on: boolean) => {
-      if (!signedIn && !config.useMocks) {
+      if (!signedIn) {
         setConnecting(true);
         return;
       }
@@ -878,7 +878,7 @@ export default function MemeDetail() {
               {
                 label: "Price alert",
                 run: () =>
-                  signedIn || config.useMocks
+                  signedIn
                     ? setAlertOpen(true)
                     : setConnecting(true),
               },

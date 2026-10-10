@@ -8,13 +8,11 @@ import { avatarSource } from "@/features/avatars/catalog";
 import { skrOf, type MarketRow, type Window } from "@/features/markets/api";
 import { api } from "@/lib/api";
 import { connection } from "@/lib/solana";
-import detailMock from "@/mocks/meme-detail.json";
 import { useSession } from "@/store/session";
 
 /*
  * The meme page: `GET /memes/:mint` ({meme, overview}, base units as strings) mapped to
- * MemeView in whole SKR / whole tokens. With EXPO_PUBLIC_USE_MOCKS=1 it comes from
- * src/mocks/meme-detail.json.
+ * MemeView in whole SKR / whole tokens.
  */
 const TOKEN = 1e6;
 
@@ -203,63 +201,6 @@ const toView = ({
   };
 };
 
-const mockView = (): MemeView => {
-  const d = detailMock;
-  return {
-    mint: d.mint,
-    symbol: d.symbol,
-    name: d.name,
-    image: require("../../../assets/mocks/detail-squad.jpg"),
-    creator: {
-      wallet: d.creator.wallet,
-      handle: d.creator.handle,
-      avatar: avatarSource(null, null),
-    },
-    creatorMemes: d.creator.memes,
-    createdAt: Date.parse(d.createdAt),
-    phase: d.phase === "pool" ? "pool" : "launching",
-    launchPct: 100,
-    trendingRank: d.trendingRank,
-    priceSkr: d.priceSkr,
-    change: {
-      "5m": d.change["5m"],
-      "1h": d.change["1h"],
-      "6h": d.change["6h"],
-      "24h": d.change["24h"],
-    },
-    marketCapSkr: d.marketCapSkr,
-    liquiditySkr: d.liquiditySkr,
-    holders: d.holders,
-    volume24hSkr: d.volume24hSkr,
-    trades24h: d.trades24h,
-    supply: d.supply,
-    saleSupply: d.supply * 0.8,
-    sold: d.supply * 0.8,
-    saleLeft: 0,
-    raisedSkr: d.pool.skrAmount,
-    startPriceSkr: d.priceSkr / 16,
-    buyersTotal: d.activity24h.buyers,
-    activity: d.activity24h,
-    pool: { tokens: d.pool.tokenAmount, skr: d.pool.skrAmount },
-    memePda: d.pool.poolAddress,
-    creatorHoldsPct: d.safety.creatorHoldsPct,
-    reactions: {
-      rocket: d.reactions.rocket,
-      fire: d.reactions.fire,
-      poop: d.reactions.poop,
-    },
-    myReactions: [],
-    position: {
-      tokens: d.position.tokens,
-      avgBuySkr: d.position.avgBuySkr,
-      valueSkr: d.position.valueSkr,
-      pnlSkr: d.position.pnlSkr,
-      pnlPct: d.position.pnlPct,
-    },
-    sparkline: d.sparkline24h,
-  };
-};
-
 export const memeKey = (mint: string, wallet: string | undefined) =>
   ["meme", mint, wallet] as const;
 
@@ -269,7 +210,6 @@ export const useMemeDetail = (mint: string) => {
     queryKey: memeKey(mint, session?.wallet),
     refetchInterval: 15_000,
     queryFn: async () => {
-      if (config.useMocks) return mockView();
       const res = await api<{ meme: ServerMeme; overview: ServerOverview }>(
         `/memes/${mint}`,
         {
@@ -296,13 +236,6 @@ export const useSafetyChecks = (mint: string) =>
     queryKey: ["safety", mint],
     staleTime: Infinity,
     queryFn: async (): Promise<SafetyChecks> => {
-      if (config.useMocks) {
-        return {
-          mintAuthorityRevoked: true,
-          noFreezeAuthority: true,
-          liquidityLocked: true,
-        };
-      }
       const programId = new PublicKey(config.programId);
       const mintKey = new PublicKey(mint);
       const [mintInfo, memeInfo] = await Promise.all([
@@ -327,7 +260,6 @@ export const useReact = (mint: string) => {
   const key = memeKey(mint, session?.wallet);
   return useMutation({
     mutationFn: async ({ kind, on }: { kind: ReactionKind; on: boolean }) => {
-      if (config.useMocks) return;
       if (!session) throw new Error("not signed in");
       await api(on ? `/memes/${mint}/react` : `/memes/${mint}/react/${kind}`, {
         method: on ? "POST" : "DELETE",
@@ -355,8 +287,6 @@ export const useReact = (mint: string) => {
     onError: (_err, _vars, context) => {
       if (context?.before) client.setQueryData(key, context.before);
     },
-    onSettled: () => {
-      if (!config.useMocks) client.invalidateQueries({ queryKey: key });
-    },
+    onSettled: () => client.invalidateQueries({ queryKey: key }),
   });
 };

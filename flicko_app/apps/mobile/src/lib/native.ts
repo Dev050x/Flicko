@@ -47,13 +47,6 @@ export const notifications = () =>
     () => require("expo-notifications") as typeof import("expo-notifications"),
   );
 
-export const audio = () =>
-  optional(
-    "expo-audio",
-    "ExpoAudio",
-    () => require("expo-audio") as typeof import("expo-audio"),
-  );
-
 export const brightness = () =>
   optional(
     "expo-brightness",

@@ -6,7 +6,6 @@ import type { Face as MlKitFace } from "react-native-vision-camera-face-detector
 import type { Eyes, Point, Rect } from "@/features/filters/placement";
 
 import { activeSource, useFaceFlags } from "./flags";
-import { hudQueue, hudRecord } from "./hud";
 import { frameToView } from "./mapping";
 
 /*
@@ -232,12 +231,10 @@ export const useLiveEyes = create<{
   angles: HeadAngles[];
   /** mouth per face (MediaPipe only), same order */
   mouths: (Mouth | null)[];
-  at: number;
 }>(() => ({
   eyes: [],
   angles: [],
   mouths: [],
-  at: 0,
 }));
 
 /**
@@ -250,20 +247,18 @@ export const useFaceTracking = (
   enabled: boolean,
 ): {
   result: SharedValue<FaceTrackingResult | null>;
-  push: (result: FaceTrackingResult, scheduledAt?: number) => void;
+  push: (result: FaceTrackingResult) => void;
 } => {
   const result = useSharedValue<FaceTrackingResult | null>(null);
   useEffect(() => {
     if (!enabled) {
-      useLiveEyes.setState({ eyes: [], angles: [], mouths: [], at: 0 });
+      useLiveEyes.setState({ eyes: [], angles: [], mouths: [] });
       result.value = null;
     }
   }, [enabled, result]);
   const push = useCallback(
-    (next: FaceTrackingResult, scheduledAt?: number) => {
-      if (scheduledAt !== undefined) hudQueue(Date.now() - scheduledAt);
-      // The HUD sees every detector's results; only the active one moves the overlays.
-      hudRecord(next, view);
+    (next: FaceTrackingResult) => {
+      // Only the active detector moves the overlays.
       if (!view || next.source !== activeSource(useFaceFlags.getState()))
         return;
       result.value = next;
@@ -276,7 +271,6 @@ export const useFaceTracking = (
           pitch,
           roll,
         })),
-        at: Date.now(),
       }));
     },
     [view, result],

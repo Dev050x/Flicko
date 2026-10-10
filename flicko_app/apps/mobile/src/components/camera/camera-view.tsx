@@ -38,13 +38,9 @@ import { matrixTint } from "@/features/filters/catalog";
 import type { Eyes } from "@/features/filters/placement";
 import type { Facing } from "@/features/camera/settings";
 import {
-  hudEnabled,
-  hudNativeStats,
-  hudPreviewFps,
   mediapipeResult,
   mlkitResult,
   useFaceFlags,
-  useFaceHudSwitch,
   type FaceTrackingResult,
 } from "@/features/face";
 
@@ -125,7 +121,6 @@ const updateMask = (tracker: {
       latest.width,
     );
     if (!image) return;
-    if (!g.__flickoMask) console.log("[camera] first person mask");
     g.__flickoMask?.image.dispose();
     g.__flickoMask = { seq: latest.seq, image };
   } catch (err) {
@@ -203,7 +198,7 @@ export function CameraLayer({
   /** look for faces on the preview (a face filter is selected) */
   trackFaces?: boolean;
   /** live eye positions; called about 10 times a second while tracking */
-  onFaces?: (result: FaceTrackingResult, scheduledAt?: number) => void;
+  onFaces?: (result: FaceTrackingResult) => void;
   /** image that replaces the background behind the person (live Skia preview only) */
   background?: number;
   /** keep the face mesh in live results (3D filters anchored to the mouth) */
@@ -260,14 +255,12 @@ export function CameraLayer({
   const tracking = useSharedValue(trackFaces);
   const mirrored = useSharedValue(facing === "front");
   const frameCount = useSharedValue(0);
-  const previewFrames = useSharedValue(0);
 
   // Live MediaPipe tracking (Skia path only): off unless the flag is on, and ML Kit takes
   // over for the session if it can't start or keeps failing.
   const mediapipeWanted = useFaceFlags(
     (f) => (f.mediapipeLive || f.mediapipeRequired) && !f.mediapipeFailed,
   );
-  const hudOn = useFaceHudSwitch((h) => h.debug);
   const liveTracker = useMemo(
     () => (live && mediapipeWanted ? createLiveFaceTracker(30) : null),
     [live, mediapipeWanted],
@@ -277,8 +270,8 @@ export function CameraLayer({
       useFaceFlags.getState().markMediapipeFailed();
   }, [live, mediapipeWanted, liveTracker]);
   useEffect(() => {
-    liveTracker?.setWantLandmarks(hudOn || wantMesh);
-  }, [liveTracker, hudOn, wantMesh]);
+    liveTracker?.setWantLandmarks(wantMesh);
+  }, [liveTracker, wantMesh]);
   useEffect(() => {
     liveTracker?.setWantSegmentation(background !== undefined);
   }, [liveTracker, background]);
@@ -287,7 +280,6 @@ export function CameraLayer({
   useEffect(() => {
     backgroundValue.value = background !== undefined ? backgroundImage : null;
   }, [background, backgroundImage, backgroundValue]);
-  // HUD on: run ML Kit next to MediaPipe so both can be compared on screen.
   // A 3D filter shares the GPU with Filament and MediaPipe: camera frames take longer to
   // draw without the preview being any less smooth, so they get a whole camera frame and
   // never trigger the plain-preview fallback.
@@ -295,30 +287,19 @@ export function CameraLayer({
   useEffect(() => {
     gpuShared.value = wantMesh;
   }, [gpuShared, wantMesh]);
-  const bothDetectors = useSharedValue(false);
-  useEffect(() => {
-    bothDetectors.value = hudOn && !!liveTracker;
-  }, [bothDetectors, hudOn, liveTracker]);
   const lastSeq = useSharedValue(0);
 
-  // Once a second (JS): preview fps for the HUD, and the native tracker's health.
+  // Once a second (JS): the native tracker's health.
   useEffect(() => {
-    let prev = previewFrames.value;
+    if (!liveTracker) return;
     const timer = setInterval(() => {
-      const now = previewFrames.value;
-      if (__DEV__) hudPreviewFps(now - prev);
-      prev = now;
-      if (liveTracker) {
-        const stats = liveTracker.stats();
-        if (!stats.ready) {
-          console.warn("[camera] MediaPipe live tracking failed; using ML Kit");
-          useFaceFlags.getState().markMediapipeFailed();
-        }
-        if (hudEnabled()) hudNativeStats(stats);
+      if (!liveTracker.stats().ready) {
+        console.warn("[camera] MediaPipe live tracking failed; using ML Kit");
+        useFaceFlags.getState().markMediapipeFailed();
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [previewFrames, liveTracker]);
+  }, [liveTracker]);
   const hadFaces = useSharedValue(false);
   useEffect(() => {
     tracking.value = trackFaces;
@@ -327,11 +308,8 @@ export function CameraLayer({
   const onFacesRef = useRef(onFaces);
   onFacesRef.current = onFaces;
   const reportLive = useCallback(
-    (snapshot: LiveFaceSnapshot, mirroredFrame: boolean, scheduledAt: number) =>
-      onFacesRef.current?.(
-        mediapipeResult(snapshot, mirroredFrame),
-        scheduledAt,
-      ),
+    (snapshot: LiveFaceSnapshot, mirroredFrame: boolean) =>
+      onFacesRef.current?.(mediapipeResult(snapshot, mirroredFrame)),
     [],
   );
   const reportFaces = useCallback(
@@ -398,7 +376,6 @@ export function CameraLayer({
           return;
         }
       }
-      previewFrames.value += 1;
       const start = Date.now();
       const bg = backgroundValue.value;
       const g = globalThis as unknown as {
@@ -449,7 +426,6 @@ export function CameraLayer({
               reportLive,
               liveTracker.latest(),
               mirrored.value,
-              Date.now(),
             );
           }
         } catch {
@@ -457,7 +433,7 @@ export function CameraLayer({
         }
       }
       if (
-        (!liveTracker || bothDetectors.value) &&
+        !liveTracker &&
         tracking.value &&
         ++frameCount.value % FACE_EVERY === 0
       ) {
@@ -507,7 +483,6 @@ export function CameraLayer({
       reportSlow,
       tracking,
       frameCount,
-      previewFrames,
       faceDetector,
       mirrored,
       hadFaces,
@@ -515,7 +490,6 @@ export function CameraLayer({
       liveTracker,
       lastSeq,
       reportLive,
-      bothDetectors,
     ],
   );
 

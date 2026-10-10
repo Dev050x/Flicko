@@ -104,8 +104,6 @@ export const cam = {
   glassBorder: "rgba(255,255,255,0.18)",
   chipText: "rgba(255,255,255,0.75)",
   thumbRing: "rgba(255,255,255,0.85)",
-  coin: "#FFD24A",
-  coinRim: "#C98F12",
   tabInactive: "#8E86A0",
 } as const;
 

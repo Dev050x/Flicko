@@ -85,14 +85,3 @@ export {
   useLiveEyes,
   type FaceTrackingResult,
 } from "./live";
-export {
-  hudEnabled,
-  hudPlacement,
-  hudPlacementText,
-  hudRender,
-  hudLast,
-  hudNativeStats,
-  hudPreviewFps,
-  useFaceHud,
-  useFaceHudSwitch,
-} from "./hud";

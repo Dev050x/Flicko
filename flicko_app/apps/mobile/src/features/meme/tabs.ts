@@ -2,14 +2,10 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import type { ImageSource } from "expo-image";
 
-import { config } from "@/config";
 import { profileAvatar } from "@/features/avatars/catalog";
 import { skrOf } from "@/features/markets/api";
 import { api } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
-import candlesMock from "@/mocks/candles-15m.json";
-import holdersMock from "@/mocks/holders.json";
-import tradesMock from "@/mocks/trades.json";
 
 /*
  * Data for the meme page's Chart, Trades and Holders tabs. Each tab loads on its own;
@@ -47,17 +43,6 @@ export const useCandles = (mint: string, tf: Timeframe, enabled: boolean) =>
     enabled,
     refetchInterval: enabled ? 15_000 : false,
     queryFn: async (): Promise<CandleView[]> => {
-      if (config.useMocks) {
-        return candlesMock.candles.map((c) => ({
-          t: c.t * 1000,
-          o: c.o,
-          h: c.h,
-          l: c.l,
-          c: c.c,
-          v: c.v,
-          trades: 1,
-        }));
-      }
       const res = await api<{ candles: ServerCandle[] }>(
         `/memes/${mint}/candles?tf=${tf}&limit=60`,
       );
@@ -125,25 +110,6 @@ export const useTrades = (
     refetchInterval: enabled ? 5_000 : false,
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
-      if (config.useMocks) {
-        const items: TradeView[] = tradesMock.items
-          .map((t, i): TradeView => ({
-            id: `mock-${i}`,
-            side: t.side === "buy" ? "buy" : "sell",
-            skr: t.skr,
-            price: t.priceSkr,
-            tokens: t.skr / t.priceSkr,
-            trader: t.trader,
-            traderIsAddress: !t.trader.startsWith("@"),
-            wallet: t.trader,
-            at: Date.now() - t.ageSec * 1000,
-          }))
-          .filter(
-            (t) =>
-              filter === "all" || (filter === "buys") === (t.side === "buy"),
-          );
-        return { items, largeSkr: 250, nextOffset: null };
-      }
       const params = new URLSearchParams({
         limit: String(PAGE),
         offset: String(pageParam),
@@ -230,33 +196,6 @@ const toHolder = (h: ServerHolder): HolderView => ({
   valueSkr: skrOf(h.value),
 });
 
-const mockHolders = (): HoldersPage => {
-  const pool = holdersMock.items.find((h) => h.label === "Pool");
-  return {
-    total: holdersMock.total,
-    top10Pct: holdersMock.top10Pct,
-    creatorPct: holdersMock.creatorPct,
-    pool: pool
-      ? { pct: pool.pct, tokens: pool.amount, valueSkr: pool.valueSkr }
-      : null,
-    items: holdersMock.items
-      .filter((h) => h.label !== "Pool")
-      .map((h, i) => ({
-        rank: i + 1,
-        wallet: h.address,
-        label: h.label ?? h.address,
-        isAddress: !h.label,
-        avatar: null,
-        isCreator: h.tag === "Creator",
-        pct: h.pct,
-        tokens: h.amount,
-        valueSkr: h.valueSkr,
-      })),
-    me: null,
-    nextOffset: null,
-  };
-};
-
 /* Holders, 50 per page, with the viewer's own row when signed in. */
 export const useHolders = (mint: string, enabled: boolean, token?: string) =>
   useInfiniteQuery({
@@ -265,7 +204,6 @@ export const useHolders = (mint: string, enabled: boolean, token?: string) =>
     refetchInterval: enabled ? 30_000 : false,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<HoldersPage> => {
-      if (config.useMocks) return mockHolders();
       const res = await api<{
         total: number;
         top10Bps: number;
@@ -305,13 +243,6 @@ export const useSoldOverTime = (mint: string, enabled: boolean) =>
     enabled,
     refetchInterval: enabled ? 15_000 : false,
     queryFn: async (): Promise<SoldPoint[]> => {
-      if (config.useMocks) {
-        const start = Date.now() - 3 * 3_600_000;
-        return [0, 8, 15, 15, 31, 44, 52, 60, 74].map((pct, i) => ({
-          t: start + (i * 3 * 3_600_000) / 8,
-          pct,
-        }));
-      }
       const res = await api<{ points: { time: string; soldBps: number }[] }>(
         `/memes/${mint}/sold`,
       );

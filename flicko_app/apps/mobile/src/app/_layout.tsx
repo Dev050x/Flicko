@@ -24,7 +24,7 @@ import { Unbounded_800ExtraBold } from "@expo-google-fonts/unbounded";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { useFonts } from "expo-font";
-import { Stack, usePathname } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -62,16 +62,11 @@ export default function RootLayout() {
   });
   const { hydrated, hydrate, session, isGuest, onboardingDone } = useSession();
   const [introDone, setIntroDone] = useState(false);
-  const devScreen = usePathname().startsWith("/dev");
   const ready = (fontsLoaded || fontError !== null) && hydrated;
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
-
-  useEffect(() => {
-    if (ready && devScreen) SplashScreen.hide();
-  }, [ready, devScreen]);
 
   const signedIn = session !== null;
 
@@ -142,7 +137,7 @@ export default function RootLayout() {
             </Stack.Protected>
           </Stack>
         )}
-        {ready && !introDone && !devScreen && (
+        {ready && !introDone && (
           <Intro
             onStart={() => SplashScreen.hide()}
             onDone={() => setIntroDone(true)}

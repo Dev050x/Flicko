@@ -9,7 +9,7 @@ import Animated, {
 import Svg, { Path } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 
-import { hudPlacement, hudRender, useLiveEyes } from "@/features/face";
+import { useLiveEyes } from "@/features/face";
 import type { Filter } from "@/features/filters/catalog";
 import {
   bracketPaths,
@@ -50,22 +50,8 @@ export function LiveOverlay({
 }) {
   // Live eyes come straight from the tracker so only this overlay re-renders per detection.
   const trackedFaces = useLiveEyes((s) => s.eyes);
-  const shownAt = useLiveEyes((s) => s.at);
-  useEffect(() => {
-    if (shownAt > 0) hudRender(Date.now() - shownAt);
-  }, [shownAt]);
   const faces = facesProp ?? trackedFaces;
   const layout = layoutFor(filter, zone, 1, { sticker, centerX, faces });
-  if (__DEV__ && filter.type === "face" && layout.images[0] && faces[0]) {
-    const p = layout.images[0];
-    const mid = {
-      x: (faces[0].left.x + faces[0].right.x) / 2,
-      y: (faces[0].left.y + faces[0].right.y) / 2,
-    };
-    hudPlacement(
-      `art x${p.x.toFixed(0)} y${p.y.toFixed(0)} w${p.width.toFixed(0)} h${p.height.toFixed(0)} rot${JSON.stringify(p.steps)} | eyes mid x${mid.x.toFixed(0)} y${mid.y.toFixed(0)}`,
-    );
-  }
 
   return (
     <View

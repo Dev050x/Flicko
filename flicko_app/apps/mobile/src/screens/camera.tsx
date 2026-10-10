@@ -40,19 +40,15 @@ import { useLastShot } from "@/features/camera/last-shot";
 import { useCameraSettings } from "@/features/camera/settings";
 import { useCreateStore } from "@/features/create/store";
 import { FILTERS, filterById, firstIndexOf } from "@/features/filters/catalog";
-import { FaceDebug } from "@/components/camera/face-debug";
-import { FaceHud } from "@/components/camera/face-hud";
 import {
   useFaceFlags,
   useFaceTracking,
   useLiveEyes,
-  type FaceTrackingResult,
 } from "@/features/face";
 import {
   approxEyes,
   defaultStickerPose,
   layoutFor,
-  type Eyes,
   type Rect,
   type StickerPose,
 } from "@/features/filters/placement";
@@ -379,8 +375,6 @@ export default function CameraScreen() {
         }
       />
       <ToolRail />
-      <FaceDebug view={view} />
-      <FaceHud top={insets.top + 120} />
 
       {faceHint && view && (
         <Animated.View

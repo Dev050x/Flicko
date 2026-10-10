@@ -50,7 +50,6 @@ const PREDICT_MAX_S = 0.1;
 const FOLLOW_TAU_S = 0.035;
 const FADE_TAU_S = 0.08;
 
-type Float3 = [number, number, number];
 /** x/y: between the eyes; mx/my: the screen-right mouth corner (view pixels) */
 const CHANNELS = [
   "x",
@@ -65,9 +64,8 @@ const CHANNELS = [
 type Pose = Record<(typeof CHANNELS)[number], number>;
 
 /*
- * Fit settings, tunable live from the dev panel (__DEV__ only) so they can be read off
- * a screenshot and copied back as defaults. Per part: width/offset/rotation (defaults
- * from filters.json); shared: rotation signs, field of view, head occluder.
+ * Fit settings. Per part: width/offset/rotation (from filters.json); shared: rotation
+ * signs, field of view, head occluder.
  */
 interface PartTune {
   width: number;

@@ -45,7 +45,7 @@ export const useAlerts = (mint: string) => {
   const session = useSession((s) => s.session);
   return useQuery({
     queryKey: key(mint, session?.wallet),
-    enabled: !!session && !config.useMocks,
+    enabled: !!session,
     queryFn: async (): Promise<PriceAlert[]> => {
       const res = await api<{ items: ServerAlert[] }>(
         `/me/alerts?mint=${mint}`,
