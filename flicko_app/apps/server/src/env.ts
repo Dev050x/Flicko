@@ -25,8 +25,23 @@ const schema = z.object({
   PROGRAM_ID: optional,
   SKR_MINT: optional,
   JWT_SECRET: optional,
-  SIWS_DOMAIN: z.string().default("flicko.app"),
-  SIWS_URI: z.url().default("https://flicko.app"),
+  SIWS_DOMAIN: z.string().default("getflicko.tech"),
+  SIWS_URI: z.url().default("https://getflicko.tech"),
+  /** the public site and share links (https://getflicko.tech/m/<mint>) */
+  SITE_URL: z.url().default("https://getflicko.tech"),
+  ANDROID_PACKAGE: z.string().default("app.flicko.mobile"),
+  /** comma-separated SHA-256 signing cert fingerprints for assetlinks.json (App Links) */
+  ANDROID_CERT_SHA256: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((v) => v.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  /** the APK download link shown on the share pages */
+  APP_DOWNLOAD_URL: optional,
   UPSTASH_REDIS_REST_URL: optional,
   UPSTASH_REDIS_REST_TOKEN: optional,
   AWS_REGION: optional,

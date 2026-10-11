@@ -102,7 +102,14 @@ const app = createApp({
     ai,
     chain,
     decode,
-    siteUrl: env.SIWS_URI,
+    siteUrl: env.SITE_URL,
+  },
+  site: {
+    db: database.db,
+    siteUrl: env.SITE_URL.replace(/\/$/, ""),
+    androidPackage: env.ANDROID_PACKAGE,
+    androidCertFingerprints: env.ANDROID_CERT_SHA256,
+    appDownloadUrl: env.APP_DOWNLOAD_URL,
   },
 });
 

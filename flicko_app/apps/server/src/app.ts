@@ -17,6 +17,7 @@ import { uploadsRouter, type UploadDeps } from "./routes/uploads";
 import { followsRouter } from "./routes/follows";
 import { likesRouter } from "./routes/likes";
 import { profilesRouter } from "./routes/profiles";
+import { siteRouter, type SiteDeps } from "./routes/site";
 import { watchlistRouter } from "./routes/watchlist";
 
 export interface AppDeps {
@@ -27,6 +28,7 @@ export interface AppDeps {
   uploads?: UploadDeps;
   filters?: FilterDeps;
   create?: CreateDeps;
+  site?: SiteDeps;
 }
 
 export const createApp = (deps: AppDeps) => {
@@ -66,6 +68,10 @@ export const createApp = (deps: AppDeps) => {
       .use(feedRouter(deps.read))
       .use(marketRouter(deps.read))
       .use(memesRouter(deps.read));
+  }
+
+  if (deps.site) {
+    app.use(siteRouter(deps.site));
   }
 
   return app.use(notFound).use(errorHandler);

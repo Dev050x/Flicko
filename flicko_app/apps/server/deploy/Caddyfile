@@ -1,3 +1,12 @@
 api.getflicko.tech {
 	reverse_proxy localhost:3000
 }
+
+# Share links and Android App Links (/.well-known/assetlinks.json) are served by the same server.
+getflicko.tech {
+	reverse_proxy localhost:3000
+}
+
+www.getflicko.tech {
+	redir https://getflicko.tech{uri} permanent
+}
