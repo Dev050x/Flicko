@@ -370,9 +370,6 @@ export default function CameraScreen() {
         onAvatar={() => router.push("/me")}
         onWallet={() => setSheet("wallet")}
         onConnect={() => setSheet("connect")}
-        onPumping={() =>
-          router.navigate({ pathname: "/markets", params: { sort: "gainers" } })
-        }
       />
       <ToolRail />
 

@@ -82,7 +82,7 @@ export default function Markets() {
   const [connecting, setConnecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // The camera's "pumping" pill opens Markets with ?sort=gainers.
+  // A link with ?sort=gainers opens Markets on Top Gainers.
   useEffect(() => {
     if (params.sort === "gainers") setTab("gainers");
   }, [params.sort]);
