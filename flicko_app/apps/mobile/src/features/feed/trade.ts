@@ -28,7 +28,7 @@ import { useCallback, useState } from "react";
 
 import { config } from "@/config";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
-import { ConnectError, NotSubmittedError, signAndSend } from "@/lib/mwa";
+import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
 
@@ -241,6 +241,7 @@ export const useTrade = (fees: FeeConfig | undefined) => {
       } catch (err) {
         if (err instanceof TradeProblem) throw err;
         if (err instanceof ConnectError) return null;
+        if (err instanceof WalletProblem) throw new TradeProblem(err.message);
         if (err instanceof NotSubmittedError) {
           throw new TradeProblem("Your wallet didn't send it. Check your SOL and SKR and try again.");
         }

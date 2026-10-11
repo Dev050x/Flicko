@@ -21,7 +21,7 @@ import { config } from "@/config";
 import type { Filter } from "@/features/filters/catalog";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
 import { api, ApiError, apiForm } from "@/lib/api";
-import { ConnectError, NotSubmittedError, signAndSend } from "@/lib/mwa";
+import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
 
@@ -295,6 +295,8 @@ export const useLaunch = (onCancelled: () => void) => {
       } catch (err) {
         if (err instanceof ConnectError) {
           onCancelled();
+        } else if (err instanceof WalletProblem) {
+          setProblem({ kind: "text", text: err.message });
         } else if (err instanceof ApiError && err.status === 422) {
           setProblem(
             err.message === "caption rejected"

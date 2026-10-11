@@ -5,6 +5,7 @@ import { Buffer } from "buffer";
 import { TurboModuleRegistry } from "react-native";
 
 import { chain, config } from "@/config";
+import { useSession } from "@/store/session";
 import type { SignInInput } from "./auth";
 
 /*
@@ -105,6 +106,9 @@ export const connectAndSignIn = async (
     if (errorCode(err) === "ERROR_WALLET_NOT_FOUND") {
       throw new ConnectError("noWallet", err);
     }
+    if (!DECLINED.includes(errorCode(err) as never)) {
+      console.warn("[mwa] sign-in wallet error", errorCode(err), (err as Error)?.message);
+    }
     throw new ConnectError("declined", err);
   } finally {
     clearTimeout(timer);
@@ -143,6 +147,43 @@ export class NotSubmittedError extends Error {
 }
 
 const NOT_SUBMITTED = [-4, "ERROR_NOT_SUBMITTED"];
+/* The user said no in the wallet, or left it. */
+const DECLINED = [-3, "ERROR_NOT_SIGNED", "ERROR_ASSOCIATION_CANCELLED", "ERROR_SESSION_CLOSED"];
+const AUTHORIZATION_FAILED = [-1, "ERROR_AUTHORIZATION_FAILED"];
+
+/*
+ * The wallet couldn't do it for a reason the user should see (not a plain "no"): a
+ * different account, or a wallet error such as the wrong network.
+ */
+export class WalletProblem extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.cause = cause;
+  }
+}
+
+const short = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
+
+/*
+ * Authorizes this session: the stored auth_token first (no prompt), else a fresh
+ * approval. The token is turned down when a different wallet app answers than the one
+ * used to sign in, when the wallet forgot it, or after the app's identity changed;
+ * failing silently there looked like a cancel. The fresh approval must be for the
+ * signed-in account.
+ */
+const authorizeSession = async (wallet: Web3MobileWallet, authToken: string) => {
+  const refreshed = await reauthorize(wallet, authToken);
+  if (refreshed) return refreshed;
+  const result = await wallet.authorize({ chain, identity });
+  const expected = useSession.getState().session?.wallet;
+  const addresses = result.accounts.map((a) => toBase58(a.address));
+  if (expected && !addresses.includes(expected)) {
+    throw new WalletProblem(
+      `Your wallet connected a different account. Switch to ${short(expected)} in your wallet and try again.`,
+    );
+  }
+  return result.auth_token;
+};
 
 /*
  * Signs and sends one transaction through the wallet, reusing the stored auth_token.
@@ -155,8 +196,7 @@ export const signAndSend = async (
   const transact = loadTransact();
   try {
     return await transact(async (wallet: Web3MobileWallet) => {
-      const refreshed = await reauthorize(wallet, authToken);
-      if (!refreshed) throw new ConnectError("declined");
+      const refreshed = await authorizeSession(wallet, authToken);
       const [signature] = await wallet.signAndSendTransactions({
         transactions: [await build()],
       });
@@ -164,13 +204,21 @@ export const signAndSend = async (
       return { signature, authToken: refreshed };
     });
   } catch (err) {
-    if (err instanceof ConnectError) throw err;
-    if (errorCode(err) === "ERROR_WALLET_NOT_FOUND") {
-      throw new ConnectError("noWallet", err);
+    if (err instanceof ConnectError || err instanceof WalletProblem) throw err;
+    const code = errorCode(err);
+    if (code === "ERROR_WALLET_NOT_FOUND") throw new ConnectError("noWallet", err);
+    if (NOT_SUBMITTED.includes(code as never)) throw new NotSubmittedError(err);
+    if (DECLINED.includes(code as never)) throw new ConnectError("declined", err);
+    console.warn("[mwa] wallet error", code, (err as Error)?.message);
+    if (AUTHORIZATION_FAILED.includes(code as never)) {
+      throw new WalletProblem(
+        "Your wallet didn't approve Flicko. If it never asked you, set it to devnet (Phantom: Settings → Developer Settings → Testnet Mode) and try again.",
+        err,
+      );
     }
-    if (NOT_SUBMITTED.includes(errorCode(err) as never)) {
-      throw new NotSubmittedError(err);
-    }
-    throw new ConnectError("declined", err);
+    throw new WalletProblem(
+      "Your wallet couldn't sign this. Make sure it's on devnet and has a little SOL, then try again.",
+      err,
+    );
   }
 };

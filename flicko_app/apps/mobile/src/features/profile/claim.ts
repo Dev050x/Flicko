@@ -16,7 +16,7 @@ import { config } from "@/config";
 import { programId } from "@/features/create/chain";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
 import { api } from "@/lib/api";
-import { ConnectError, NotSubmittedError, signAndSend } from "@/lib/mwa";
+import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
 
@@ -91,6 +91,7 @@ export const useClaim = () => {
               "Your wallet didn't send it. Check your SOL and try again.",
             );
           }
+          if (err instanceof WalletProblem) throw new ClaimProblem(err.message);
           throw err;
         }
         setMwaAuthToken(sent.authToken);
