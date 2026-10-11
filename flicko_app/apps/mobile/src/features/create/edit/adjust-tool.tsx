@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
@@ -46,8 +46,11 @@ export function AdjustTool() {
   const change = useCreateStore((s) => s.change);
   const commit = useCreateStore((s) => s.commit);
 
-  const set = (key: AdjustKey, value: number) =>
-    change((e) => ({ ...e, adjust: { ...e.adjust, [key]: value } }));
+  const set = useCallback(
+    (key: AdjustKey, value: number) =>
+      change((e) => ({ ...e, adjust: { ...e.adjust, [key]: value } })),
+    [change],
+  );
 
   const resetTab = () => {
     change((e) => ({
@@ -75,9 +78,10 @@ export function AdjustTool() {
         {TABS[tab].keys.map(({ key, label }) => (
           <Slider
             key={key}
+            id={key}
             label={label}
             value={adjust[key]}
-            onChange={(v) => set(key, v)}
+            onChange={set}
             onEnd={commit}
           />
         ))}
@@ -92,22 +96,25 @@ const THUMB = 20;
  * The thumb and fill move on the UI thread; the store (and so the photo) only hears
  * about whole-number changes.
  */
-function Slider({
+// Memoised: only the slider being moved re-renders.
+const Slider = memo(function Slider({
+  id,
   label,
   value,
   onChange,
   onEnd,
 }: {
+  id: AdjustKey;
   label: string;
   value: number;
-  onChange: (value: number) => void;
+  onChange: (id: AdjustKey, value: number) => void;
   onEnd: () => void;
 }) {
   const [width, setWidth] = useState(0);
   const position = useSharedValue(value);
   const dragging = useSharedValue(false);
-  const handlers = useRef({ onChange, onEnd });
-  handlers.current = { onChange, onEnd };
+  const handlers = useRef({ onChange: (v: number) => onChange(id, v), onEnd });
+  handlers.current = { onChange: (v: number) => onChange(id, v), onEnd };
 
   // Undo, Reset and double-tap move the thumb from outside.
   useEffect(() => {
@@ -173,7 +180,7 @@ function Slider({
           accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
           onAccessibilityAction={(e) => {
             const step = e.nativeEvent.actionName === "increment" ? 10 : -10;
-            onChange(Math.max(-100, Math.min(100, value + step)));
+            onChange(id, Math.max(-100, Math.min(100, value + step)));
             onEnd();
           }}
         >
@@ -185,7 +192,7 @@ function Slider({
       </GestureDetector>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   labels: { flexDirection: "row", justifyContent: "space-between" },

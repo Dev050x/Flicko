@@ -1,5 +1,5 @@
-import { Canvas, Picture, Skia, type SkPicture } from "@shopify/react-native-skia";
-import { useEffect, useMemo, useState } from "react";
+import { Skia, SkiaPictureView, type SkPicture } from "@shopify/react-native-skia";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ViewStyle } from "react-native";
 
 import { loadSceneAssets, type SceneAssets } from "@/features/create/assets";
@@ -58,6 +58,27 @@ export const useEditAssets = () => {
   return assets;
 };
 
+const FRAME_MS = 16;
+
+/*
+ * A Skia view showing `picture`. A <Canvas> kept a stale frame when only its picture
+ * changed (its repaint waits for an animation frame, which Android delays during
+ * touches), so this view is told to redraw whenever the picture changes.
+ */
+function PictureView({
+  picture,
+  style,
+}: {
+  picture: SkPicture | null;
+  style: ViewStyle | ViewStyle[];
+}) {
+  const view = useRef<SkiaPictureView>(null);
+  useEffect(() => {
+    view.current?.redraw();
+  }, [picture]);
+  return <SkiaPictureView ref={view} picture={picture ?? undefined} style={style} />;
+}
+
 const record = (
   scene: Scene,
   assets: SceneAssets,
@@ -72,7 +93,9 @@ const record = (
 
 /*
  * The editor's live scene. It follows the create store directly instead of re-rendering
- * with it, and redraws at most once per frame, so sliders, drags and drawing stay smooth.
+ * with it, and redraws at most every 16ms (plus once more for the last change), so
+ * sliders, drags and drawing stay smooth. requestAnimationFrame is not used: on Android it
+ * did not fire until the finger lifted, which froze the photo mid-drag.
  * `uncropped` (the crop tool) ignores the crop box, which is drawn over it.
  */
 export function LiveSceneCanvas({
@@ -94,9 +117,10 @@ export function LiveSceneCanvas({
       uncropped
         ? [s.photo, s.edits.adjust, s.edits.filterId, s.edits.crop.turns, s.edits.crop.flip]
         : [s.photo, s.edits, s.faces];
-    let frame: number | null = null;
+    let last = 0;
+    let trailing: ReturnType<typeof setTimeout> | null = null;
     const draw = () => {
-      frame = null;
+      last = Date.now();
       const { photo, edits, faces } = useCreateStore.getState();
       if (!photo) return;
       setPicture(
@@ -108,19 +132,25 @@ export function LiveSceneCanvas({
       const now = inputs(s);
       const before = inputs(prev);
       if (now.every((v, i) => v === before[i])) return;
-      frame ??= requestAnimationFrame(draw);
+      const wait = FRAME_MS - (Date.now() - last);
+      if (wait <= 0) {
+        if (trailing) clearTimeout(trailing);
+        trailing = null;
+        draw();
+      } else {
+        trailing ??= setTimeout(() => {
+          trailing = null;
+          draw();
+        }, wait);
+      }
     });
     return () => {
       unsubscribe();
-      if (frame !== null) cancelAnimationFrame(frame);
+      if (trailing) clearTimeout(trailing);
     };
   }, [assets, width, height, uncropped]);
 
-  return (
-    <Canvas style={{ width, height }}>
-      {picture && <Picture picture={picture} />}
-    </Canvas>
-  );
+  return <PictureView picture={picture} style={{ width, height }} />;
 }
 
 /*
@@ -145,9 +175,5 @@ export function SceneCanvas({
     [assets, scene, width, height],
   );
 
-  return (
-    <Canvas style={[{ width, height }, style]}>
-      {picture && <Picture picture={picture} />}
-    </Canvas>
-  );
+  return <PictureView picture={picture} style={style ? [{ width, height }, style] : { width, height }} />;
 }

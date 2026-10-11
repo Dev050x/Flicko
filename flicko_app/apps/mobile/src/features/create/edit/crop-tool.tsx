@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo } from "react";
+import { PixelRatio, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, {
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { MirrorIcon, RotateIcon } from "@/components/ui/icons";
 import { colors } from "@/theme";
@@ -45,8 +51,6 @@ const presetRect = (photo: Photo, crop: Pick<Crop, "aspect" | "turns">): Rect =>
   const height = r <= 1 ? 1 : 1 / r;
   return { x: (1 - width) / 2, y: (1 - height) / 2, width, height };
 };
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 export function CropTool() {
   const photo = useCreateStore((s) => s.photo)!;
@@ -102,130 +106,243 @@ export function CropTool() {
   );
 }
 
-type Target = "move" | "tl" | "tr" | "bl" | "br";
+/* What a drag holds: nothing, the whole box, or one corner. */
+const NONE = 0;
+const MOVE = 1;
+const TL = 2;
+const TR = 3;
+const BL = 4;
+const BR = 5;
+const TOP = 6;
+const BOTTOM = 7;
+const LEFT = 8;
+const RIGHT = 9;
+const EDGE_HIT = 22;
+const PIXEL = PixelRatio.get();
+
+const clampW = (v: number, lo: number, hi: number) => {
+  "worklet";
+  return Math.min(hi, Math.max(lo, v));
+};
+
+const targetAt = (r: Rect, x: number, y: number, width: number, height: number) => {
+  "worklet";
+  const left = r.x * width;
+  const top = r.y * height;
+  const right = left + r.width * width;
+  const bottom = top + r.height * height;
+  const near = (cx: number, cy: number) =>
+    Math.abs(x - cx) < HANDLE_HIT && Math.abs(y - cy) < HANDLE_HIT;
+  if (near(left, top)) return TL;
+  if (near(right, top)) return TR;
+  if (near(left, bottom)) return BL;
+  if (near(right, bottom)) return BR;
+  // Anywhere along a side (between the corners) moves that side.
+  const alongX = x > left && x < right;
+  const alongY = y > top && y < bottom;
+  if (alongX && Math.abs(y - top) < EDGE_HIT) return TOP;
+  if (alongX && Math.abs(y - bottom) < EDGE_HIT) return BOTTOM;
+  if (alongY && Math.abs(x - left) < EDGE_HIT) return LEFT;
+  if (alongY && Math.abs(x - right) < EDGE_HIT) return RIGHT;
+  if (alongX && alongY) return MOVE;
+  return NONE;
+};
+
+/* `rect` moved or resized by (dx, dy) in fractions; `ratio` 0 means free. */
+const resizeRect = (rect: Rect, target: number, dx: number, dy: number, ratio: number): Rect => {
+  "worklet";
+  if (target === MOVE) {
+    return {
+      x: clampW(rect.x + dx, 0, 1 - rect.width),
+      y: clampW(rect.y + dy, 0, 1 - rect.height),
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+  if (target === LEFT || target === RIGHT) {
+    // The opposite side stays put; with a fixed shape the height follows, centred.
+    const right = rect.x + rect.width;
+    let w =
+      target === LEFT
+        ? right - clampW(rect.x + dx, 0, right - MIN_SIZE)
+        : clampW(right + dx, rect.x + MIN_SIZE, 1) - rect.x;
+    let h = rect.height;
+    let y = rect.y;
+    if (ratio > 0) {
+      const cy = rect.y + rect.height / 2;
+      const maxH = 2 * Math.min(cy, 1 - cy);
+      h = w / ratio;
+      if (h > maxH) {
+        h = maxH;
+        w = h * ratio;
+      }
+      if (h < MIN_SIZE) {
+        h = MIN_SIZE;
+        w = h * ratio;
+      }
+      y = cy - h / 2;
+    }
+    return { x: target === LEFT ? right - w : rect.x, y, width: w, height: h };
+  }
+  if (target === TOP || target === BOTTOM) {
+    const bottom = rect.y + rect.height;
+    let h =
+      target === TOP
+        ? bottom - clampW(rect.y + dy, 0, bottom - MIN_SIZE)
+        : clampW(bottom + dy, rect.y + MIN_SIZE, 1) - rect.y;
+    let w = rect.width;
+    let x = rect.x;
+    if (ratio > 0) {
+      const cx = rect.x + rect.width / 2;
+      const maxW = 2 * Math.min(cx, 1 - cx);
+      w = h * ratio;
+      if (w > maxW) {
+        w = maxW;
+        h = w / ratio;
+      }
+      if (w < MIN_SIZE) {
+        w = MIN_SIZE;
+        h = w / ratio;
+      }
+      x = cx - w / 2;
+    }
+    return { x, y: target === TOP ? bottom - h : rect.y, width: w, height: h };
+  }
+  const left = target === TL || target === BL;
+  const top = target === TL || target === TR;
+  // The opposite corner stays put.
+  const fx = left ? rect.x + rect.width : rect.x;
+  const fy = top ? rect.y + rect.height : rect.y;
+  const mx = clampW((left ? rect.x : rect.x + rect.width) + dx, 0, 1);
+  const my = clampW((top ? rect.y : rect.y + rect.height) + dy, 0, 1);
+  const roomX = left ? fx : 1 - fx;
+  const roomY = top ? fy : 1 - fy;
+  let w = clampW(left ? fx - mx : mx - fx, MIN_SIZE, roomX);
+  let h = clampW(top ? fy - my : my - fy, MIN_SIZE, roomY);
+  if (ratio > 0) {
+    h = w / ratio;
+    if (h > roomY) {
+      h = roomY;
+      w = h * ratio;
+    }
+    if (h < MIN_SIZE) {
+      h = MIN_SIZE;
+      w = h * ratio;
+    }
+  }
+  return { x: left ? fx - w : fx, y: top ? fy - h : fy, width: w, height: h };
+};
 
 /*
- * The crop box over the whole photo, drawn at `width` x `height`.
+ * The crop box over the whole photo, drawn at `width` x `height`. The box follows the
+ * finger on the UI thread (the photo under it doesn't change while cropping), and the
+ * store gets the new crop when the finger lifts.
  */
 export function CropOverlay({ width, height }: { width: number; height: number }) {
-  const crop = useCreateStore((s) => s.edits.crop);
-  const [dragging, setDragging] = useState(false);
+  const photo = useCreateStore((s) => s.photo);
+  const aspect = useCreateStore((s) => s.edits.crop.aspect);
+  const turns = useCreateStore((s) => s.edits.crop.turns);
+  const stored = useCreateStore((s) => s.edits.crop.rect);
+  const ratio = photo ? (normalisedRatio(photo, { aspect, turns }) ?? 0) : 0;
 
-  const box = {
-    x: crop.rect.x * width,
-    y: crop.rect.y * height,
-    width: crop.rect.width * width,
-    height: crop.rect.height * height,
-  };
+  const rect = useSharedValue<Rect>(stored);
+  const from = useSharedValue<Rect>(stored);
+  const target = useSharedValue(NONE);
 
-  // Built once per size; reads the crop from the store when a drag starts.
-  const pan = useMemo(() => {
+  // Presets, rotate, flip and undo change the crop from outside.
+  useEffect(() => {
+    if (target.value === NONE) rect.value = stored;
+  }, [stored, rect, target]);
+
+  const save = useCallback((next: Rect) => {
     const { change, commit } = useCreateStore.getState();
-    let start: { target: Target; rect: Rect } | null = null;
+    change((ed) => ({ ...ed, crop: { ...ed.crop, rect: next } }));
+    commit();
+  }, []);
 
-    const targetAt = (rect: Rect, x: number, y: number): Target | null => {
-      const near = (cx: number, cy: number) =>
-        Math.abs(x - cx) < HANDLE_HIT && Math.abs(y - cy) < HANDLE_HIT;
-      const left = rect.x * width;
-      const top = rect.y * height;
-      const right = left + rect.width * width;
-      const bottom = top + rect.height * height;
-      if (near(left, top)) return "tl";
-      if (near(right, top)) return "tr";
-      if (near(left, bottom)) return "bl";
-      if (near(right, bottom)) return "br";
-      if (x > left && x < right && y > top && y < bottom) return "move";
-      return null;
-    };
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .minDistance(0)
+        .onBegin((e) => {
+          target.value = targetAt(rect.value, e.x, e.y, width, height);
+          from.value = rect.value;
+        })
+        .onUpdate((e) => {
+          if (target.value === NONE) return;
+          rect.value = resizeRect(
+            from.value,
+            target.value,
+            e.translationX / width,
+            e.translationY / height,
+            ratio,
+          );
+        })
+        .onFinalize(() => {
+          if (target.value === NONE) return;
+          target.value = NONE;
+          scheduleOnRN(save, rect.value);
+        }),
+    [width, height, ratio, rect, from, target, save],
+  );
 
-    const resize = (s: { target: Target; rect: Rect }, dx: number, dy: number): Rect => {
-      const { rect, target } = s;
-      if (target === "move") {
-        return {
-          ...rect,
-          x: clamp(rect.x + dx, 0, 1 - rect.width),
-          y: clamp(rect.y + dy, 0, 1 - rect.height),
-        };
-      }
-      const left = target === "tl" || target === "bl";
-      const top = target === "tl" || target === "tr";
-      // The opposite corner stays put.
-      const fx = left ? rect.x + rect.width : rect.x;
-      const fy = top ? rect.y + rect.height : rect.y;
-      const mx = clamp((left ? rect.x : rect.x + rect.width) + dx, 0, 1);
-      const my = clamp((top ? rect.y : rect.y + rect.height) + dy, 0, 1);
-      const roomX = left ? fx : 1 - fx;
-      const roomY = top ? fy : 1 - fy;
-      let w = clamp(left ? fx - mx : mx - fx, MIN_SIZE, roomX);
-      let h = clamp(top ? fy - my : my - fy, MIN_SIZE, roomY);
-      const { photo, edits } = useCreateStore.getState();
-      const ratio = photo ? normalisedRatio(photo, edits.crop) : null;
-      if (ratio !== null) {
-        h = w / ratio;
-        if (h > roomY) {
-          h = roomY;
-          w = h * ratio;
-        }
-        if (h < MIN_SIZE) {
-          h = MIN_SIZE;
-          w = h * ratio;
-        }
-      }
-      return {
-        x: left ? fx - w : fx,
-        y: top ? fy - h : fy,
-        width: w,
-        height: h,
-      };
-    };
+  // Every edge computed once and snapped to device pixels, so the dimmed areas meet
+  // without a seam.
+  const edges = useDerivedValue(() => {
+    const snap = (v: number) => Math.round(v * PIXEL) / PIXEL;
+    const r = rect.value;
+    const left = snap(r.x * width);
+    const top = snap(r.y * height);
+    return { left, top, right: snap((r.x + r.width) * width), bottom: snap((r.y + r.height) * height) };
+  });
+  const topDim = useAnimatedStyle(() => ({ height: edges.value.top }));
+  const bottomDim = useAnimatedStyle(() => ({
+    top: edges.value.bottom,
+    height: height - edges.value.bottom,
+  }));
+  const leftDim = useAnimatedStyle(() => ({
+    top: edges.value.top,
+    height: edges.value.bottom - edges.value.top,
+    width: edges.value.left,
+  }));
+  const rightDim = useAnimatedStyle(() => ({
+    top: edges.value.top,
+    height: edges.value.bottom - edges.value.top,
+    left: edges.value.right,
+    width: width - edges.value.right,
+  }));
+  const boxStyle = useAnimatedStyle(() => ({
+    left: edges.value.left,
+    top: edges.value.top,
+    width: edges.value.right - edges.value.left,
+    height: edges.value.bottom - edges.value.top,
+  }));
+  // Thirds while dragging.
+  const gridStyle = useAnimatedStyle(() => ({ opacity: target.value === NONE ? 0 : 1 }));
 
-    return Gesture.Pan()
-      .runOnJS(true)
-      .minDistance(0)
-      .onBegin((e) => {
-        const rect = useCreateStore.getState().edits.crop.rect;
-        const target = targetAt(rect, e.x, e.y);
-        start = target ? { target, rect } : null;
-        if (target) setDragging(true);
-      })
-      .onUpdate((e) => {
-        if (!start) return;
-        const rect = resize(start, e.translationX / width, e.translationY / height);
-        change((ed) => ({ ...ed, crop: { ...ed.crop, rect } }));
-      })
-      .onFinalize(() => {
-        if (start) commit();
-        start = null;
-        setDragging(false);
-      });
-  }, [width, height]);
-
-  const r = box.x + box.width;
-  const b = box.y + box.height;
   return (
     <GestureDetector gesture={pan}>
       <View style={[StyleSheet.absoluteFill, { width, height }]}>
-        <View style={[styles.dim, { left: 0, top: 0, width, height: box.y }]} />
-        <View style={[styles.dim, { left: 0, top: b, width, height: height - b }]} />
-        <View style={[styles.dim, { left: 0, top: box.y, width: box.x, height: box.height }]} />
-        <View style={[styles.dim, { left: r, top: box.y, width: width - r, height: box.height }]} />
-        <View
-          pointerEvents="none"
-          style={[styles.box, { left: box.x, top: box.y, width: box.width, height: box.height }]}
-        >
-          {dragging &&
-            [1, 2].map((i) => (
-              <View key={`v${i}`} style={[styles.gridV, { left: (box.width * i) / 3 }]} />
-            ))}
-          {dragging &&
-            [1, 2].map((i) => (
-              <View key={`h${i}`} style={[styles.gridH, { top: (box.height * i) / 3 }]} />
-            ))}
+        <Animated.View style={[styles.dim, { left: 0, top: 0, width }, topDim]} />
+        <Animated.View style={[styles.dim, { left: 0, width }, bottomDim]} />
+        <Animated.View style={[styles.dim, { left: 0 }, leftDim]} />
+        <Animated.View style={[styles.dim, rightDim]} />
+        <Animated.View pointerEvents="none" style={[styles.box, boxStyle]}>
+          <Animated.View style={[StyleSheet.absoluteFill, gridStyle]}>
+            <View style={[styles.gridV, { left: "33.333%" }]} />
+            <View style={[styles.gridV, { left: "66.666%" }]} />
+            <View style={[styles.gridH, { top: "33.333%" }]} />
+            <View style={[styles.gridH, { top: "66.666%" }]} />
+          </Animated.View>
           <View style={[styles.corner, { left: -3, top: -3, borderLeftWidth: 3, borderTopWidth: 3 }]} />
           <View style={[styles.corner, { right: -3, top: -3, borderRightWidth: 3, borderTopWidth: 3 }]} />
           <View style={[styles.corner, { left: -3, bottom: -3, borderLeftWidth: 3, borderBottomWidth: 3 }]} />
           <View style={[styles.corner, { right: -3, bottom: -3, borderRightWidth: 3, borderBottomWidth: 3 }]} />
-        </View>
+          <View style={[styles.edgeH, { top: -3 }]} />
+          <View style={[styles.edgeH, { bottom: -3 }]} />
+          <View style={[styles.edgeV, { left: -3 }]} />
+          <View style={[styles.edgeV, { right: -3 }]} />
+        </Animated.View>
       </View>
     </GestureDetector>
   );
@@ -249,4 +366,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.7)",
   },
   corner: { position: "absolute", width: 22, height: 22, borderColor: colors.text },
+  // Grab bars in the middle of each side.
+  edgeH: {
+    position: "absolute",
+    left: "50%",
+    marginLeft: -12,
+    width: 24,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.text,
+  },
+  edgeV: {
+    position: "absolute",
+    top: "50%",
+    marginTop: -12,
+    width: 4,
+    height: 24,
+    borderRadius: 2,
+    backgroundColor: colors.text,
+  },
 });

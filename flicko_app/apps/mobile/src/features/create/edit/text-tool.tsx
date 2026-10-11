@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/theme";
 
-import { type TextLayer, type TextStyle, useCreateStore } from "../store";
+import { type CreateState, type TextLayer, type TextStyle, useCreateStore } from "../store";
 import { Chip, panel, Swatches } from "./controls";
 
 /*
@@ -73,12 +73,16 @@ export function TextTool({
   onAdd: () => void;
 }) {
   const commit = useCreateStore((s) => s.commit);
-  const selected = useCreateStore((s) => {
+  // Only the selected text's style and colour: dragging it must not re-render this panel.
+  const selectedText = (s: CreateState) => {
     const layer = s.edits.layers.find((l) => l.id === selectedId);
     return layer?.kind === "text" ? layer : null;
-  });
-  const style = selected?.style ?? defaults.style;
-  const color = selected?.color ?? defaults.color;
+  };
+  const selectedStyle = useCreateStore((s) => selectedText(s)?.style ?? null);
+  const selectedColor = useCreateStore((s) => selectedText(s)?.color ?? null);
+  const selected = selectedStyle !== null && selectedId ? { id: selectedId } : null;
+  const style = selectedStyle ?? defaults.style;
+  const color = selectedColor ?? defaults.color;
 
   const apply = (patch: Partial<TextDefaults>) => {
     onDefaults({ style, color, ...patch });
