@@ -16,6 +16,7 @@ import { config } from "@/config";
 import { programId } from "@/features/create/chain";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
 import { api } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
@@ -110,7 +111,7 @@ export const useClaim = () => {
     } catch (err) {
       if (err instanceof ClaimProblem) throw err;
       console.warn("[claim] failed", err);
-      throw new ClaimProblem("Something went wrong. Try again.");
+      throw new ClaimProblem(friendlyError(err, "Something went wrong. Try again."));
     } finally {
       setClaiming(false);
       // The indexer needs a moment to see the claim, so refetch now and again shortly.

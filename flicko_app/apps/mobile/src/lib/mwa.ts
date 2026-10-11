@@ -5,6 +5,7 @@ import { Buffer } from "buffer";
 import { TurboModuleRegistry } from "react-native";
 
 import { chain, config } from "@/config";
+import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
 import type { SignInInput } from "./auth";
 
@@ -150,6 +151,8 @@ const NOT_SUBMITTED = [-4, "ERROR_NOT_SUBMITTED"];
 /* The user said no in the wallet, or left it. */
 const DECLINED = [-3, "ERROR_NOT_SIGNED", "ERROR_ASSOCIATION_CANCELLED", "ERROR_SESSION_CLOSED"];
 const AUTHORIZATION_FAILED = [-1, "ERROR_AUTHORIZATION_FAILED"];
+/* The wallet can't use the requested network (MWA 2.0 spec). */
+const CHAIN_NOT_SUPPORTED = [-7, "ERROR_CHAIN_NOT_SUPPORTED"];
 
 /*
  * The wallet couldn't do it for a reason the user should see (not a plain "no"): a
@@ -197,8 +200,13 @@ export const signAndSend = async (
   try {
     return await transact(async (wallet: Web3MobileWallet) => {
       const refreshed = await authorizeSession(wallet, authToken);
+      const transaction = await build();
+      // Optional in the spec, but Phantom rejects the request without it and never
+      // answers, leaving the user stuck in the wallet.
+      const minContextSlot = await connection.getSlot("confirmed");
       const [signature] = await wallet.signAndSendTransactions({
-        transactions: [await build()],
+        minContextSlot,
+        transactions: [transaction],
       });
       if (!signature) throw new ConnectError("declined");
       return { signature, authToken: refreshed };
@@ -206,11 +214,16 @@ export const signAndSend = async (
   } catch (err) {
     if (err instanceof ConnectError || err instanceof WalletProblem) throw err;
     const code = errorCode(err);
-    if (code === "ERROR_WALLET_NOT_FOUND") throw new ConnectError("noWallet", err);
+    if (code === "ERROR_WALLET_NOT_FOUND") {
+      throw new WalletProblem(
+        "No wallet app found. Install Phantom or Solflare, set it to devnet, and try again.",
+        err,
+      );
+    }
     if (NOT_SUBMITTED.includes(code as never)) throw new NotSubmittedError(err);
     if (DECLINED.includes(code as never)) throw new ConnectError("declined", err);
     console.warn("[mwa] wallet error", code, (err as Error)?.message);
-    if (AUTHORIZATION_FAILED.includes(code as never)) {
+    if (AUTHORIZATION_FAILED.includes(code as never) || CHAIN_NOT_SUPPORTED.includes(code as never)) {
       throw new WalletProblem(
         "Your wallet didn't approve Flicko. If it never asked you, set it to devnet (Phantom: Settings → Developer Settings → Testnet Mode) and try again.",
         err,

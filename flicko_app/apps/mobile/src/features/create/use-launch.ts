@@ -21,6 +21,7 @@ import { config } from "@/config";
 import type { Filter } from "@/features/filters/catalog";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
 import { api, ApiError, apiForm } from "@/lib/api";
+import { friendlyError } from "@/lib/errors";
 import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
@@ -311,7 +312,9 @@ export const useLaunch = (onCancelled: () => void) => {
           if (!(err instanceof LaunchFailed || err instanceof NotSubmittedError)) {
             console.warn("[launch] failed", err, (err as Error)?.stack);
           }
-          setProblem({ kind: "failed" });
+          // A known cause gets its own sentence; otherwise "Launch failed" with Retry.
+          const text = friendlyError(err, "");
+          setProblem(text ? { kind: "text", text } : { kind: "failed" });
         }
       } finally {
         setStep("idle");

@@ -28,6 +28,7 @@ import { useCallback, useState } from "react";
 
 import { config } from "@/config";
 import { skrBalanceKey } from "@/features/wallet/skr-balance";
+import { friendlyError } from "@/lib/errors";
 import { ConnectError, NotSubmittedError, signAndSend, WalletProblem } from "@/lib/mwa";
 import { connection } from "@/lib/solana";
 import { useSession } from "@/store/session";
@@ -246,7 +247,7 @@ export const useTrade = (fees: FeeConfig | undefined) => {
           throw new TradeProblem("Your wallet didn't send it. Check your SOL and SKR and try again.");
         }
         console.warn("[trade] failed", err, (err as Error)?.stack);
-        throw new TradeProblem("Something went wrong. Try again.");
+        throw new TradeProblem(friendlyError(err, "Something went wrong. Try again."));
       } finally {
         setStep("idle");
       }
