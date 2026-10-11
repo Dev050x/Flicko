@@ -16,7 +16,18 @@
         "monochromeImage": "./assets/app/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "app.flicko.mobile"
+      "package": "app.flicko.mobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "getflicko.tech", "pathPrefix": "/m/" },
+            { "scheme": "https", "host": "getflicko.tech", "pathPrefix": "/u/" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static"

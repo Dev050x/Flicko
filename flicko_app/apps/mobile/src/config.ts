@@ -26,7 +26,7 @@ export const config = {
   /** address lookup table for create_meme (bun run devnet:lut) */
   lookupTable: env(process.env.EXPO_PUBLIC_LOOKUP_TABLE, devnet.lookupTable),
   /** links to a meme for sharing: <siteUrl>/m/<mint> */
-  siteUrl: env(process.env.EXPO_PUBLIC_SITE_URL, "https://flicko.app"),
+  siteUrl: env(process.env.EXPO_PUBLIC_SITE_URL, "https://getflicko.tech"),
   /*
    * Seeker Genesis Token: its mint carries TokenGroupMember and MetadataPointer
    * extensions pointing here (docs.solanamobile.com, "Engaging Seeker users"). SGTs only
@@ -38,7 +38,7 @@ export const config = {
   ),
   identity: {
     name: "Flicko",
-    uri: env(process.env.EXPO_PUBLIC_IDENTITY_URI, "https://flicko.app"),
+    uri: env(process.env.EXPO_PUBLIC_IDENTITY_URI, "https://getflicko.tech"),
     icon: "favicon.png",
   },
   wallets: [
