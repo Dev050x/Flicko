@@ -111,7 +111,14 @@ export const FeedPage = memo(function FeedPage({
               </Pressable>
             </View>
             <View style={styles.tickerRow}>
-              <Text style={styles.ticker} numberOfLines={1}>
+              <Text
+                style={styles.ticker}
+                numberOfLines={1}
+                accessibilityRole="link"
+                accessibilityLabel={`Open the $${meme.ticker} market`}
+                onPress={() => router.push({ pathname: "/meme/[mint]", params: { mint: meme.id } })}
+                suppressHighlighting
+              >
                 ${meme.ticker}
               </Text>
               <Text style={styles.sub} numberOfLines={1}>
