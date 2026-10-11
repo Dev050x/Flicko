@@ -86,7 +86,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "build:preview": "bunx eas-cli build -p android --profile preview",
-    "update:preview": "EXPO_PUBLIC_API_URL=https://api.getflicko.tech EXPO_PUBLIC_CLUSTER=devnet EXPO_PUBLIC_RPC_URL=https://api.devnet.solana.com bunx eas-cli update --channel preview --platform android",
+    "update:preview": "EXPO_PUBLIC_API_URL=https://api.getflicko.tech EXPO_PUBLIC_CLUSTER=devnet EXPO_PUBLIC_RPC_URL=https://api.devnet.solana.com bunx eas-cli update --channel preview --platform android --environment preview",
     "check-types": "tsc --noEmit"
   },
   "private": true
