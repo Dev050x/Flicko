@@ -2,7 +2,7 @@
   <img src="assets/flicko-pfp-400.jpg" alt="Flicko logo" width="120" />
 </p>
 
-<h1 align="center">Flicko 📸</h1>
+<h1 align="center">Flicko</h1>
 
 <p align="center">
     <strong>Snap it. Caption it. Trade it.</strong>
@@ -14,6 +14,7 @@
     <a href="https://getflicko.tech"><strong>Website</strong></a>
     <br /> <br />
     <a href="#introduction"><strong>Introduction</strong></a> ·
+    <a href="#architecture"><strong>Architecture</strong></a> ·
     <a href="#user-interface"><strong>User Interface</strong></a> ·
     <a href="#features"><strong>Features</strong></a> ·
     <a href="#skr-integration"><strong>SKR Integration</strong></a> ·
@@ -38,30 +39,34 @@
 
 Flicko is a native Android app built for the Solana Seeker. You take a photo inside the app, dress it up with face-tracked crypto filters, pick one of three AI-written captions, and launch it as a real SPL token in one tap. Every meme is priced and traded in SKR, starts on a bonding curve, and graduates automatically into a locked liquidity pool, so it stays tradable forever. Creators earn 2% of every trade on their memes.
 
+## Architecture
+
+![Flicko architecture: app, backend, wallet and on-chain program](assets/flicko-architecture.png)
+
 ## User Interface
 
 ![Flicko screens: onboard, snap, caption & launch, trade & earn](assets/flicko-screens.png)
 
 ## Features
 
-- 📸 **Camera-first** - Memes start in the camera, not the gallery. Live face-tracked filters (Rug Pull, Degen Mode, AI Agent, Neon Goggles, Laser Eyes and more), including 3D ones.
-- 🤖 **AI captions** - A vision model suggests three meme captions for every photo; write your own if none fit.
-- 🎨 **Photo editor** - Crop, adjust, text, stickers, drawing and filters, rendered with Skia so the preview matches the minted image exactly.
-- 🚀 **One-tap launch** - Choose supply and starting price, approve once in your wallet, and the meme is a live coin.
-- 📈 **Live markets** - Trending, new and top-gainer lists, price charts, holders and trades for every meme.
-- 🎞️ **Swipe feed** - Full-screen feed of memes you can like and buy from directly.
-- 💰 **Creator earnings** - Creators earn 2% of every trade, forever, and claim it from their profile.
-- 🔐 **Sign In With Solana** - Connect and sign in with one wallet approval over Mobile Wallet Adapter.
-- 🔔 **Push alerts** - New buyers on your meme, graduations, and holdings up +50% / 2x / 5x / 10x.
-- 🔗 **Share links** - `getflicko.tech/m/<mint>` links open straight into the app.
+- **Camera-first** - Memes start in the camera, not the gallery. Live face-tracked filters (Rug Pull, Degen Mode, AI Agent, Neon Goggles, Laser Eyes and more), including 3D ones.
+- **AI captions** - A vision model suggests three meme captions for every photo; write your own if none fit.
+- **Photo editor** - Crop, adjust, text, stickers, drawing and filters, rendered with Skia so the preview matches the minted image exactly.
+- **One-tap launch** - Choose supply and starting price, approve once in your wallet, and the meme is a live coin.
+- **Live markets** - Trending, new and top-gainer lists, price charts, holders and trades for every meme.
+- **Swipe feed** - Full-screen feed of memes you can like and buy from directly.
+- **Creator earnings** - Creators earn 2% of every trade, forever, and claim it from their profile.
+- **Sign In With Solana** - Connect and sign in with one wallet approval over Mobile Wallet Adapter.
+- **Push alerts** - New buyers on your meme, graduations, and holdings up +50% / 2x / 5x / 10x.
+- **Share links** - `getflicko.tech/m/<mint>` links open straight into the app.
 
 ## SKR Integration
 
-- 🪙 **Priced in SKR** - Every meme is bought and sold with SKR on its bonding curve and pool.
-- 🔥 **Burns** - 0.5% of every trade is burned. Premium filters are unlocked by burning SKR, and the program supports a creation fee that is burned (set to 0 on devnet).
-- 💸 **Creator fees in SKR** - The 2% creator fee accrues in SKR and is claimed on-chain.
-- 🎁 **Welcome airdrop** - New wallets receive 10,000 test SKR on their first sign-in.
-- 🧪 **Devnet SKR** - SKR only exists on mainnet, so devnet uses a test SKR mint: `2s9jDvT4hdK1ajJZ4xhAhk6aRxbTdgPdmr55mcgcSFUB`
+- **Priced in SKR** - Every meme is bought and sold with SKR on its bonding curve and pool.
+- **Burns** - 0.5% of every trade is burned. Premium filters are unlocked by burning SKR, and the program supports a creation fee that is burned (set to 0 on devnet).
+- **Creator fees in SKR** - The 2% creator fee accrues in SKR and is claimed on-chain.
+- **Welcome airdrop** - New wallets receive 10,000 test SKR on their first sign-in.
+- **Devnet SKR** - SKR only exists on mainnet, so devnet uses a test SKR mint: `2s9jDvT4hdK1ajJZ4xhAhk6aRxbTdgPdmr55mcgcSFUB`
 
 ## On-chain Program
 
