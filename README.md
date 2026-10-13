@@ -14,6 +14,7 @@
     <a href="https://getflicko.tech"><strong>Website</strong></a>
     <br /> <br />
     <a href="#introduction"><strong>Introduction</strong></a> ·
+    <a href="#user-interface"><strong>User Interface</strong></a> ·
     <a href="#features"><strong>Features</strong></a> ·
     <a href="#skr-integration"><strong>SKR Integration</strong></a> ·
     <a href="#on-chain-program"><strong>On-chain Program</strong></a> ·
@@ -36,6 +37,10 @@
 ## Introduction
 
 Flicko is a native Android app built for the Solana Seeker. You take a photo inside the app, dress it up with face-tracked crypto filters, pick one of three AI-written captions, and launch it as a real SPL token in one tap. Every meme is priced and traded in SKR, starts on a bonding curve, and graduates automatically into a locked liquidity pool, so it stays tradable forever. Creators earn 2% of every trade on their memes.
+
+## User Interface
+
+![Flicko screens: onboard, snap, caption & launch, trade & earn](assets/flicko-screens.png)
 
 ## Features
 
